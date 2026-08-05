@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+*.log
+.env
+.env.local
+
+# large binary test corpus — keep out of the package tarball
+.dual-graph/
+dataset/

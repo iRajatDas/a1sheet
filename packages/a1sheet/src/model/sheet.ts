@@ -1,0 +1,210 @@
+/**
+ * Sheet construction and structural edits.
+ *
+ * Ported from ref/Spreadsheet.jsx:30-62. Every function here is pure: it takes a
+ * sheet and returns a new one. Nothing mutates in place — `useWorkbook` is the
+ * only place clone-on-write is coordinated with history.
+ */
+import { cellKey } from "./address.js";
+import type { CellKey, RawCell, Sheet, StyleObject } from "./types.js";
+
+export const DEFAULT_NUM_ROWS = 200;
+export const DEFAULT_NUM_COLS = 26;
+
+export function uid(): string {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+export function makeSheet(name: string): Sheet {
+  return {
+    id: uid(),
+    name,
+    cells: {},
+    styles: {},
+    colWidths: {},
+    merges: [],
+    frozenRows: 0,
+    frozenCols: 0,
+    hiddenRows: new Set(),
+    colLabels: {},
+    rowLabels: {},
+    filters: {},
+    numRows: DEFAULT_NUM_ROWS,
+    numCols: DEFAULT_NUM_COLS,
+  };
+}
+
+/**
+ * Shallow-clones every mutable container on the sheet. `merges` entries are
+ * cloned too since they are edited in place by resize operations.
+ */
+export function cloneSheet(sheet: Sheet): Sheet {
+  return {
+    ...sheet,
+    cells: { ...sheet.cells },
+    styles: { ...sheet.styles },
+    colWidths: { ...sheet.colWidths },
+    merges: sheet.merges.map((m) => ({ ...m })),
+    hiddenRows: new Set(sheet.hiddenRows),
+    colLabels: { ...sheet.colLabels },
+    rowLabels: { ...sheet.rowLabels },
+    filters: { ...sheet.filters },
+  };
+}
+
+/**
+ * Rewrites `"r_c"` keys along one axis. Keys before `at` are untouched; on a
+ * delete (`delta < 0`) keys exactly at `at` are dropped.
+ *
+ * TODO(port): this is the exact shape from the POC. Verify against
+ * ref/Spreadsheet.jsx:48-58 — the original had the row/col branch inlined in a
+ * template literal and it is easy to transpose.
+ */
+function shiftKeys<T>(
+  obj: Record<CellKey, T>,
+  axis: "row" | "col",
+  at: number,
+  delta: number,
+): Record<CellKey, T> {
+  const next: Record<CellKey, T> = {};
+  for (const key of Object.keys(obj) as CellKey[]) {
+    const i = key.indexOf("_");
+    const r = Number(key.slice(0, i));
+    const c = Number(key.slice(i + 1));
+    const v = axis === "row" ? r : c;
+    const value = obj[key] as T;
+    if (v < at) {
+      next[key] = value;
+    } else if (delta < 0 && v === at) {
+    } else if (axis === "row") {
+      next[`${v + delta}_${c}`] = value;
+    } else {
+      next[`${r}_${v + delta}`] = value;
+    }
+  }
+  return next;
+}
+
+export function insertRow(sheet: Sheet, at: number): Sheet {
+  return {
+    ...sheet,
+    cells: shiftKeys(sheet.cells, "row", at, 1),
+    styles: shiftKeys(sheet.styles, "row", at, 1),
+    numRows: sheet.numRows + 1,
+  };
+}
+
+export function deleteRow(sheet: Sheet, at: number): Sheet {
+  return {
+    ...sheet,
+    cells: shiftKeys(sheet.cells, "row", at, -1),
+    styles: shiftKeys(sheet.styles, "row", at, -1),
+    numRows: Math.max(1, sheet.numRows - 1),
+  };
+}
+
+export function insertCol(sheet: Sheet, at: number): Sheet {
+  return {
+    ...sheet,
+    cells: shiftKeys(sheet.cells, "col", at, 1),
+    styles: shiftKeys(sheet.styles, "col", at, 1),
+    numCols: sheet.numCols + 1,
+  };
+}
+
+export function deleteCol(sheet: Sheet, at: number): Sheet {
+  return {
+    ...sheet,
+    cells: shiftKeys(sheet.cells, "col", at, -1),
+    styles: shiftKeys(sheet.styles, "col", at, -1),
+    numCols: Math.max(1, sheet.numCols - 1),
+  };
+}
+
+/**
+ * Physically rewrites `cells` and `styles` keys to reorder rows by one column.
+ *
+ * This is a DATA operation, not a view-layer sort — unlike `filters`, clearing it
+ * does not restore the original order. Undo goes through history.
+ *
+ * Sorts the used range only (rows 0..maxUsedRow), leaving trailing empty rows
+ * alone. Numeric values sort numerically and before text; blanks sort last in
+ * both directions, which is what spreadsheet users expect.
+ */
+export function sortByColumn(
+  sheet: Sheet,
+  col: number,
+  dir: "asc" | "desc",
+): Sheet {
+  let maxRow = -1;
+  for (const key of Object.keys(sheet.cells) as CellKey[]) {
+    if (sheet.cells[key] === "") continue;
+    const r = Number(key.slice(0, key.indexOf("_")));
+    if (r > maxRow) maxRow = r;
+  }
+  if (maxRow < 1) return sheet;
+
+  const order = Array.from({ length: maxRow + 1 }, (_, r) => r);
+  const valueAt = (r: number) => sheet.cells[cellKey(r, col)] ?? "";
+
+  const sign = dir === "asc" ? 1 : -1;
+  order.sort((ra, rb) => {
+    const a = valueAt(ra);
+    const b = valueAt(rb);
+    // Blanks always sink, regardless of direction.
+    if (a === "" && b === "") return ra - rb;
+    if (a === "") return 1;
+    if (b === "") return -1;
+    const an = parseFloat(a);
+    const bn = parseFloat(b);
+    const aNum = !Number.isNaN(an);
+    const bNum = !Number.isNaN(bn);
+    if (aNum && bNum) return sign * (an - bn);
+    if (aNum !== bNum) return sign * (aNum ? -1 : 1);
+    return sign * a.localeCompare(b);
+  });
+
+  // order[newRow] = oldRow. Rebuild both maps from it in one pass.
+  const cells: Record<CellKey, RawCell> = {};
+  const styles: Record<CellKey, StyleObject> = {};
+  for (const [newRow, oldRow] of order.entries()) {
+    for (let c = 0; c < sheet.numCols; c++) {
+      const from = cellKey(oldRow, c);
+      const to = cellKey(newRow, c);
+      const cell = sheet.cells[from];
+      if (cell !== undefined) cells[to] = cell;
+      const style = sheet.styles[from];
+      if (style !== undefined) styles[to] = style;
+    }
+  }
+  // Preserve anything below the sorted range untouched.
+  for (const key of Object.keys(sheet.cells) as CellKey[]) {
+    if (Number(key.slice(0, key.indexOf("_"))) > maxRow) {
+      cells[key] = sheet.cells[key] as RawCell;
+    }
+  }
+  for (const key of Object.keys(sheet.styles) as CellKey[]) {
+    if (Number(key.slice(0, key.indexOf("_"))) > maxRow) {
+      styles[key] = sheet.styles[key] as StyleObject;
+    }
+  }
+
+  return { ...sheet, cells, styles };
+}
+
+/** Reads a cell's style, or undefined when the cell has no explicit formatting. */
+export function getStyle(sheet: Sheet, key: CellKey): StyleObject | undefined {
+  return sheet.styles[key];
+}
+
+/**
+ * Finds the merge covering a cell, if any.
+ *
+ * Linear scan per call. Fine while sheets have few merges, which is the norm; a
+ * sheet with hundreds would want an index. Called once per rendered cell.
+ */
+export function getMergeAt(sheet: Sheet, row: number, col: number) {
+  return sheet.merges.find(
+    (m) => row >= m.r1 && row <= m.r2 && col >= m.c1 && col <= m.c2,
+  );
+}

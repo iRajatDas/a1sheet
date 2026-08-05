@@ -1,0 +1,43 @@
+/**
+ * Theme tokens.
+ *
+ * The component ships its CSS as a string injected into one `<style>` tag rather
+ * than a `.css` file — that is what keeps the drop-in requirement true (no CSS
+ * loader needed in the consuming app). This object is the restyling surface.
+ */
+export interface Theme {
+  accent: string;
+  border: string;
+  headerBorder: string;
+  buttonBorder: string;
+  headerBg: string;
+  headerText: string;
+  cellBg: string;
+  cellText: string;
+  selectedBg: string;
+  toolbarBg: string;
+  fontFamily: string;
+  monoFontFamily: string;
+  fontSize: string;
+}
+
+export const defaultTheme: Theme = {
+  accent: "#0d9488",
+  border: "#e2e8f0",
+  headerBorder: "#cbd5e1",
+  buttonBorder: "#d1d5db",
+  headerBg: "#f8fafc",
+  headerText: "#475569",
+  cellBg: "#ffffff",
+  cellText: "#1e293b",
+  selectedBg: "rgba(13, 148, 136, 0.10)",
+  toolbarBg: "#ffffff",
+  fontFamily:
+    'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  monoFontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontSize: "13px",
+};
+
+export function resolveTheme(partial?: Partial<Theme>): Theme {
+  return partial ? { ...defaultTheme, ...partial } : defaultTheme;
+}

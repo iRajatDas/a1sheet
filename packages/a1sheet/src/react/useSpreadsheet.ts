@@ -1,0 +1,158 @@
+/**
+ * The headless API: composes every other hook into one object.
+ *
+ * `<Spreadsheet />` is a thin consumer of this. Anyone who wants their own UI uses
+ * this hook directly and renders whatever they like.
+ *
+ * A NEW evaluator is created whenever `cells` or `namedRanges` change. That is
+ * intentional and cheap because evaluation is lazy and memoized per evaluator —
+ * do not try to persist one across edits.
+ */
+import { useCallback, useMemo, useState } from "react";
+import { formatValue } from "../format/numFmt.js";
+import { createEvaluator, type Evaluator } from "../formula/evaluate.js";
+import type { FormulaValue } from "../formula/values.js";
+import { cellKey, normalizeRange } from "../model/address.js";
+import type { Range, Workbook } from "../model/types.js";
+import { type UseClipboardResult, useClipboard } from "./useClipboard.js";
+import { type UseEditingResult, useEditing } from "./useEditing.js";
+import { type UseFillHandleResult, useFillHandle } from "./useFillHandle.js";
+import { type UseRowWindowResult, useRowWindow } from "./useRowWindow.js";
+import { type UseSelectionResult, useSelection } from "./useSelection.js";
+import { type UseSheetOpsResult, useSheetOps } from "./useSheetOps.js";
+import { type UseWorkbookResult, useWorkbook } from "./useWorkbook.js";
+
+export interface UseSpreadsheetOptions {
+  initialWorkbook?: Workbook;
+  onChange?: (wb: Workbook) => void;
+  initialSelection?: Range;
+}
+
+export interface UseSpreadsheetResult
+  extends UseWorkbookResult,
+    UseSelectionResult,
+    UseEditingResult,
+    UseSheetOpsResult {
+  evaluator: Evaluator;
+  /** Evaluated value with the cell's number format applied. What the grid shows. */
+  getDisplay(row: number, col: number): string;
+  /** Evaluated value before formatting. Use for stats and comparisons. */
+  getValue(row: number, col: number): FormulaValue;
+  /** Raw cell content as typed, formula source included. */
+  getRaw(row: number, col: number): string;
+  rowWindow: UseRowWindowResult;
+  clipboard: UseClipboardResult;
+  fill: UseFillHandleResult;
+  /** Wire to the scroll container's onScroll and its measured height. */
+  setScrollTop(px: number): void;
+  setViewportHeight(px: number): void;
+  /** Writes a raw value into a cell, respecting `locked`. */
+  setCell(row: number, col: number, raw: string): void;
+  /** Commits the open edit, optionally moving the selection afterwards. */
+  commitEdit(move?: [number, number]): void;
+  /** True when the cell falls in the primary selection or any extra range. */
+  isSelected(row: number, col: number): boolean;
+  /** Transient user-facing message, e.g. "That cell is locked." */
+  status: string;
+  setStatus(message: string): void;
+}
+
+export function useSpreadsheet(
+  opts: UseSpreadsheetOptions = {},
+): UseSpreadsheetResult {
+  const wb = useWorkbook({
+    ...(opts.initialWorkbook ? { initialWorkbook: opts.initialWorkbook } : {}),
+    ...(opts.onChange ? { onChange: opts.onChange } : {}),
+  });
+  const selection = useSelection(opts.initialSelection);
+  const editing = useEditing();
+  const clipboard = useClipboard();
+  const fill = useFillHandle();
+  const ops = useSheetOps(wb.sheet, selection.selection, wb.updateSheet);
+
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(500);
+  const [status, setStatus] = useState("");
+
+  const evaluator = useMemo(
+    () => createEvaluator(wb.sheet.cells, wb.workbook.namedRanges),
+    [wb.sheet.cells, wb.workbook.namedRanges],
+  );
+
+  const getValue = useCallback(
+    (row: number, col: number) => evaluator.getCellDisplay(row, col),
+    [evaluator],
+  );
+
+  const getDisplay = useCallback(
+    (row: number, col: number) => {
+      const value = evaluator.getCellDisplay(row, col);
+      if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+      return formatValue(value, wb.sheet.styles[cellKey(row, col)]);
+    },
+    [evaluator, wb.sheet.styles],
+  );
+
+  const getRaw = useCallback(
+    (row: number, col: number) => wb.sheet.cells[cellKey(row, col)] ?? "",
+    [wb.sheet.cells],
+  );
+
+  const rowWindow = useRowWindow(wb.sheet, scrollTop, viewportHeight, getDisplay);
+
+  const setCell = useCallback(
+    (row: number, col: number, raw: string) => {
+      wb.updateSheet((sheet) => {
+        const key = cellKey(row, col);
+        if (sheet.styles[key]?.locked) return sheet;
+        if (raw === "") delete sheet.cells[key];
+        else sheet.cells[key] = raw;
+        return sheet;
+      });
+    },
+    [wb],
+  );
+
+  const commitEdit = useCallback(
+    (move?: [number, number]) => {
+      const done = editing.commit();
+      if (done) setCell(done.row, done.col, done.value);
+      if (move) {
+        selection.move(move[0], move[1], wb.sheet.numRows, wb.sheet.numCols);
+      }
+    },
+    [editing, setCell, selection, wb.sheet.numRows, wb.sheet.numCols],
+  );
+
+  const isSelected = useCallback(
+    (row: number, col: number) => {
+      const inRect = (r: Range) => {
+        const n = normalizeRange(r);
+        return row >= n.r1 && row <= n.r2 && col >= n.c1 && col <= n.c2;
+      };
+      return inRect(selection.selection) || selection.extraRanges.some(inRect);
+    },
+    [selection.selection, selection.extraRanges],
+  );
+
+  return {
+    ...wb,
+    ...selection,
+    ...editing,
+    ...ops,
+    evaluator,
+    getDisplay,
+    getValue,
+    getRaw,
+    rowWindow,
+    clipboard,
+    fill,
+    setScrollTop,
+    setViewportHeight,
+    setCell,
+    commitEdit,
+    isSelected,
+    status,
+    setStatus,
+  };
+}

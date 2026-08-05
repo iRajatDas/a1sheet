@@ -1,0 +1,9 @@
+[install]
+exact = false
+peer = true
+
+[test]
+# Component tests need a DOM. Registered as a preload so `bun test` works
+# from the repo root with no extra flags.
+preload = ["./packages/a1sheet/test/setup.ts"]
+coverage = false

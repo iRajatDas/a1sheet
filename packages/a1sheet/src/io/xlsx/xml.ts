@@ -69,38 +69,49 @@ function parseAttrs(source: string): Record<string, string> {
 }
 
 /**
- * Finds every `<tag …>…</tag>` and `<tag …/>` at any depth.
+ * Yields every `<tag …>…</tag>` and `<tag …/>` at any depth, lazily.
  *
- * Nesting caveat: for a tag that can contain itself this returns the OUTERMOST
+ * Lazy because a worksheet in a large workbook holds millions of `<c>` elements:
+ * collecting them into an array costs the memory of the whole sheet before the
+ * first cell can be looked at, and gives the reader no place to yield to the event
+ * loop. Consuming this one element at a time lets `readXlsx` checkpoint mid-sheet.
+ *
+ * Nesting caveat: for a tag that can contain itself this yields the OUTERMOST
  * match's inner content spanning to the first matching close tag, which is wrong
  * for recursive structures. No SpreadsheetML element we read is self-nesting.
  */
-export function findElements(xml: string, tag: string): XmlElement[] {
-  const out: XmlElement[] = [];
+export function* iterElements(xml: string, tag: string): Generator<XmlElement> {
   const open = new RegExp(`<${tag}(\\s[^>]*?)?(/?)>`, "g");
   let m = open.exec(xml);
 
   while (m) {
     const attrs = parseAttrs(m[1] ?? "");
     if (m[2] === "/") {
-      out.push({ attrs, inner: "" });
+      yield { attrs, inner: "" };
       m = open.exec(xml);
       continue;
     }
     const contentStart = m.index + m[0].length;
     const closeIdx = xml.indexOf(`</${tag}>`, contentStart);
     const inner = closeIdx === -1 ? "" : xml.slice(contentStart, closeIdx);
-    out.push({ attrs, inner });
+    yield { attrs, inner };
     open.lastIndex = closeIdx === -1 ? contentStart : closeIdx + tag.length + 3;
     m = open.exec(xml);
   }
-
-  return out;
 }
 
-/** The first matching element, or null. */
+/** Every match, collected. Use `iterElements` when the count may be unbounded. */
+export function findElements(xml: string, tag: string): XmlElement[] {
+  return [...iterElements(xml, tag)];
+}
+
+/**
+ * The first matching element, or null. Stops at the first match — this runs three
+ * times per cell, so scanning the whole fragment would be waste at scale.
+ */
 export function findElement(xml: string, tag: string): XmlElement | null {
-  return findElements(xml, tag)[0] ?? null;
+  for (const el of iterElements(xml, tag)) return el;
+  return null;
 }
 
 /** True when a (possibly self-closing) tag appears anywhere in the fragment. */

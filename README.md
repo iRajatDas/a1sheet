@@ -97,6 +97,69 @@ ref.current?.api.setCell(0, 0, "hi");
 Styling is inline with a `theme` prop and a `classNamePrefix` — no stylesheet to
 import, so dropping this into an existing app needs no build-config change.
 
+### Reading large files
+
+`readWorkbookFile` (and `readXlsx`, and `csvToCells`) take an optional second
+argument. A read yields to the browser between chunks, so a big file no longer
+freezes the tab:
+
+```ts
+const controller = new AbortController();
+
+const { sheets } = await readWorkbookFile(file, {
+  signal: controller.signal,
+  onProgress: ({ ratio, phase, detail }) => setBar(ratio, `${phase}: ${detail}`),
+});
+```
+
+`onProgress` fires at most once per frame and once per 1% — a rate a React
+consumer can call `setState` from directly. `ratio` never decreases and the last
+report of a successful read is always `1`.
+
+`controller.abort()` rejects the read with `AbortedError` (`code: "ABORTED"`) at
+its next checkpoint. Nothing is half-applied: the workbook is built only after the
+whole file has parsed, so a cancelled import leaves your existing sheet untouched.
+
+Small inputs never yield — the reader only hands the thread back once it has
+actually held it for a frame — so pasted text and small files cost what they
+always did.
+
+Large ones trade throughput for responsiveness, and the trade is not free. On a
+37 MB, 600k-cell workbook, measured under Bun:
+
+| | wall clock | longest uninterrupted block |
+|---|---|---|
+| before (blocking) | ~1.1 s | the entire read |
+| now (paced) | ~1.7 s | ~60 ms |
+
+The extra time is not the yielding itself — that is 4 ms across ~135 yields — it
+is the runtime finally getting to collect garbage, which a read that never
+releases the thread simply defers. A 1.7 s import you can watch and cancel beats
+a 1.1 s frozen tab, so pacing is not opt-in: it applies whether or not you pass
+`signal` or `onProgress`.
+
+### Errors
+
+Every throw is a typed class with a stable `code`. Branch on the code, never on
+message text:
+
+```ts
+import { isA1SheetError } from "a1sheet";
+
+try {
+  await readWorkbookFile(file, { signal });
+} catch (err) {
+  if (!isA1SheetError(err)) throw err;
+  switch (err.code) {
+    case "ABORTED":            return;                    // user changed their mind
+    case "UNSUPPORTED_FORMAT": return toast(err.message);  // .xlsb, .xls
+    case "NOT_A_ZIP":
+    case "MALFORMED_FILE":     return toast("That file isn't a spreadsheet.");
+    default:                   throw err;
+  }
+}
+```
+
 ## Repository
 
 ```

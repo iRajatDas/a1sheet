@@ -9,11 +9,17 @@
  * Trusts well-formed output from Excel, Sheets, and LibreOffice. Charts, pivot
  * tables, data validation, and conditional formatting are IGNORED, not errors.
  */
+import { MalformedFileError, UnsupportedFormatError } from "../../errors.js";
 import { lettersToCol } from "../../model/address.js";
 import type { CellKey, Range, RawCell, StyleObject } from "../../model/types.js";
-import { unzip } from "../zip/zip.js";
+import {
+  type AsyncReadOptions,
+  countOccurrences,
+  createPacer,
+} from "../progress.js";
+import { listZipEntries, readZipMember } from "../zip/zip.js";
 import { parseStylesXml } from "./styles.js";
-import { findElement, findElements, textOf } from "./xml.js";
+import { findElement, findElements, iterElements, textOf } from "./xml.js";
 
 /** One sheet as it comes out of the file, before becoming a full `Sheet`. */
 export interface XlsxSheetData {
@@ -40,37 +46,94 @@ function parseRef(ref: string): { row: number; col: number } | null {
  */
 function assertXmlWorkbook(names: string[]): void {
   if (names.some((n) => /workbookBin\.bin$/i.test(n))) {
-    throw new Error(
-      "unsupported format: .xlsb (binary BIFF12). Save as .xlsx and retry.",
+    throw new UnsupportedFormatError(
+      ".xlsb (binary BIFF12)",
+      "Open it in Excel and save as .xlsx, then retry.",
     );
   }
   if (!names.some((n) => /workbook\.xml$/i.test(n))) {
-    throw new Error("not a spreadsheet: xl/workbook.xml is missing");
+    throw new MalformedFileError(
+      "xl/workbook.xml is missing, so this ZIP is not a spreadsheet",
+    );
   }
 }
 
-/** Reads a .xlsx or .xlsm from a File, Blob, or raw bytes. */
+/**
+ * Elements handled between checkpoints. Each checkpoint allocates a promise, so
+ * checkpointing per cell would cost more than parsing one; a few thousand makes
+ * that overhead unmeasurable while still yielding several times a second.
+ */
+const ELEMENTS_PER_CHECKPOINT = 4096;
+
+/**
+ * Reads a .xlsx or .xlsm from a File, Blob, or raw bytes.
+ *
+ * Pass `signal` to cancel — the read rejects with `AbortedError` at its next
+ * checkpoint — and `onProgress` to drive a progress bar. Both are optional and a
+ * small file behaves exactly as it did before they existed: the reader only yields
+ * once it has actually held the thread for a frame.
+ */
 export async function readXlsx(
   file: File | Blob | Uint8Array,
+  options: AsyncReadOptions = {},
 ): Promise<XlsxSheetData[]> {
   const bytes =
     file instanceof Uint8Array
       ? file
       : new Uint8Array(await (file as Blob).arrayBuffer());
 
-  const files = unzip(bytes);
-  const names = Object.keys(files);
-  assertXmlWorkbook(names);
+  const pacer = createPacer(options);
+  // Before any inflation, so a signal that is already aborted costs nothing.
+  await pacer.checkpoint("decompressing", 0, "archive");
 
+  const members = listZipEntries(bytes);
+  assertXmlWorkbook(members.map((m) => m.name));
+
+  // Inflate one member at a time so a large archive does not block in one burst.
+  const files: Record<string, Uint8Array> = {};
+  for (const [i, member] of members.entries()) {
+    files[member.name] = readZipMember(member);
+    await pacer.checkpoint("decompressing", (i + 1) / members.length, member.name);
+  }
+
+  const names = Object.keys(files);
   const decoder = new TextDecoder();
   const read = (name: string | undefined) =>
     name && files[name] ? decoder.decode(files[name]) : undefined;
 
-  // Shared strings: `t="s"` cells hold an index into this table.
   const ssXml = read(names.find((n) => /sharedStrings\.xml$/i.test(n)));
-  const sharedStrings = ssXml
-    ? findElements(ssXml, "si").map((si) => textOf(si.inner))
-    : [];
+  const sheetFiles = names
+    .filter((n) => /^xl\/worksheets\/sheet\d*\.xml$/i.test(n))
+    .sort(
+      (a, b) =>
+        Number(a.match(/(\d+)/)?.[1] ?? 0) - Number(b.match(/(\d+)/)?.[1] ?? 0),
+    );
+  const sheetXml = sheetFiles.map((name) =>
+    decoder.decode(files[name] as Uint8Array),
+  );
+
+  // Progress denominator: shared strings plus cells, counted before parsing. It is
+  // an estimate — a `<c/>` with no attributes is not counted — and the pacer clamps
+  // progress monotonically into 0..1, so an off-by-some never makes the bar jump back.
+  const stringCount = ssXml ? countOccurrences(ssXml, "<si") : 0;
+  const cellCounts = sheetXml.map((xml) => countOccurrences(xml, "<c "));
+  const totalElements = Math.max(
+    1,
+    stringCount + cellCounts.reduce((sum, n) => sum + n, 0),
+  );
+  let parsed = 0;
+
+  // Shared strings: `t="s"` cells hold an index into this table.
+  const sharedStrings: string[] = [];
+  if (ssXml) {
+    for (const si of iterElements(ssXml, "si")) {
+      sharedStrings.push(textOf(si.inner));
+      parsed++;
+      if (parsed % ELEMENTS_PER_CHECKPOINT === 0) {
+        await pacer.checkpoint("parsing", parsed / totalElements, "shared strings");
+      }
+    }
+  }
 
   const xfStyles = parseStylesXml(read(names.find((n) => /styles\.xml$/i.test(n))));
 
@@ -80,21 +143,20 @@ export async function readXlsx(
     ? findElements(wbXml, "sheet").map((s, i) => s.attrs.name || `Sheet${i + 1}`)
     : [];
 
-  const sheetFiles = names
-    .filter((n) => /^xl\/worksheets\/sheet\d*\.xml$/i.test(n))
-    .sort(
-      (a, b) =>
-        Number(a.match(/(\d+)/)?.[1] ?? 0) - Number(b.match(/(\d+)/)?.[1] ?? 0),
-    );
-
-  const sheets = sheetFiles.map((fname, i): XlsxSheetData => {
-    const xml = decoder.decode(files[fname] as Uint8Array);
+  const sheets: XlsxSheetData[] = [];
+  for (const [i, xml] of sheetXml.entries()) {
+    const name = sheetNames[i] ?? `Sheet${i + 1}`;
     const cells: Record<CellKey, RawCell> = {};
     const styles: Record<CellKey, StyleObject> = {};
     let maxR = 0;
     let maxC = 0;
 
-    for (const c of findElements(xml, "c")) {
+    for (const c of iterElements(xml, "c")) {
+      parsed++;
+      if (parsed % ELEMENTS_PER_CHECKPOINT === 0) {
+        await pacer.checkpoint("parsing", parsed / totalElements, name);
+      }
+
       const ref = c.attrs.r;
       if (!ref) continue;
       const pos = parseRef(ref);
@@ -132,7 +194,7 @@ export async function readXlsx(
     }
 
     const merges: Range[] = [];
-    for (const m of findElements(xml, "mergeCell")) {
+    for (const m of iterElements(xml, "mergeCell")) {
       const ref = m.attrs.ref;
       if (!ref) continue;
       const [from, to] = ref.split(":");
@@ -143,15 +205,11 @@ export async function readXlsx(
       merges.push({ r1: a.row, c1: a.col, r2: b.row, c2: b.col });
     }
 
-    return {
-      name: sheetNames[i] ?? `Sheet${i + 1}`,
-      cells,
-      styles,
-      merges,
-      rows: maxR + 1,
-      cols: maxC + 1,
-    };
-  });
+    sheets.push({ name, cells, styles, merges, rows: maxR + 1, cols: maxC + 1 });
+    await pacer.checkpoint("parsing", parsed / totalElements, name);
+  }
+
+  pacer.finish(`${sheets.length} sheets`);
 
   return sheets.length > 0
     ? sheets

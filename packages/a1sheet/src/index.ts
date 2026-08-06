@@ -5,6 +5,22 @@
  * hooks live at "a1sheet/react".
  */
 
+// --------------------------------------------------------------- errors
+// Branch on `error.code`, never on message text — codes are stable, messages
+// are free to improve.
+export type { ErrorCode } from "./errors.js";
+export {
+  A1SheetError,
+  AbortedError,
+  EmptyWorkbookError,
+  ERROR_CODES,
+  InvalidArgumentError,
+  isA1SheetError,
+  MalformedFileError,
+  MissingProviderError,
+  NotAZipError,
+  UnsupportedFormatError,
+} from "./errors.js";
 // --------------------------------------------------------------- format
 export type { FormatOptions } from "./format/numFmt.js";
 export { formatValue, NUM_FMTS } from "./format/numFmt.js";
@@ -20,12 +36,14 @@ export { extrapolateSeries } from "./formula/series.js";
 export { tokenize } from "./formula/tokenize.js";
 export type { FormulaArg, FormulaValue } from "./formula/values.js";
 export { DAY_MS, toNumber, toText } from "./formula/values.js";
-export { csvToCells, parseCSV } from "./io/csv/read.js";
+export { csvToCells, iterCsvRows, parseCSV } from "./io/csv/read.js";
 export { cellsToCSV, getUsedBounds } from "./io/csv/write.js";
 export { downloadCsv, downloadXlsx } from "./io/download.js";
 // ------------------------------------------------------------------- io
 export type { ReadResult, WorkbookFormat } from "./io/index.js";
 export { readWorkbookFile } from "./io/index.js";
+export type { AsyncReadOptions, ReadPhase, ReadProgress } from "./io/progress.js";
+export { READ_PHASES } from "./io/progress.js";
 export type { XlsxSheetData } from "./io/xlsx/read.js";
 export { readXlsx } from "./io/xlsx/read.js";
 export type { XlsxSheetInput } from "./io/xlsx/write.js";

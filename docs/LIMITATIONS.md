@@ -92,6 +92,36 @@ into the nearest of our six enum values rather than surviving exactly.
 
 **Merged-cell-specific styling is not read.** Merges themselves round-trip.
 
+**Reads are paced, not off-thread.** `readWorkbookFile` yields to the event loop
+between chunks and honors an `AbortSignal`, so the tab stays responsive and an
+import can be cancelled — but the parse still runs on whichever thread called it.
+Pacing costs throughput: on a 37 MB, 600k-cell workbook, ~1.1 s blocking becomes
+~1.7 s paced. Only 4 ms of that is the yielding; the rest is garbage collection
+the blocking version deferred until it was finished. Pacing is unconditional, so
+a Worker caller pays it too, for a responsiveness it does not need.
+→ The pacing seam is already the right shape for a Worker: `src/io/progress.ts`
+defines the only place a read yields. Move `readXlsx`/`csvToCells` behind a
+Worker, post `ReadProgress` back over `postMessage`, and drive the existing
+`AbortSignal` from a cancel message. Nothing in the readers changes. Once that
+exists, `createPacer` is also the one place to make the frame budget adaptive so
+an off-thread read can stop yielding.
+
+**A few steps cannot be interrupted.** Inflating one large ZIP member and
+decoding it to a string are single native calls; together they block for ~50 ms
+on a 37 MB file regardless of the frame budget, which is why the budget is one
+frame rather than React's ~5 ms.
+→ Streaming both would mean an incremental inflater in `src/io/zip/inflate.ts`
+and a chunked `TextDecoder` with `{ stream: true }` in `src/io/xlsx/read.ts`.
+
+**Progress ratios are estimates.** The denominator comes from counting `<c ` and
+`<si` occurrences (xlsx) or newlines (csv) before parsing, none of which is
+exact — a `<c/>` with no attributes is missed, a newline inside a quoted CSV
+field is over-counted. The pacer clamps progress monotonically into 0..1 and
+forces a final `1`, so the bar never reverses or overshoots; it can just move
+unevenly.
+→ `totalElements` in `src/io/xlsx/read.ts`, `estimatedRows` in
+`src/io/csv/read.ts`.
+
 ## Fixed relative to the POC
 
 Three defects were found while porting and fixed rather than carried forward.

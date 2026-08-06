@@ -1,15 +1,30 @@
 /**
  * Minimal ZIP reader and writer. Ported from ref/xlsxIO.js:122-191.
  *
- * `unzip` supports method 0 (stored) and method 8 (deflate, via ./inflate.ts).
+ * Reading is split in two — `listZipEntries` walks the central directory and
+ * `readZipMember` decompresses one member — so a caller can inflate members one at
+ * a time and yield to the event loop between them. Inflating a whole 38 MB archive
+ * in one call would block for seconds with no way to cancel.
+ *
+ * Method 0 (stored) and method 8 (deflate, via ./inflate.ts) are supported.
  * `makeZip` writes method 0 only — see ./deflate.ts for why and how to change it.
  */
+import { NotAZipError } from "../../errors.js";
 import { crc32 } from "./crc32.js";
 import { inflateRaw } from "./inflate.js";
 
 export interface ZipEntry {
   name: string;
   data: Uint8Array;
+}
+
+/** A member located in the archive but not yet decompressed. */
+export interface ZipMember {
+  name: string;
+  /** ZIP compression method: 0 stored, 8 deflate. */
+  method: number;
+  /** The member's bytes as stored, still compressed when `method` is 8. */
+  compressed: Uint8Array;
 }
 
 const SIG_LOCAL = 0x04034b50;
@@ -30,25 +45,31 @@ function readU32(b: Uint8Array, o: number): number {
   );
 }
 
+/** Size of the end-of-central-directory record, absent an archive comment. */
+const EOCD_SIZE = 22;
+
 /**
- * Reads a ZIP archive into a name -> bytes map, inflating method-8 members.
+ * Locates every member of a ZIP archive without decompressing any of them.
  *
  * Walks the central directory rather than scanning local headers, so entries with
- * data descriptors (streamed ZIPs) still report correct sizes.
+ * data descriptors (streamed ZIPs) still report correct sizes. The returned
+ * `compressed` buffers are views into `bytes`, not copies — listing is cheap even
+ * for a large archive, and the expensive part is deferred to `readZipMember`.
  */
-export function unzip(bytes: Uint8Array): Record<string, Uint8Array> {
+export function listZipEntries(bytes: Uint8Array): ZipMember[] {
   let eocd = -1;
-  for (let i = bytes.length - 22; i >= 0; i--) {
+  for (let i = bytes.length - EOCD_SIZE; i >= 0; i--) {
     if (readU32(bytes, i) === SIG_EOCD) {
       eocd = i;
       break;
     }
   }
-  if (eocd < 0) throw new Error("not a zip file");
+  if (eocd < 0) throw new NotAZipError();
 
   const cdOffset = readU32(bytes, eocd + 16);
   const cdEntries = readU16(bytes, eocd + 10);
-  const files: Record<string, Uint8Array> = {};
+  const members: ZipMember[] = [];
+  const decoder = new TextDecoder();
 
   let p = cdOffset;
   for (let i = 0; i < cdEntries; i++) {
@@ -59,20 +80,33 @@ export function unzip(bytes: Uint8Array): Record<string, Uint8Array> {
     const extraLen = readU16(bytes, p + 30);
     const commentLen = readU16(bytes, p + 32);
     const localOffset = readU32(bytes, p + 42);
-    const name = new TextDecoder().decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    const name = decoder.decode(bytes.subarray(p + 46, p + 46 + nameLen));
 
     // The local header's extra field can differ in length from the central one's,
     // so the data offset must be computed from the local header.
     const lfNameLen = readU16(bytes, localOffset + 26);
     const lfExtraLen = readU16(bytes, localOffset + 28);
     const dataStart = localOffset + 30 + lfNameLen + lfExtraLen;
-    const compData = bytes.subarray(dataStart, dataStart + compSize);
 
-    files[name] = method === 8 ? inflateRaw(compData) : compData;
+    members.push({
+      name,
+      method,
+      compressed: bytes.subarray(dataStart, dataStart + compSize),
+    });
     p += 46 + nameLen + extraLen + commentLen;
   }
 
-  return files;
+  return members;
+}
+
+/** ZIP compression method 8 — deflate. Anything else is treated as stored. */
+const METHOD_DEFLATE = 8;
+
+/** Decompresses one member. The expensive half of reading an archive. */
+export function readZipMember(member: ZipMember): Uint8Array {
+  return member.method === METHOD_DEFLATE
+    ? inflateRaw(member.compressed)
+    : member.compressed;
 }
 
 /** Writes entries into a ZIP archive. STORE (method 0) only. */

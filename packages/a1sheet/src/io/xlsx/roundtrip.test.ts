@@ -163,13 +163,16 @@ describe("rejects unsupported formats clearly", () => {
     const text = new TextDecoder("latin1").decode(bytes);
     const broken = text.replaceAll("xl/workbook.xml", "xl/notabook.xml");
     const brokenBytes = Uint8Array.from(broken, (ch) => ch.charCodeAt(0));
-    await expect(readXlsx(brokenBytes)).rejects.toThrow(/workbook\.xml is missing/);
+    // Assert on the code, not the message: the code is the stable contract.
+    await expect(readXlsx(brokenBytes)).rejects.toMatchObject({
+      code: "MALFORMED_FILE",
+    });
   });
 
   test("non-zip input is rejected", async () => {
-    await expect(readXlsx(new TextEncoder().encode("just text"))).rejects.toThrow(
-      /not a zip file/,
-    );
+    await expect(
+      readXlsx(new TextEncoder().encode("just text")),
+    ).rejects.toMatchObject({ code: "NOT_A_ZIP" });
   });
 });
 

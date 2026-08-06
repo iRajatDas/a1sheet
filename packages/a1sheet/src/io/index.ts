@@ -5,6 +5,7 @@
  * been renamed still reads correctly.
  */
 import { csvToCells } from "./csv/read.js";
+import type { AsyncReadOptions } from "./progress.js";
 import type { XlsxSheetData } from "./xlsx/read.js";
 import { readXlsx } from "./xlsx/read.js";
 import { isZip } from "./zip/zip.js";
@@ -19,8 +20,23 @@ export interface ReadResult {
 /**
  * Reads a .xlsx or .csv into sheet data. A CSV becomes a single sheet named
  * after the file, with no styles and no merges.
+ *
+ * Cancellable and progress-reporting via `options`:
+ *
+ *   const controller = new AbortController();
+ *   const result = await readWorkbookFile(file, {
+ *     signal: controller.signal,
+ *     onProgress: ({ ratio, detail }) => setBar(ratio, detail),
+ *   });
+ *
+ * An aborted read rejects with `AbortedError` (`code: "ABORTED"`) and leaves
+ * nothing behind — the workbook is only built once the whole file has parsed, so
+ * cancelling can never half-import.
  */
-export async function readWorkbookFile(file: File | Blob): Promise<ReadResult> {
+export async function readWorkbookFile(
+  file: File | Blob,
+  options: AsyncReadOptions = {},
+): Promise<ReadResult> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const name = "name" in file && file.name ? file.name : "Sheet1";
 
@@ -29,11 +45,11 @@ export async function readWorkbookFile(file: File | Blob): Promise<ReadResult> {
   // xl/workbook.xml vs xl/workbookBin.bin and throws a clear "unsupported format"
   // error for the latter.
   if (isZip(bytes)) {
-    return { format: "xlsx", sheets: await readXlsx(bytes) };
+    return { format: "xlsx", sheets: await readXlsx(bytes, options) };
   }
 
   const text = new TextDecoder().decode(bytes);
-  const { cells, rows, cols } = csvToCells(text);
+  const { cells, rows, cols } = await csvToCells(text, options);
   return {
     format: "csv",
     sheets: [

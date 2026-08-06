@@ -14,6 +14,7 @@ import { lettersToCol } from "../../model/address.js";
 import type {
   CellKey,
   CellValue,
+  CondFormat,
   Range,
   RawCell,
   StyleObject,
@@ -24,8 +25,16 @@ import {
   createPacer,
 } from "../progress.js";
 import { listZipEntries, readZipMember } from "../zip/zip.js";
+import { parseCondFormats } from "./condFormat.js";
 import { excelSerialToDaySerial } from "./dates.js";
-import { parseStylesXml } from "./styles.js";
+import { parseThemePalette } from "./palette.js";
+import { parseDifferentialStyle, parseStylesXml } from "./styles.js";
+import {
+  applyTableStyles,
+  parseDxfs,
+  parseTableXml,
+  type XlsxTable,
+} from "./tables.js";
 import { colWidthToPx, rowHeightToPx } from "./units.js";
 import { findElement, findElements, iterElements, textOf } from "./xml.js";
 
@@ -41,6 +50,8 @@ export interface XlsxSheetData {
    * workbook built on dynamic arrays or structured references arrives unreadable.
    */
   cachedValues: Record<CellKey, CellValue>;
+  /** Conditional formats, with their `<dxfs>` styles already resolved. */
+  condFormats: CondFormat[];
   merges: Range[];
   rows: number;
   cols: number;
@@ -171,13 +182,53 @@ export async function readXlsx(
     }
   }
 
-  const xfStyles = parseStylesXml(read(names.find((n) => /styles\.xml$/i.test(n))));
+  // The theme must be read BEFORE the styles: most colours in a file Excel wrote
+  // are theme indices, and without the palette they resolve to nothing at all.
+  const palette = parseThemePalette(
+    read(names.find((n) => /^xl\/theme\/theme\d*\.xml$/i.test(n))),
+  );
+  const stylesXml = read(names.find((n) => /styles\.xml$/i.test(n)));
+  const xfStyles = parseStylesXml(stylesXml, palette);
+  const dxfs = parseDxfs(stylesXml, palette, parseDifferentialStyle);
 
   // Sheet names come from workbook.xml; order falls back to the file numbering.
   const wbXml = read(names.find((n) => /xl\/workbook\.xml$/i.test(n)));
   const sheetNames = wbXml
     ? findElements(wbXml, "sheet").map((s, i) => s.attrs.name || `Sheet${i + 1}`)
     : [];
+
+  /**
+   * A sheet reaches its tables through its own relationship part, not by
+   * position: `xl/worksheets/_rels/sheet2.xml.rels` names which of
+   * `xl/tables/tableN.xml` belong to sheet 2. Matching table numbers to sheet
+   * numbers directly would put a table on the wrong sheet as soon as one sheet
+   * has two of them.
+   */
+  const tablesForSheet = (sheetPath: string): XlsxTable[] => {
+    const relsPath = sheetPath.replace(
+      /^(.*\/)([^/]+)$/,
+      (_, dir: string, file: string) => `${dir}_rels/${file}.rels`,
+    );
+    const relsXml = read(
+      names.find((n) => n.toLowerCase() === relsPath.toLowerCase()),
+    );
+    if (!relsXml) return [];
+
+    const out: XlsxTable[] = [];
+    for (const rel of findElements(relsXml, "Relationship")) {
+      const target = rel.attrs.Target;
+      if (!target || !/tables\/table\d*\.xml$/i.test(target)) continue;
+      const leaf = target.replace(/^.*\//, "");
+      const xml = read(
+        names.find((n) =>
+          n.toLowerCase().endsWith(`xl/tables/${leaf.toLowerCase()}`),
+        ),
+      );
+      const table = xml ? parseTableXml(xml) : null;
+      if (table) out.push(table);
+    }
+    return out;
+  };
 
   const sheets: XlsxSheetData[] = [];
   for (const [i, xml] of sheetXml.entries()) {
@@ -276,6 +327,17 @@ export async function readXlsx(
       if (index > maxR + 1) maxR = index - 1;
     }
 
+    // After the cells, so a cell's own formatting is already in place for the
+    // table styling to sit underneath rather than over.
+    const tables = tablesForSheet(sheetFiles[i] as string);
+    applyTableStyles({ tables, dxfs, palette, styles });
+    for (const table of tables) {
+      if (table.range.r2 > maxR) maxR = table.range.r2;
+      if (table.range.c2 > maxC) maxC = table.range.c2;
+    }
+
+    const condFormats = parseCondFormats({ sheetXml: xml, dxfs });
+
     const merges: Range[] = [];
     for (const m of iterElements(xml, "mergeCell")) {
       const ref = m.attrs.ref;
@@ -293,6 +355,7 @@ export async function readXlsx(
       cells,
       styles,
       cachedValues,
+      condFormats,
       merges,
       rows: maxR + 1,
       cols: maxC + 1,
@@ -312,6 +375,7 @@ export async function readXlsx(
           cells: {},
           styles: {},
           cachedValues: {},
+          condFormats: [],
           merges: [],
           rows: 1,
           cols: 1,

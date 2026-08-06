@@ -58,6 +58,7 @@ export async function readWorkbookFile(
         cells,
         styles: {},
         cachedValues: {},
+        condFormats: [],
         merges: [],
         rows,
         cols,

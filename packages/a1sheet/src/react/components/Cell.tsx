@@ -11,6 +11,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { cellKey } from "../../model/address.js";
 import { getMergeAt } from "../../model/sheet.js";
+import { cellCss } from "../cellStyle.js";
 import { useSheetContext } from "../context.js";
 import { useCaretBinding } from "../useCaretBinding.js";
 
@@ -50,7 +51,12 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   }
 
   const key = cellKey(row, col);
-  const style = sheet.styles[key] ?? {};
+  // Base formatting, then conditional formatting over it. That order is Excel's:
+  // a rule that matches wins over the cell's own fill and font, which is what
+  // makes a rule visible at all.
+  const base = sheet.styles[key] ?? {};
+  const conditional = api.condStyleFor(row, col);
+  const style = conditional ? { ...base, ...conditional } : base;
   const selected = api.isSelected(row, col);
   const active = row === api.active.row && col === api.active.col;
 
@@ -87,21 +93,7 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
           : gridColumn,
         gridRow: merge ? `${gridRow} / span ${merge.r2 - merge.r1 + 1}` : gridRow,
         height: mergedHeight,
-        fontWeight: style.bold ? 700 : 400,
-        fontStyle: style.italic ? "italic" : "normal",
-        textDecoration: style.underline ? "underline" : "none",
-        textAlign: style.align ?? "left",
-        justifyContent:
-          style.align === "center"
-            ? "center"
-            : style.align === "right"
-              ? "flex-end"
-              : "flex-start",
-        color: style.color ?? theme.cellText,
-        // Always opaque. The selection tint is an ::after overlay now, so it no
-        // longer needs the background left blank to paint through — and a frozen
-        // cell is sticky, where a transparent background shows the scroll behind it.
-        background: style.bg ?? theme.cellBg,
+        ...cellCss(style, theme),
       }}
       onMouseDown={(e) => {
         // Clicks inside the open editor are the caret's business, not ours.

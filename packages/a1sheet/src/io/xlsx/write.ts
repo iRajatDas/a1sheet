@@ -23,9 +23,10 @@ import type {
 } from "../../model/types.js";
 import { makeZip, type ZipEntry } from "../zip/zip.js";
 import { daySerialToExcelSerial } from "./dates.js";
-import { CUSTOM_NUMFMTS, NUMFMT_TO_ID, styleKey } from "./styles.js";
+import { styleKey } from "./styles.js";
 import { pxToColWidth, pxToRowHeight } from "./units.js";
-import { colorToRgb, xmlEscape } from "./xml.js";
+import { buildStylesXml } from "./writeStyles.js";
+import { xmlEscape } from "./xml.js";
 
 /** Input shape for one sheet being written. */
 export interface XlsxSheetInput {
@@ -197,91 +198,7 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
 
   // --- styles.xml, built from the collected style list ---
 
-  const fontList: StyleObject[] = [];
-  const fontIndex = new Map<string, number>();
-  // Indices 0 and 1 are reserved by the format (none, gray125).
-  const fillList: { bg?: string }[] = [{}, {}];
-  const fillIndex = new Map<string, number>();
-
-  const xfEntries = styleList.map((s) => {
-    const fKey = JSON.stringify([
-      !!s.bold,
-      !!s.italic,
-      !!s.underline,
-      s.color ?? "",
-    ]);
-    let fontId = fontIndex.get(fKey);
-    if (fontId === undefined) {
-      fontId = fontList.length;
-      fontList.push(s);
-      fontIndex.set(fKey, fontId);
-    }
-
-    let fillId = 0;
-    if (s.bg) {
-      const existing = fillIndex.get(s.bg);
-      if (existing === undefined) {
-        fillId = fillList.length;
-        fillList.push({ bg: s.bg });
-        fillIndex.set(s.bg, fillId);
-      } else {
-        fillId = existing;
-      }
-    }
-
-    return {
-      fontId,
-      fillId,
-      numFmtId: NUMFMT_TO_ID[s.numFmt ?? "general"] ?? 0,
-      align: s.align ?? "",
-      locked: !!s.locked,
-    };
-  });
-
-  const numFmtsXml = Object.entries(CUSTOM_NUMFMTS)
-    .map(
-      ([id, code]) => `<numFmt numFmtId="${id}" formatCode="${xmlEscape(code)}"/>`,
-    )
-    .join("");
-
-  const fontsXml = fontList
-    .map(
-      (s) =>
-        `<font>${s.bold ? "<b/>" : ""}${s.italic ? "<i/>" : ""}${
-          s.underline ? "<u/>" : ""
-        }<sz val="11"/>${
-          s.color ? `<color rgb="${colorToRgb(s.color)}"/>` : `<color theme="1"/>`
-        }<name val="Calibri"/></font>`,
-    )
-    .join("");
-
-  const fillsXml = fillList
-    .map((f) =>
-      f.bg
-        ? `<fill><patternFill patternType="solid"><fgColor rgb="${colorToRgb(f.bg)}"/></patternFill></fill>`
-        : `<fill><patternFill patternType="none"/></fill>`,
-    )
-    .join("");
-
-  const xfsXml = xfEntries
-    .map(
-      (xf) =>
-        `<xf numFmtId="${xf.numFmtId}" fontId="${xf.fontId}" fillId="${xf.fillId}" borderId="0" xfId="0" applyFont="1" applyFill="1" applyNumberFormat="1"${
-          xf.align ? ` applyAlignment="1"` : ""
-        }${xf.locked ? ` applyProtection="1"` : ""}>${
-          xf.align ? `<alignment horizontal="${xf.align}"/>` : ""
-        }${xf.locked ? `<protection locked="1"/>` : ""}</xf>`,
-    )
-    .join("");
-
-  const stylesXml =
-    `${XML_DECL}<styleSheet xmlns="${NS_MAIN}">` +
-    `<numFmts count="${Object.keys(CUSTOM_NUMFMTS).length}">${numFmtsXml}</numFmts>` +
-    `<fonts count="${fontList.length}">${fontsXml}</fonts>` +
-    `<fills count="${fillList.length}">${fillsXml}</fills>` +
-    `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
-    `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-    `<cellXfs count="${xfEntries.length}">${xfsXml}</cellXfs></styleSheet>`;
+  const stylesXml = buildStylesXml(styleList);
 
   // --- package parts ---
 

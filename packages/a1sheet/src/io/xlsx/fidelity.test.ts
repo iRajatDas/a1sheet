@@ -12,6 +12,8 @@
  */
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { condStyleFor } from "../../format/condFormat.js";
+import { formatValue } from "../../format/numFmt.js";
 import { createEvaluator } from "../../formula/evaluate.js";
 import type { CellKey } from "../../model/types.js";
 import { daySerialToExcelSerial, excelSerialToDaySerial } from "./dates.js";
@@ -103,6 +105,85 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     // Example A!C4 is "=OverallTable", a defined name wrapping LET and LAMBDA.
     expect(exampleA.cells["3_2" as CellKey]).toBe("=OverallTable");
     expect(evaluator.getCellDisplay(3, 2)).toBe("POS");
+  });
+
+  test("a table's header takes its colour from the theme accent", async () => {
+    // Data!A1 is the header of tblMatches, styled TableStyleMedium4. That resolves
+    // to accent3 — a green that appears nowhere in the file, since the style is a
+    // built-in Excel expects every reader to know.
+    const [data] = await readXlsx(bytes);
+    const header = data?.styles["0_0" as CellKey];
+
+    expect(header?.bg).toBe("#196b24");
+    expect(header?.bold).toBe(true);
+    // The dxf that styles this header sets `<u val="none"/>`, which must not read
+    // as "underlined".
+    expect(header?.underline).toBeUndefined();
+  });
+
+  test("alternate table rows are banded", async () => {
+    const [data] = await readXlsx(bytes);
+
+    expect(data?.styles["1_0" as CellKey]?.bg).toBeUndefined();
+    expect(data?.styles["2_0" as CellKey]?.bg).toBeDefined();
+  });
+
+  test("a heading styled by a conditional format is not left plain", async () => {
+    // Example A's purple title bars are a `type="expression"` rule, not cell
+    // formatting. A reader that skips conditional formatting shows them unstyled.
+    const sheets = await readXlsx(bytes);
+    const exampleA = sheets[1];
+    if (!exampleA) throw new Error("no second sheet");
+    const evaluator = createEvaluator(exampleA.cells, {}, exampleA.cachedValues);
+
+    const style = condStyleFor(
+      { condFormats: exampleA.condFormats, evaluator },
+      3,
+      2,
+    );
+    expect(style?.gradient?.stops.map((s) => s.color)).toEqual([
+      "#3d195b",
+      "#612890",
+    ]);
+  });
+
+  test("fonts, sizes, and borders arrive with the cells", async () => {
+    const sheets = await readXlsx(bytes);
+    const exampleA = sheets[1];
+    const title = exampleA?.styles["1_4" as CellKey];
+
+    expect(title?.fontFamily).toBe("Aptos Narrow");
+    expect(title?.fontSize).toBe(20);
+    // The purple rule under the "Overall" title, which is a border.
+    expect(title?.borders?.bottom).toEqual({ line: "thick", color: "#7030a0" });
+  });
+
+  test("a goal difference keeps the sign its format code adds", async () => {
+    const sheets = await readXlsx(bytes);
+    const exampleA = sheets[1];
+    if (!exampleA) throw new Error("no second sheet");
+    const evaluator = createEvaluator(exampleA.cells, {}, exampleA.cachedValues);
+
+    // Column L of the league table, formatted "\+0;\-0;0". Bucketed as an
+    // integer it rendered 45 and dropped the plus.
+    const value = evaluator.getCellDisplay(4, 11);
+    expect(formatValue(value as number, exampleA.styles["4_11" as CellKey])).toBe(
+      "+45",
+    );
+  });
+
+  test("a date column shows its time as well as its date", async () => {
+    const [data] = await readXlsx(bytes);
+    if (!data) throw new Error("no sheets");
+    const evaluator = createEvaluator(data.cells, {}, data.cachedValues);
+
+    // numFmtId 22, whose code the file never states.
+    expect(
+      formatValue(
+        evaluator.getCellDisplay(1, 6) as number,
+        data.styles["1_6" as CellKey],
+      ),
+    ).toBe("8/16/24 20:00");
   });
 
   test("dates survive the trip back out to a file", async () => {

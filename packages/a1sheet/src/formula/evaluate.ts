@@ -77,6 +77,15 @@ export interface Evaluator {
    * "#REF!", "#N/A") for a formula that cannot be resolved.
    */
   getCellDisplay(row: number, col: number): FormulaValue;
+  /**
+   * Evaluates a formula body — WITHOUT the leading "=" — that belongs to no cell.
+   * Conditional-format rules are the first such thing: their formulas are
+   * attached to a range rather than living in a cell.
+   *
+   * Returns an error sentinel rather than throwing, on the same terms as
+   * `getCellDisplay`.
+   */
+  evaluate(formulaBody: string): FormulaValue;
 }
 
 /**
@@ -379,5 +388,28 @@ export function createEvaluator(
     },
   };
 
-  return { getCellDisplay };
+  /**
+   * Memoized on the formula text. A conditional format asks the same question of
+   * every cell in its range, and with absolute references — which is the common
+   * case — that is one distinct question for the whole range.
+   */
+  const expressions = new Map<string, FormulaValue>();
+
+  function evaluate(formulaBody: string): FormulaValue {
+    const hit = expressions.get(formulaBody);
+    if (hit !== undefined) return hit;
+
+    let result: FormulaValue;
+    try {
+      const value = evalNode(parseFormula(tokenize(formulaBody)), ctx);
+      result = Array.isArray(value) ? toText(value) : value;
+    } catch (e) {
+      if (e instanceof CycleSignal) result = CYCLE_ERROR;
+      else result = "#ERROR!";
+    }
+    expressions.set(formulaBody, result);
+    return result;
+  }
+
+  return { getCellDisplay, evaluate };
 }

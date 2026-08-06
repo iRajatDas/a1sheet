@@ -67,6 +67,7 @@ export function FileMenu(): ReactNode {
           cells: s.cells,
           styles: s.styles,
           cachedValues: s.cachedValues,
+          condFormats: s.condFormats,
           merges: s.merges,
           colWidths: s.colWidths,
           rowHeights: s.rowHeights,

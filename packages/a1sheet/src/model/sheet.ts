@@ -6,7 +6,14 @@
  * only place clone-on-write is coordinated with history.
  */
 import { cellKey } from "./address.js";
-import type { CellKey, CellValue, RawCell, Sheet, StyleObject } from "./types.js";
+import type {
+  CellKey,
+  CellValue,
+  CondFormat,
+  RawCell,
+  Sheet,
+  StyleObject,
+} from "./types.js";
 
 export const DEFAULT_NUM_ROWS = 200;
 export const DEFAULT_NUM_COLS = 26;
@@ -22,6 +29,7 @@ export function makeSheet(name: string): Sheet {
     cells: {},
     styles: {},
     cachedValues: {},
+    condFormats: [],
     colWidths: {},
     rowHeights: {},
     merges: [],
@@ -46,6 +54,9 @@ export function cloneSheet(sheet: Sheet): Sheet {
     cells: { ...sheet.cells },
     styles: { ...sheet.styles },
     cachedValues: { ...sheet.cachedValues },
+    // Frozen values, replaced wholesale rather than edited, so the array itself
+    // may be shared. Ranges inside it still move on insert and delete.
+    condFormats: sheet.condFormats,
     colWidths: { ...sheet.colWidths },
     rowHeights: { ...sheet.rowHeights },
     merges: sheet.merges.map((m) => ({ ...m })),
@@ -122,12 +133,45 @@ function shiftIndexSet(set: Set<number>, at: number, delta: number): Set<number>
   return next;
 }
 
+/**
+ * Moves a conditional format's range with the rows or columns it covers.
+ *
+ * A range whose start is past the insertion point slides whole; one that straddles
+ * it grows or shrinks. Without this, inserting a row above a rule leaves the rule
+ * a row behind, colouring the wrong cells — the same bug the row and column
+ * metadata had.
+ */
+function shiftCondFormats(
+  formats: readonly CondFormat[],
+  axis: "row" | "col",
+  at: number,
+  delta: number,
+): readonly CondFormat[] {
+  if (formats.length === 0) return formats;
+  const startKey = axis === "row" ? "r1" : "c1";
+  const endKey = axis === "row" ? "r2" : "c2";
+  return formats.map((format) => {
+    const start = format.range[startKey];
+    const end = format.range[endKey];
+    if (end < at) return format;
+    return {
+      ...format,
+      range: {
+        ...format.range,
+        [startKey]: start >= at ? start + delta : start,
+        [endKey]: end + delta,
+      },
+    };
+  });
+}
+
 function shiftRows(sheet: Sheet, at: number, delta: number): Sheet {
   return {
     ...sheet,
     cells: shiftKeys(sheet.cells, "row", at, delta),
     styles: shiftKeys(sheet.styles, "row", at, delta),
     cachedValues: shiftKeys(sheet.cachedValues, "row", at, delta),
+    condFormats: shiftCondFormats(sheet.condFormats, "row", at, delta),
     rowHeights: shiftIndexMap(sheet.rowHeights, at, delta),
     rowLabels: shiftIndexMap(sheet.rowLabels, at, delta),
     hiddenRows: shiftIndexSet(sheet.hiddenRows, at, delta),
@@ -140,6 +184,7 @@ function shiftCols(sheet: Sheet, at: number, delta: number): Sheet {
     cells: shiftKeys(sheet.cells, "col", at, delta),
     styles: shiftKeys(sheet.styles, "col", at, delta),
     cachedValues: shiftKeys(sheet.cachedValues, "col", at, delta),
+    condFormats: shiftCondFormats(sheet.condFormats, "col", at, delta),
     colWidths: shiftIndexMap(sheet.colWidths, at, delta),
     colLabels: shiftIndexMap(sheet.colLabels, at, delta),
     filters: shiftIndexMap(sheet.filters, at, delta),

@@ -7,6 +7,7 @@
 
 import { DAY_MS } from "../formula/values.js";
 import type { NumFmt, StyleObject } from "../model/types.js";
+import { applyFormatCode } from "./formatCode.js";
 
 export const NUM_FMTS: NumFmt[] = [
   "general",
@@ -30,6 +31,20 @@ export function formatValue(
   opts: FormatOptions = {},
 ): string {
   if (raw === undefined || raw === "") return "";
+
+  // The literal code from the file wins over the bucket. `numFmt` is one of six
+  // kinds, chosen so the toolbar has something to show; a real workbook's formats
+  // do not fit in six, and rendering "+45" as "45" loses information the file had.
+  const code = style?.numFmtCode;
+  if (code) {
+    const asNumber = typeof raw === "number" ? raw : Number.parseFloat(raw);
+    const applied = applyFormatCode(
+      code,
+      Number.isNaN(asNumber) ? String(raw) : asNumber,
+      opts.locale === undefined ? {} : { locale: opts.locale },
+    );
+    if (applied !== null) return applied;
+  }
 
   const numFmt = style?.numFmt;
   if (!numFmt || numFmt === "general") return String(raw);

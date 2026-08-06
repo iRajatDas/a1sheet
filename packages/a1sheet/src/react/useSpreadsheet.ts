@@ -11,11 +11,12 @@
  * do not try to persist one across edits.
  */
 import { useCallback, useMemo, useState } from "react";
+import { condStyleFor as condStyleFor_ } from "../format/condFormat.js";
 import { formatValue } from "../format/numFmt.js";
 import { createEvaluator, type Evaluator } from "../formula/evaluate.js";
 import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
-import type { Range, Workbook } from "../model/types.js";
+import type { Range, StyleObject, Workbook } from "../model/types.js";
 import { type UseClipboardResult, useClipboard } from "./useClipboard.js";
 import { type UseColWindowResult, useColWindow } from "./useColWindow.js";
 import { type UseEditingResult, useEditing } from "./useEditing.js";
@@ -47,6 +48,11 @@ export interface UseSpreadsheetResult
   getValue(row: number, col: number): FormulaValue;
   /** Raw cell content as typed, formula source included. */
   getRaw(row: number, col: number): string;
+  /**
+   * The style a cell's conditional formats produce, or undefined when none match.
+   * Layered OVER the cell's own style by the renderer.
+   */
+  condStyleFor(row: number, col: number): StyleObject | undefined;
   rowWindow: UseRowWindowResult;
   colWindow: UseColWindowResult;
   clipboard: UseClipboardResult;
@@ -128,6 +134,20 @@ export function useSpreadsheet(
     [wb.sheet.cells],
   );
 
+  /**
+   * Conditional formatting for a cell, or undefined. Resolved per render rather
+   * than cached on the sheet, because a rule's whole purpose is to follow the
+   * values — the evaluator memoizes each rule's formula, so a rule over a
+   * thousand cells with absolute references costs one evaluation.
+   */
+  const condStyleFor = useCallback(
+    (row: number, col: number) =>
+      wb.sheet.condFormats.length === 0
+        ? undefined
+        : condStyleFor_({ condFormats: wb.sheet.condFormats, evaluator }, row, col),
+    [wb.sheet.condFormats, evaluator],
+  );
+
   const rowWindow = useRowWindow(wb.sheet, scrollTop, viewportHeight, getDisplay);
   const colWindow = useColWindow(wb.sheet, scrollLeft, viewportWidth);
 
@@ -180,6 +200,7 @@ export function useSpreadsheet(
     getDisplay,
     getValue,
     getRaw,
+    condStyleFor,
     rowWindow,
     colWindow,
     clipboard,

@@ -41,6 +41,12 @@ backfilled.
   the questions the API deliberately has no prop for (read-only, validation,
   search). Stories alias to `src`, so there is no build step between an edit and
   the browser, and `bun test` renders every story and runs its play function.
+- **The grid reads its container's scroll position on mount.** A browser
+  restoring scroll on back-navigation, a bfcache restore, or a consumer
+  scrolling the container before the grid mounts all set `scrollTop` without an
+  `onScroll` to hear, so virtualization went on drawing the top of the sheet
+  into a container showing the middle of it — rows in the wrong place, blank
+  space where content should be.
 - **`.a1s-scroller`** on the grid's scroll container. Scrolling the sheet from
   outside means moving that element; `api.setScrollTop` alone only tells
   virtualization where to draw, and the two would fall out of step.

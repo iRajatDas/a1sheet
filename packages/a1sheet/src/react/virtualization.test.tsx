@@ -284,3 +284,54 @@ describe("filtering", () => {
     expect(cellAt(2, 0)).not.toBeNull();
   });
 });
+
+describe("the container's scroll position on mount", () => {
+  test("a container that starts scrolled draws the rows it is showing", () => {
+    // A browser restoring scroll on back-navigation, a bfcache restore, or a
+    // consumer scrolling the grid before it mounts all set scrollTop with no
+    // onScroll for us to hear. Without reading it once on mount, virtualization
+    // draws the top of the sheet into a container showing the middle of it.
+    //
+    // Faking that means making the element report a scroll offset before the
+    // mount effect runs, which is earlier than any ref gives us — hence the
+    // patch. It goes on Element.prototype, where the property actually lives:
+    // shadowing it from HTMLElement.prototype leaves nothing to restore, and
+    // the override then leaks into every test file that runs afterwards.
+    const owner = Element.prototype;
+    const original = Object.getOwnPropertyDescriptor(owner, "scrollTop");
+    if (!original) throw new Error("scrollTop is not on Element.prototype");
+
+    const scrolled = 400 * ROW_HEIGHT;
+    Object.defineProperty(owner, "scrollTop", {
+      ...original,
+      get(this: Element) {
+        return this.classList?.contains("a1s-scroller") ? scrolled : 0;
+      },
+    });
+
+    try {
+      const wb = createWorkbook(["Sheet1"]);
+      Object.assign(wb.sheets[0] as object, { numRows: 1_000 });
+      const { container } = render(<Spreadsheet defaultWorkbook={wb} />);
+
+      const rendered = [
+        ...container.querySelectorAll(".a1s-cell[data-col='0']"),
+      ].map((el) => Number((el as HTMLElement).dataset.row));
+
+      expect(rendered.length).toBeGreaterThan(0);
+      // Row 0 is nowhere near where the container is looking.
+      expect(rendered).not.toContain(0);
+      expect(Math.min(...rendered)).toBeGreaterThan(380);
+    } finally {
+      Object.defineProperty(owner, "scrollTop", original);
+    }
+  });
+
+  test("the patch above was undone", () => {
+    // Belt and braces: a leaked prototype override fails ten tests in another
+    // file with an error that points nowhere near this one.
+    const el = document.createElement("div");
+    el.className = "a1s-scroller";
+    expect(el.scrollTop).toBe(0);
+  });
+});

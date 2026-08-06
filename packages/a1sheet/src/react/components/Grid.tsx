@@ -98,6 +98,8 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   const setViewportWidth = api.setViewportWidth;
   const setColWidth = api.setColWidth;
   const setRowHeight = api.setRowHeight;
+  const setScrollTop = api.setScrollTop;
+  const setScrollLeft = api.setScrollLeft;
 
   /**
    * Measure the scroll container so virtualization knows how much to draw.
@@ -115,13 +117,22 @@ export function Grid({ children }: GridProps = {}): ReactNode {
       if (width > 0) setViewportWidth(width);
     };
     measure(el.clientHeight, el.clientWidth);
+
+    // The container does not always start at the top. A browser restoring
+    // scroll on back-navigation, a bfcache restore, or a consumer scrolling it
+    // before we mount all set scrollTop without an onScroll we can hear, so
+    // virtualization would go on drawing the top of the sheet into a container
+    // showing the middle of it — rows in the wrong place, and blank space where
+    // content should be. Reading it once on mount is what keeps the two agreed.
+    if (el.scrollTop > 0) setScrollTop(el.scrollTop);
+    if (el.scrollLeft > 0) setScrollLeft(el.scrollLeft);
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) measure(e.contentRect.height, e.contentRect.width);
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [setViewportHeight, setViewportWidth]);
+  }, [setViewportHeight, setViewportWidth, setScrollTop, setScrollLeft]);
 
   /** Resize drags, tracked on window so they survive leaving the header. */
   useEffect(() => {
@@ -371,8 +382,8 @@ export function Grid({ children }: GridProps = {}): ReactNode {
       className={`${prefix}scroller`}
       onScroll={(e) => {
         const el = e.target as HTMLDivElement;
-        api.setScrollTop(el.scrollTop);
-        api.setScrollLeft(el.scrollLeft);
+        setScrollTop(el.scrollTop);
+        setScrollLeft(el.scrollLeft);
       }}
       onMouseUp={() => {
         if (fill.dragging) fill.commit(api.updateSheet);

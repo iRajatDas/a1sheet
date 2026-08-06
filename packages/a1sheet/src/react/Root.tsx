@@ -168,7 +168,7 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
         case "Enter":
         case "F2":
           e.preventDefault();
-          api.startEdit(sheet, selection.r2, selection.c2);
+          api.startEdit(sheet, api.active.row, api.active.col);
           return;
         case "Delete":
         case "Backspace":
@@ -187,7 +187,7 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
       // A printable character starts an edit seeded with that character.
       if (e.key.length === 1 && !e.altKey) {
         e.preventDefault();
-        api.startEdit(sheet, selection.r2, selection.c2, e.key);
+        api.startEdit(sheet, api.active.row, api.active.col, e.key);
       }
     },
     [api, sheet, selection],

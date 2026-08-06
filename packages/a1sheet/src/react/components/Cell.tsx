@@ -24,7 +24,7 @@ export interface CellProps {
 }
 
 export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
-  const { api, theme, prefix, ui } = useSheetContext("Sheet.Cell");
+  const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Cell");
   const { sheet, selection, editing } = api;
 
   const merge = getMergeAt(sheet, row, col);
@@ -35,13 +35,14 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   const key = cellKey(row, col);
   const style = sheet.styles[key] ?? {};
   const selected = api.isSelected(row, col);
-  const active = row === selection.r2 && col === selection.c2;
+  const active = row === api.active.row && col === api.active.col;
   const isEditing = editing?.row === row && editing.col === col;
 
   const gridColumn = col + 2;
   const bounds = api.bounds;
+  // Bottom-right of the selection rectangle, wherever the anchor happens to be.
   const showFillHandle =
-    active && !editing && row === bounds.r2 && col === bounds.c2;
+    selected && !editing && row === bounds.r2 && col === bounds.c2;
 
   const classNames = [
     `${prefix}cell`,
@@ -56,6 +57,10 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
     <div
       className={classNames}
       style={{
+        // Sticky offsets first: everything below is the cell's own appearance and
+        // must win. Spreading stickyStyle last used to repaint a frozen cell's
+        // custom fill with the default background.
+        ...stickyStyle,
         gridColumn: merge
           ? `${gridColumn} / span ${merge.c2 - merge.c1 + 1}`
           : gridColumn,
@@ -72,12 +77,25 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
               ? "flex-end"
               : "flex-start",
         color: style.color ?? theme.cellText,
-        background: isEditing
-          ? theme.cellBg
-          : (style.bg ?? (selected ? undefined : theme.cellBg)),
-        ...stickyStyle,
+        // Always opaque. The selection tint is an ::after overlay now, so it no
+        // longer needs the background left blank to paint through — and a frozen
+        // cell is sticky, where a transparent background shows the scroll behind it.
+        background: style.bg ?? theme.cellBg,
       }}
       onMouseDown={(e) => {
+        // Clicks inside the open editor are the caret's business, not ours.
+        if ((e.target as HTMLElement).tagName === "INPUT") return;
+
+        // Two jobs, both load-bearing. A cell is a plain <div>, so a mousedown on
+        // it moves focus to <body> — which silently kills every keyboard shortcut
+        // and the copy/cut/paste handlers, since all of them live on the hidden
+        // textarea. It also starts a native text selection, so dragging across
+        // cells highlights their text instead of selecting a range.
+        // preventDefault stops both; the focus() call is what puts the keyboard
+        // back, because the default it just suppressed was the thing that moved it.
+        e.preventDefault();
+        focusRef.current?.focus();
+
         if (editing) api.commitEdit();
         if (e.ctrlKey || e.metaKey) {
           api.addRange(selection);

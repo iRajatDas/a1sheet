@@ -20,12 +20,12 @@ import { useSheetContext } from "../context.js";
 export function FormulaBar(): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.FormulaBar");
   const [nameBox, setNameBox] = useState("");
-  const { selection, editing } = api;
+  const { selection, editing, active } = api;
 
-  const editingHere = editing?.row === selection.r2 && editing.col === selection.c2;
-  const value = editingHere
-    ? editing.value
-    : api.getRaw(selection.r2, selection.c2);
+  // The formula bar always shows the active cell — the anchor — not the moving end
+  // of a drag, which would make the bar flicker through every cell you drag over.
+  const editingHere = editing?.row === active.row && editing.col === active.col;
+  const value = editingHere ? editing.value : api.getRaw(active.row, active.col);
 
   function commitNameBox() {
     const text = nameBox.trim();
@@ -66,7 +66,7 @@ export function FormulaBar(): ReactNode {
         className={`${prefix}input`}
         aria-label="Name box"
         value={nameBox}
-        placeholder={toA1(selection.r2, selection.c2)}
+        placeholder={toA1(active.row, active.col)}
         onChange={(e) => setNameBox(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") commitNameBox();
@@ -82,7 +82,7 @@ export function FormulaBar(): ReactNode {
         value={value}
         onChange={(e) => {
           if (!editingHere) {
-            api.startEdit(api.sheet, selection.r2, selection.c2, e.target.value);
+            api.startEdit(api.sheet, active.row, active.col, e.target.value);
           } else {
             api.setValue(e.target.value);
           }

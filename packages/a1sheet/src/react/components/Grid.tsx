@@ -36,9 +36,9 @@ import { useSheetContext } from "../context.js";
 import { Cell } from "./Cell.js";
 
 export function Grid(): ReactNode {
-  const { api, theme, prefix, ui } = useSheetContext("Sheet.Grid");
+  const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Grid");
   const { renaming, setRenaming } = ui;
-  const { sheet, rowWindow, fill } = api;
+  const { sheet, rowWindow, fill, bounds } = api;
   const containerRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<{ col: number; startX: number; startW: number } | null>(
     null,
@@ -130,7 +130,10 @@ export function Grid(): ReactNode {
     if (style.top !== undefined || style.left !== undefined) {
       style.position = "sticky";
       style.zIndex = z;
-      style.background = theme.cellBg;
+      // Deliberately no background here. A sticky element must be opaque or
+      // scrolled content shows through, but both kinds already are: headers from
+      // the `head` class, cells from the background `Cell` computes. Setting one
+      // inline would outrank the class that highlights a header in the selection.
     }
     return style;
   }
@@ -165,19 +168,23 @@ export function Grid(): ReactNode {
 
   function renderRowHeader(r: number, gridRow: number, frozenRowIdx?: number) {
     const isRenaming = renaming?.type === "row" && renaming.index === r;
+    const inSelection = r >= bounds.r1 && r <= bounds.r2;
     return (
       <div
         key="rh"
-        className={`${prefix}head`}
+        className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
         style={{
           gridColumn: 1,
           gridRow,
           height: ROW_HEIGHT,
           ...stickyStyleFor(false, true, frozenRowIdx, undefined),
         }}
-        onMouseDown={() =>
-          api.select({ r1: r, c1: 0, r2: r, c2: sheet.numCols - 1 })
-        }
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).tagName === "INPUT") return;
+          e.preventDefault();
+          focusRef.current?.focus();
+          api.select({ r1: r, c1: 0, r2: r, c2: sheet.numCols - 1 });
+        }}
         onDoubleClick={() =>
           setRenaming({
             type: "row",
@@ -268,10 +275,11 @@ export function Grid(): ReactNode {
         {cols.map((c) => {
           const isRenaming = renaming?.type === "col" && renaming.index === c;
           const filtered = sheet.filters[c] !== undefined;
+          const inSelection = c >= bounds.c1 && c <= bounds.c2;
           return (
             <div
               key={`ch${c}`}
-              className={`${prefix}head`}
+              className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
               style={{
                 gridColumn: c + 2,
                 gridRow: 1,
@@ -283,9 +291,12 @@ export function Grid(): ReactNode {
                   c < frozenCols ? c : undefined,
                 ),
               }}
-              onMouseDown={() =>
-                api.select({ r1: 0, c1: c, r2: sheet.numRows - 1, c2: c })
-              }
+              onMouseDown={(e) => {
+                if ((e.target as HTMLElement).tagName === "INPUT") return;
+                e.preventDefault();
+                focusRef.current?.focus();
+                api.select({ r1: 0, c1: c, r2: sheet.numRows - 1, c2: c });
+              }}
               onDoubleClick={() =>
                 setRenaming({
                   type: "col",

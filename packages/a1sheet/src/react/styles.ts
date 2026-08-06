@@ -14,18 +14,34 @@ export function buildCss(prefix: string, t: Theme): string {
 .${p}cell { border-right: 1px solid ${t.border}; border-bottom: 1px solid ${t.border};
   overflow: hidden; white-space: nowrap; display: flex; align-items: center;
   padding: 0 6px; font-size: ${t.fontSize}; font-family: ${t.monoFontFamily};
-  cursor: cell; position: relative; box-sizing: border-box; }
-.${p}cell.${p}selected { background: ${t.selectedBg} !important; }
+  cursor: cell; position: relative; box-sizing: border-box; user-select: none; }
+/* Tints are painted as an overlay, never with the background property.
+   selectedBg is deliberately translucent, and a background declaration REPLACES
+   the base color rather than compositing over it — so setting it directly turned
+   every tinted element 90% transparent, which on a sticky header or a frozen row
+   means the scrolled content shows straight through. An ::after layer composites
+   instead, which also makes the tint work over a cell's own fill and over the
+   locked stripes.
+   Excluding the active cell keeps the anchor untinted inside the range, as Excel
+   and Sheets do, so you can always see where typing will land. */
+.${p}cell.${p}selected:not(.${p}active)::after,
+.${p}head.${p}headon::after { content: ""; position: absolute; inset: 0;
+  background: ${t.selectedBg}; pointer-events: none; }
 .${p}cell.${p}active { outline: 2px solid ${t.accent}; outline-offset: -2px; z-index: 1; }
 .${p}cell.${p}locked { background-image: repeating-linear-gradient(45deg,
   rgba(0,0,0,0.03) 0 4px, transparent 4px 8px); }
+/* The editor is the one place inside a cell where selecting text is the point,
+   so it opts back out of the cell's user-select: none. */
 .${p}cell input { border: none; outline: none; width: 100%; height: 100%;
   font-size: ${t.fontSize}; font-family: ${t.monoFontFamily}; background: ${t.cellBg};
-  color: inherit; padding: 0; }
+  color: inherit; padding: 0; user-select: text; }
 .${p}head { background: ${t.headerBg}; border-right: 1px solid ${t.border};
   border-bottom: 1px solid ${t.headerBorder}; font-size: 12px; font-weight: 600;
   color: ${t.headerText}; display: flex; align-items: center; justify-content: center;
   user-select: none; position: relative; box-sizing: border-box; cursor: default; }
+/* Headers spanned by the selection, so the range is readable from the edges.
+   The tint itself is the shared ::after rule above; only the text changes here. */
+.${p}head.${p}headon { color: ${t.accent}; }
 .${p}resize { position: absolute; right: 0; top: 0; width: 5px; height: 100%;
   cursor: col-resize; z-index: 6; }
 .${p}btn { border: 1px solid ${t.buttonBorder}; background: ${t.toolbarBg};

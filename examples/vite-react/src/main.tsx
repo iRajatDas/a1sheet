@@ -40,9 +40,16 @@ createRoot(root).render(
       </h1>
       {/* Composition, not configuration: rearrange or omit any of these. */}
       <Sheet.Root defaultWorkbook={workbook} height={520}>
-        <Sheet.Toolbar />
+        <Sheet.Toolbar>
+          {/* File I/O is a child, not a prop: leave it out and the XLSX
+              writer never enters your bundle. */}
+          <Sheet.FileMenu />
+        </Sheet.Toolbar>
         <Sheet.FormulaBar />
-        <Sheet.Grid />
+        <Sheet.Grid>
+          {/* Children of the grid sit at the end of the scrollable content. */}
+          <Sheet.AddRows />
+        </Sheet.Grid>
         <Sheet.Tabs />
         <Sheet.StatusBar />
         <Sheet.ContextMenu />

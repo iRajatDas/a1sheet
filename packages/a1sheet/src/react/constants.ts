@@ -33,6 +33,16 @@ export const MAX_AUTOFIT_COL_WIDTH = 600;
  */
 export const AUTOFIT_SAMPLE_LIMIT = 2_000;
 
+/** Rows the "add more rows" control offers by default, matching Google Sheets. */
+export const ADD_ROWS_DEFAULT = 1_000;
+
+/**
+ * Ceiling for one press of that button. Rows are cheap — they are virtualized —
+ * but a mistyped number should not turn a sheet into one with ten million of
+ * them and no obvious way back.
+ */
+export const ADD_ROWS_MAX = 100_000;
+
 /** Extra rows rendered above and below the viewport to hide scroll tearing. */
 export const BUFFER_ROWS = 6;
 

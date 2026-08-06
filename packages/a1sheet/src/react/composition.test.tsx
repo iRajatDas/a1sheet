@@ -11,6 +11,7 @@ import { createRef } from "react";
 import { MissingProviderError } from "../errors.js";
 import type { Workbook } from "../model/types.js";
 import { createWorkbook } from "../model/workbook.js";
+import { ADD_ROWS_DEFAULT, HEADER_HEIGHT, ROW_HEIGHT } from "./constants.js";
 import { Root, Sheet, type SheetRootHandle, Slot, useSheet } from "./index.js";
 
 function workbookWith(cells: Record<string, string>) {
@@ -243,5 +244,128 @@ describe("Root layout props", () => {
     expect(root.className).toContain("a1s-root");
     expect(root.className).toContain("mine");
     expect(root.style.opacity).toBe("0.5");
+  });
+});
+
+describe("file I/O is a primitive, not a preset privilege", () => {
+  // The regression: import and export used to arrive as three optional
+  // callbacks that only <Spreadsheet /> passed, so a hand-composed
+  // <Sheet.Toolbar /> rendered no Import button and the feature looked deleted.
+
+  test("Sheet.FileMenu brings its own handlers, with no props", () => {
+    render(
+      <Sheet.Root>
+        <Sheet.Toolbar>
+          <Sheet.FileMenu />
+        </Sheet.Toolbar>
+        <Sheet.Grid />
+      </Sheet.Root>,
+    );
+
+    expect(screen.getByText("Import")).toBeDefined();
+    expect(screen.getByText("Export CSV")).toBeDefined();
+    expect(screen.getByText("Export XLSX")).toBeDefined();
+    expect(screen.getByLabelText("Import a spreadsheet")).toBeDefined();
+  });
+
+  test("a toolbar without one has no file buttons and is otherwise intact", () => {
+    // Not a `show*` flag — the part is simply absent from the tree, which is
+    // what keeps the XLSX writer out of a bundle that does not want it.
+    render(
+      <Sheet.Root>
+        <Sheet.Toolbar />
+      </Sheet.Root>,
+    );
+
+    expect(screen.queryByText("Import")).toBeNull();
+    expect(screen.queryByText("Export XLSX")).toBeNull();
+    expect(screen.getByText("Freeze")).toBeDefined();
+  });
+
+  test("arbitrary children go into the toolbar too", () => {
+    render(
+      <Sheet.Root>
+        <Sheet.Toolbar>
+          <button type="button">Save to my server</button>
+        </Sheet.Toolbar>
+      </Sheet.Root>,
+    );
+
+    expect(screen.getByText("Save to my server")).toBeDefined();
+  });
+});
+
+describe("adding rows at the bottom", () => {
+  function setupAddRows() {
+    const wb = createWorkbook(["Sheet1"]);
+    Object.assign(wb.sheets[0] as object, { numRows: 20 });
+    const { container } = render(
+      <Sheet.Root defaultWorkbook={wb}>
+        <Sheet.Grid>
+          <Sheet.AddRows />
+        </Sheet.Grid>
+      </Sheet.Root>,
+    );
+    const scroller = container.querySelector(
+      '[style*="overflow: auto"]',
+    ) as HTMLElement;
+    return { container, scroller, grid: scroller.firstElementChild as HTMLElement };
+  }
+
+  test("the control sits inside the scroll container, not in a bar below it", () => {
+    // Google Sheets puts it at the end of the content, so scrolling to the
+    // bottom of the sheet is what reveals it.
+    const { scroller } = setupAddRows();
+
+    expect(scroller.contains(screen.getByText("more rows at the bottom"))).toBe(
+      true,
+    );
+  });
+
+  test("Add grows the sheet, and the new rows are real scroll extent", () => {
+    const { grid } = setupAddRows();
+
+    fireEvent.click(screen.getByText("Add"));
+
+    expect(Number.parseInt(grid.style.minHeight, 10)).toBe(
+      HEADER_HEIGHT + (20 + ADD_ROWS_DEFAULT) * ROW_HEIGHT,
+    );
+  });
+
+  test("the count is editable and Enter commits it", () => {
+    const { grid } = setupAddRows();
+    const input = screen.getByLabelText("Number of rows to add");
+
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(Number.parseInt(grid.style.minHeight, 10)).toBe(
+      HEADER_HEIGHT + 25 * ROW_HEIGHT,
+    );
+  });
+
+  test("a blank count cannot be submitted", () => {
+    const { grid } = setupAddRows();
+    const before = grid.style.minHeight;
+
+    fireEvent.change(screen.getByLabelText("Number of rows to add"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByText("Add"));
+
+    expect(grid.style.minHeight).toBe(before);
+  });
+
+  test("adding rows is undoable", () => {
+    const { container, grid } = setupAddRows();
+    const before = grid.style.minHeight;
+
+    fireEvent.click(screen.getByText("Add"));
+    expect(grid.style.minHeight).not.toBe(before);
+
+    const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
+    fireEvent.keyDown(textarea, { key: "z", ctrlKey: true });
+
+    expect(grid.style.minHeight).toBe(before);
   });
 });

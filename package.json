@@ -12,7 +12,9 @@
     "typecheck": "bun run --cwd packages/a1sheet typecheck",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "dev": "bun run --cwd examples/vite-react dev"
+    "dev": "bun run --cwd examples/vite-react dev",
+    "storybook": "bun run --cwd examples/storybook dev",
+    "storybook:build": "bun run --cwd examples/storybook build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.7",

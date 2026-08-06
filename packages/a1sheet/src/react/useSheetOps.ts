@@ -40,6 +40,8 @@ export interface UseSheetOpsResult {
   deleteRowAt(row: number): void;
   insertColAt(col: number): void;
   deleteColAt(col: number): void;
+  /** Grows the sheet by `count` empty rows at the bottom. */
+  appendRows(count: number): void;
   setColWidth(col: number, px: number): void;
   setRowHeight(row: number, px: number): void;
   /** Drops the override, returning the row to the default height. */
@@ -170,6 +172,17 @@ export function useSheetOps(
     ),
     deleteColAt: useCallback(
       (col: number) => updateSheet((s) => deleteCol(s, col)),
+      [updateSheet],
+    ),
+
+    // Nothing to shift: the new rows are past everything that exists, so no
+    // cell, style, height, or merge moves.
+    appendRows: useCallback(
+      (count: number) =>
+        updateSheet((s) => {
+          s.numRows += Math.max(0, Math.floor(count));
+          return s;
+        }),
       [updateSheet],
     ),
 

@@ -3,24 +3,23 @@
 /**
  * Formatting and structure toolbar. Ported from ref/Spreadsheet.jsx:509-542.
  *
- * Freeze freezes up through the current selection. Import/export are optional:
- * they only appear when `<Spreadsheet />` passes the handlers, so a consumer who
- * does not want file I/O in their bundle can leave them out.
+ * Freeze freezes up through the current selection. Anything else you want in
+ * the bar is a child — `<Sheet.FileMenu />`, or your own buttons using the
+ * `${prefix}btn` class:
+ *
+ *   <Sheet.Toolbar>
+ *     <Sheet.FileMenu />
+ *     <button className="a1s-btn" onClick={save}>Save</button>
+ *   </Sheet.Toolbar>
  */
-import { type ReactNode, useRef } from "react";
+import type { ReactNode } from "react";
 import { NUM_FMTS } from "../../format/numFmt.js";
 import type { NumFmt } from "../../model/types.js";
 import { useSheetContext } from "../context.js";
 
 export interface ToolbarProps {
-  /**
-   * File-I/O handlers. Absent handlers hide their buttons — these are callbacks,
-   * not `show*` flags: a consumer without file I/O simply passes none, and the
-   * XLSX writer never enters their bundle.
-   */
-  onImport?(file: File): void;
-  onExportCsv?(): void;
-  onExportXlsx?(): void;
+  /** Rendered at the end of the bar, after a separator. */
+  children?: ReactNode;
 }
 
 const NUM_FMT_LABELS: Record<NumFmt, string> = {
@@ -32,13 +31,8 @@ const NUM_FMT_LABELS: Record<NumFmt, string> = {
   date: "Date",
 };
 
-export function Toolbar({
-  onImport,
-  onExportCsv,
-  onExportXlsx,
-}: ToolbarProps = {}): ReactNode {
+export function Toolbar({ children }: ToolbarProps = {}): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.Toolbar");
-  const fileRef = useRef<HTMLInputElement>(null);
   const s = api.activeStyle;
   const btn = (on?: boolean) => `${prefix}btn${on ? ` ${prefix}on` : ""}`;
 
@@ -221,39 +215,10 @@ export function Toolbar({
         Unfreeze
       </button>
 
-      {(onExportCsv || onExportXlsx || onImport) && (
-        <span className={`${prefix}sep`} />
-      )}
-      {onExportCsv && (
-        <button type="button" className={btn()} onClick={onExportCsv}>
-          Export CSV
-        </button>
-      )}
-      {onExportXlsx && (
-        <button type="button" className={btn()} onClick={onExportXlsx}>
-          Export XLSX
-        </button>
-      )}
-      {onImport && (
+      {children && (
         <>
-          <button
-            type="button"
-            className={btn()}
-            onClick={() => fileRef.current?.click()}
-          >
-            Import
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,.xlsx,.xlsm"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onImport(f);
-              e.target.value = "";
-            }}
-          />
+          <span className={`${prefix}sep`} />
+          {children}
         </>
       )}
 

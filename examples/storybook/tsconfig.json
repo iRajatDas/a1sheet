@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node", "bun"],
+    "paths": {
+      "a1sheet": ["../../packages/a1sheet/src/index.ts"],
+      "a1sheet/react": ["../../packages/a1sheet/src/react/index.ts"]
+    }
+  },
+  "include": [".storybook", "stories"]
+}

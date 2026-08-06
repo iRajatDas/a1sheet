@@ -21,8 +21,10 @@
  * React is a peerDependency. Everything framework-agnostic lives at "a1sheet".
  */
 
+import { AddRows } from "./components/AddRows.js";
 import { ColumnMenu } from "./components/ColumnMenu.js";
 import { ContextMenu } from "./components/ContextMenu.js";
+import { FileMenu } from "./components/FileMenu.js";
 import { FormulaBar } from "./components/FormulaBar.js";
 import { Grid } from "./components/Grid.js";
 import { SheetTabs } from "./components/SheetTabs.js";
@@ -37,25 +39,32 @@ import { Root } from "./Root.js";
 export const Sheet = {
   Root,
   Toolbar,
+  FileMenu,
   FormulaBar,
   Grid,
+  AddRows,
   Tabs: SheetTabs,
   StatusBar,
   ContextMenu,
   ColumnMenu,
 } as const;
 
+export { AddRows } from "./components/AddRows.js";
 export type { CellProps } from "./components/Cell.js";
 export { Cell } from "./components/Cell.js";
 export { ColumnMenu } from "./components/ColumnMenu.js";
 export { ContextMenu } from "./components/ContextMenu.js";
+export { FileMenu } from "./components/FileMenu.js";
 export { FormulaBar } from "./components/FormulaBar.js";
+export type { GridProps } from "./components/Grid.js";
 export { Grid } from "./components/Grid.js";
 export { SheetTabs } from "./components/SheetTabs.js";
 export { StatusBar } from "./components/StatusBar.js";
 export type { ToolbarProps } from "./components/Toolbar.js";
 export { Toolbar } from "./components/Toolbar.js";
 export {
+  ADD_ROWS_DEFAULT,
+  ADD_ROWS_MAX,
   BUFFER_ROWS,
   DEFAULT_COL_WIDTH,
   HEADER_HEIGHT,
@@ -91,6 +100,8 @@ export type { CaretBinding } from "./useCaretBinding.js";
 export { useCaretBinding } from "./useCaretBinding.js";
 export type { CopiedGrid, UseClipboardResult } from "./useClipboard.js";
 export { useClipboard } from "./useClipboard.js";
+export type { UseColWindowResult } from "./useColWindow.js";
+export { useColWindow } from "./useColWindow.js";
 export type { EditingState, UseEditingResult } from "./useEditing.js";
 export { useEditing } from "./useEditing.js";
 export type { UseFillHandleResult } from "./useFillHandle.js";

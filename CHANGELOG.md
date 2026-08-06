@@ -8,6 +8,35 @@ backfilled.
 
 ## Unreleased
 
+### Changed (breaking: file I/O is a primitive)
+
+- **`Sheet.Toolbar` no longer takes `onImport`, `onExportCsv`, or
+  `onExportXlsx`.** Render `<Sheet.FileMenu />` inside it instead. Those
+  callbacks were only ever passed by the `<Spreadsheet />` preset, so a
+  hand-composed toolbar rendered no Import button and the feature looked as
+  though it had been removed — a part of the library depending on the preset to
+  work is exactly what composition is supposed to prevent. Omitting
+  `Sheet.FileMenu` still keeps the XLSX writer and ZIP reader out of the bundle,
+  which is the property those callbacks existed to protect.
+- **`Sheet.Toolbar` takes `children`,** rendered after a separator. Your own
+  buttons go there, using the `a1s-btn` class.
+- **`Sheet.Grid` takes `children`,** rendered inside the scroll container after
+  the last row — an end-of-sheet slot that scrolls with the content.
+
+### Added (grid)
+
+- **`Sheet.AddRows`** — "Add N more rows at the bottom", where Google Sheets
+  puts it: at the end of the scrollable content, sticky to the left edge so it
+  stays readable when the sheet is scrolled sideways. Backed by
+  `api.appendRows(count)`, which is undoable.
+
+### Added (repository)
+
+- **A Storybook** at `examples/storybook`, run with `bun run storybook`. Covers
+  the preset, five composition patterns, 100,000 rows, 500 columns, filtering,
+  resizing and auto-fit, and file I/O. Stories alias to `src`, so there is no
+  build step between an edit and the browser.
+
 ### Added (XLSX sizing)
 
 - **Row heights and column widths survive an XLSX round trip.** `readXlsx`

@@ -31,9 +31,15 @@ never owns your layout:
 import { Sheet } from "a1sheet/react";
 
 <Sheet.Root defaultWorkbook={wb} onWorkbookChange={save}>
-  <Sheet.Toolbar />
+  <Sheet.Toolbar>
+    <Sheet.FileMenu />          {/* import/export — omit it and the XLSX
+                                    writer never enters your bundle */}
+  </Sheet.Toolbar>
   <Sheet.FormulaBar />
-  <Sheet.Grid />
+  <Sheet.Grid>
+    <Sheet.AddRows />           {/* children of the grid sit at the end of
+                                    the scrollable content */}
+  </Sheet.Grid>
   <Sheet.Tabs />
   <Sheet.StatusBar />
   <Sheet.ContextMenu />
@@ -250,6 +256,7 @@ try {
 ```
 packages/a1sheet/     the library
 examples/vite-react/  dev playground, aliased to src (no rebuild needed)
+examples/storybook/   every use case as a story, also aliased to src
 ref/                  the original POC — frozen, reference only, never imported
 docs/                 LIMITATIONS.md and the architecture spec
 ```
@@ -263,7 +270,13 @@ bun run typecheck
 bun run lint       # biome
 bun run build      # ESM via bun, .d.ts via tsc
 bun run dev        # example app
+bun run storybook  # every use case, on :6006
 ```
+
+`bun run storybook` is the fastest way to see what the library does: the preset,
+each composition pattern, a 100,000-row sheet, 500 columns, filtering, resizing,
+and file I/O. Stories alias straight to `src`, so an edit shows up without a
+build.
 
 ## Architecture
 

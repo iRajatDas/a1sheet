@@ -15,3 +15,7 @@ coverage/
 # large binary test corpus — keep out of the package tarball
 .dual-graph/
 dataset/
+fyi
+
+# storybook build output
+storybook-static/

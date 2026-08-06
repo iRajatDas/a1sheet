@@ -49,7 +49,17 @@ import { Cell } from "./Cell.js";
 /** Left and right padding on a cell, from the stylesheet. Auto-fit must clear it. */
 const CELL_PADDING_X = 12;
 
-export function Grid(): ReactNode {
+export interface GridProps {
+  /**
+   * Rendered inside the scroll container, after the last row. Put anything that
+   * belongs at the end of the sheet here — `<Sheet.AddRows />`, a totals
+   * banner — and it scrolls with the content instead of sitting in a fixed bar
+   * below it.
+   */
+  children?: ReactNode;
+}
+
+export function Grid({ children }: GridProps = {}): ReactNode {
   const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Grid");
   const { renaming, setRenaming } = ui;
   const { sheet, rowWindow, colWindow, fill, bounds } = api;
@@ -548,6 +558,11 @@ export function Grid(): ReactNode {
           );
         })}
       </div>
+
+      {/* End-of-sheet slot. Outside the grid element so it is not a grid item
+          competing for a track, but inside the scroller so it sits after the
+          last row and scrolls with it. */}
+      {children}
 
       {/* Fill-drag overlay: hit-tests raw mouse coordinates. */}
       {fill.dragging && (

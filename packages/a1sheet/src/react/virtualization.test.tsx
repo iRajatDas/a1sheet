@@ -40,9 +40,7 @@ function setup(overrides: SheetOverrides = {}) {
   Object.assign(wb.sheets[0] as object, overrides);
   const { container } = render(<Spreadsheet defaultWorkbook={wb} />);
 
-  const scroller = container.querySelector(
-    '[style*="overflow: auto"]',
-  ) as HTMLElement;
+  const scroller = container.querySelector(".a1s-scroller") as HTMLElement;
   const grid = scroller.firstElementChild as HTMLElement;
 
   const cellAt = (row: number, col: number) =>

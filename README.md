@@ -273,10 +273,25 @@ bun run dev        # example app
 bun run storybook  # every use case, on :6006
 ```
 
-`bun run storybook` is the fastest way to see what the library does: the preset,
-each composition pattern, a 100,000-row sheet, 500 columns, filtering, resizing,
-and file I/O. Stories alias straight to `src`, so an edit shows up without a
-build.
+`bun run storybook` is the documentation — 12 docs pages and 49 interactive
+stories, aliased straight to `src` so an edit shows up without a build:
+
+| Section | What is in it |
+|---|---|
+| Start here | Introduction, quick start, and why composition over configuration |
+| Preset | `<Spreadsheet />` with a live props table |
+| Composition | Grid only, reordered parts, your own component, custom toolbar |
+| State | Controlled, uncontrolled, persistence, view state, the imperative handle |
+| Hooks | A grid built from `useSpreadsheet` with no a1sheet component at all |
+| Features | Editing, formulas, reference picking, formats, structure, fill, undo |
+| Data and files | Import with progress and cancellation, typed errors, the CSV injection guard |
+| Scale | 100,000 rows, 500 columns, filtering, resizing |
+| Theming | Five palettes and every theme key |
+| Recipes | Read-only, custom functions, named ranges, validation, search |
+
+Stories are tested, not just built: `bun test` renders every one of them and
+runs their play functions, so a broken demo fails in CI rather than in front of
+whoever opened the docs.
 
 ## Architecture
 

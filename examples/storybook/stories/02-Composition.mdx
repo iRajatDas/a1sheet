@@ -1,0 +1,119 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Start here/Composition over configuration" />
+
+# Composition over configuration
+
+This is the one rule the rest of the API follows from.
+
+## The problem
+
+A configurable component grows a prop per arrangement, and the props multiply
+faster than the arrangements they cover:
+
+```tsx
+// The shape this library deliberately does not have.
+<Spreadsheet
+  showToolbar
+  showStatusBar={false}
+  toolbarPosition="bottom"
+  footer={<MyFooter />}
+  footerProps={{ sticky: true }}
+  renderToolbarExtras={() => <SaveButton />}
+/>
+```
+
+Every new layout needs a new prop, every prop needs a default, and the defaults
+interact. The consumer still cannot put their own component *between* two parts,
+because the component owns the tree.
+
+## The solution
+
+The consumer owns the tree. The library provides parts.
+
+```tsx
+<Sheet.Root defaultWorkbook={wb}>
+  <Sheet.Toolbar />
+  <MyBanner />              {/* your component, in the middle, no support needed */}
+  <Sheet.Grid />
+  <MyFooter />              {/* reads our data with useSheet() */}
+</Sheet.Root>
+```
+
+Want no toolbar? Do not render one. That is not a `showToolbar={false}` — the
+component is not in the tree at all, so it is not in your bundle either.
+
+## The rules this produces
+
+**No `show*` / `enable*` / `hide*` prop, ever.** A boolean that gates a subtree
+is a composition failure. If something is optional it is a child.
+
+**A part must work standalone.** This was violated once and it is instructive:
+`Sheet.Toolbar` used to take `onImport`, and only the `<Spreadsheet />` preset
+passed it. A hand-composed toolbar rendered no Import button, and the feature
+looked deleted. It is now `<Sheet.FileMenu />`, a child — which keeps the
+property the props were protecting, since not rendering it keeps the XLSX writer
+out of your bundle.
+
+**Context, not prop drilling.** Primitives take no `api` prop. They read
+context, and so can yours:
+
+```tsx
+function SelectionSummary() {
+  const api = useSheet();                       // the same api the primitives use
+  return <footer>{api.getDisplay(api.active.row, api.active.col)}</footer>;
+}
+```
+
+A primitive used outside `Sheet.Root` throws `MissingProviderError` naming the
+component and the fix, rather than crashing somewhere downstream.
+
+**The preset is sanctioned, and takes no layout props.** `<Spreadsheet />` is a
+documented default arrangement and nothing more. Its whole body is:
+
+```tsx
+<Root {...props} ref={ref}>
+  <Toolbar><FileMenu /></Toolbar>
+  <FormulaBar />
+  <Grid><AddRows /></Grid>
+  <SheetTabs />
+  <StatusBar />
+  <ContextMenu />
+  <ColumnMenu />
+</Root>
+```
+
+If you want something else, copy those ten lines and change them. That is the
+supported path, not a fallback.
+
+## Slots, where a child needs a position
+
+Two primitives take children because *where* the child goes is the point:
+
+- **`Sheet.Toolbar`** renders children at the end of the bar, after a separator.
+- **`Sheet.Grid`** renders children inside the scroll container, after the last
+  row — an end-of-sheet slot that scrolls with the content. `Sheet.AddRows` uses
+  it.
+
+## `Slot`, for building your own primitives
+
+`Slot` implements the Radix/shadcn `asChild` merge — it puts its props onto the
+child element instead of wrapping it, with the child's own handlers and styles
+preserved and both handlers firing:
+
+```tsx
+import { Slot } from "a1sheet/react";
+
+<Slot className="ours" onClick={ours}>
+  <button className="theirs" onClick={theirs}>Go</button>
+</Slot>
+// → one <button class="ours theirs">, both handlers run, ours first
+```
+
+**Known gap, stated plainly:** `Slot` and the `AsChildProps` type are exported
+and tested, but no built-in primitive currently reads an `asChild` prop. The
+building block is there; the wiring on `Sheet.*` is not. Until it is, swap an
+element by composing your own part around `useSheet()` rather than by passing
+`asChild` to ours.
+
+See it all working: [Composition stories](?path=/docs/composition-primitives--docs).

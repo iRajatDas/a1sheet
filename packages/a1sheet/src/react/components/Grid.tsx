@@ -365,6 +365,10 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   return (
     <div
       ref={containerRef}
+      // Named so it can be found. Scrolling the sheet from outside means moving
+      // this element — setting `api.setScrollTop` alone only tells virtualization
+      // where to draw, and the container would stay where it was.
+      className={`${prefix}scroller`}
       onScroll={(e) => {
         const el = e.target as HTMLDivElement;
         api.setScrollTop(el.scrollTop);

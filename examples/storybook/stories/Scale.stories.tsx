@@ -8,6 +8,27 @@ import * as fixtures from "./fixtures.js";
 
 const meta = {
   title: "Scale/Large sheets",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "Both axes are virtualized: only cells near the viewport exist in the DOM, and the cost of a frame is flat in the size of the sheet.",
+          "",
+          "| sheet | cells in DOM | mount | per keystroke |",
+          "|---|---|---|---|",
+          "| 1k rows x 26 cols | 286 | 83 ms | 7.1 ms |",
+          "| 100k rows x 26 cols | 286 | 30 ms | 6.6 ms |",
+          "| 1k rows x 500 cols | 286 | 53 ms | 5.1 ms |",
+          "| 100k rows x 500 cols | 286 | 125 ms | 11.9 ms |",
+          "",
+          "Measured under Bun with happy-dom, so treat them as relative rather than browser-accurate. What they show is the shape: adding rows or columns does not add work.",
+          "",
+          "**What does still scale with the sheet:** committing an edit copies the cell map, so an edit costs about 26 ms at 10k filled cells and about 390 ms at 1M. That is the write path, not the render path, and it is the next thing to fix.",
+        ].join("\n"),
+      },
+    },
+  },
 } satisfies Meta;
 
 export default meta;

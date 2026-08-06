@@ -11,6 +11,7 @@ import * as fixtures from "./fixtures.js";
 
 const meta = {
   title: "Composition/Primitives",
+  tags: ["autodocs"],
   parameters: {
     docs: {
       description: {
@@ -140,35 +141,6 @@ function SaveButton() {
     </button>
   );
 }
-
-export const Controlled: Story = {
-  render: function ControlledStory() {
-    const [wb, setWb] = useState(fixtures.budget);
-    const sheet = wb.sheets[0];
-    const filled = sheet ? Object.keys(sheet.cells).length : 0;
-    return (
-      <div>
-        <p style={{ font: "13px/1.4 system-ui", padding: "8px 12px", margin: 0 }}>
-          The workbook lives in the story's state: <strong>{filled}</strong> filled
-          cells, sheet <strong>{sheet?.name}</strong>. Every edit round-trips
-          through <code>onWorkbookChange</code>.
-        </p>
-        <Sheet.Root workbook={wb} onWorkbookChange={setWb} height={380}>
-          <Sheet.Toolbar />
-          <Sheet.Grid />
-        </Sheet.Root>
-      </div>
-    );
-  },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Pass `workbook` + `onWorkbookChange` for controlled, or `defaultWorkbook` for uncontrolled. The component never silently switches between the two.",
-      },
-    },
-  },
-};
 
 export const TwoSheetsOnePage: Story = {
   name: "Two independent sheets",

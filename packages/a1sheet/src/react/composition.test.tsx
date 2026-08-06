@@ -306,9 +306,7 @@ describe("adding rows at the bottom", () => {
         </Sheet.Grid>
       </Sheet.Root>,
     );
-    const scroller = container.querySelector(
-      '[style*="overflow: auto"]',
-    ) as HTMLElement;
+    const scroller = container.querySelector(".a1s-scroller") as HTMLElement;
     return { container, scroller, grid: scroller.firstElementChild as HTMLElement };
   }
 

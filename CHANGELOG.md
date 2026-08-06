@@ -32,10 +32,18 @@ backfilled.
 
 ### Added (repository)
 
-- **A Storybook** at `examples/storybook`, run with `bun run storybook`. Covers
-  the preset, five composition patterns, 100,000 rows, 500 columns, filtering,
-  resizing and auto-fit, and file I/O. Stories alias to `src`, so there is no
-  build step between an edit and the browser.
+- **A Storybook** at `examples/storybook`, run with `bun run storybook` — 12
+  docs pages and 49 stories, meant as the documentation rather than a gallery.
+  Prose pages for the quick start and for composition-over-configuration; a
+  props table on the preset; interactive stories for controlled and uncontrolled
+  state, the imperative handle, the headless hooks, every feature, import with
+  progress and cancellation, 100k rows, theming, and a recipes section answering
+  the questions the API deliberately has no prop for (read-only, validation,
+  search). Stories alias to `src`, so there is no build step between an edit and
+  the browser, and `bun test` renders every story and runs its play function.
+- **`.a1s-scroller`** on the grid's scroll container. Scrolling the sheet from
+  outside means moving that element; `api.setScrollTop` alone only tells
+  virtualization where to draw, and the two would fall out of step.
 
 ### Added (XLSX sizing)
 

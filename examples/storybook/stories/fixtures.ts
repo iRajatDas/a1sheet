@@ -199,3 +199,88 @@ export function filtered(): Workbook {
   if (sheet) sheet.filters = { 2: new Set(["Blocked", "Done"]) };
   return wb;
 }
+
+/** A dark palette, as a partial Theme. There is no dark-mode boolean. */
+export const DARK = {
+  accent: "#2dd4bf",
+  border: "#1e293b",
+  headerBorder: "#334155",
+  buttonBorder: "#334155",
+  headerBg: "#0f172a",
+  headerText: "#94a3b8",
+  cellBg: "#0b1220",
+  cellText: "#e2e8f0",
+  selectedBg: "rgba(45,212,191,0.16)",
+  toolbarBg: "#0f172a",
+} as const;
+
+/** Numbers in every supported format, for the formatting story. */
+export function formats(): Workbook {
+  return build(
+    ["Formats"],
+    [
+      {
+        cells: {
+          "0_0": "Format",
+          "0_1": "Raw",
+          "0_2": "Shown",
+          "1_0": "General",
+          "1_1": "1234.5678",
+          "1_2": "1234.5678",
+          "2_0": "Integer",
+          "2_1": "1234.5678",
+          "2_2": "1234.5678",
+          "3_0": "Number",
+          "3_1": "1234.5678",
+          "3_2": "1234.5678",
+          "4_0": "Percent",
+          "4_1": "0.4267",
+          "4_2": "0.4267",
+          "5_0": "Currency",
+          "5_1": "1234.5678",
+          "5_2": "1234.5678",
+          "6_0": "Date",
+          "6_1": "45000",
+          "6_2": "45000",
+        },
+        styles: {
+          "0_0": { bold: true },
+          "0_1": { bold: true },
+          "0_2": { bold: true },
+          "2_2": { numFmt: "integer" },
+          "3_2": { numFmt: "number" },
+          "4_2": { numFmt: "percent" },
+          "5_2": { numFmt: "currency" },
+          "6_2": { numFmt: "date" },
+        },
+        frozenRows: 1,
+        colWidths: { 0: 110 },
+      },
+    ],
+  );
+}
+
+/** A locked cell and a hidden row, for the protection story. */
+export function protectedSheet(): Workbook {
+  return build(
+    ["Protected"],
+    [
+      {
+        cells: {
+          "0_0": "Editable",
+          "0_1": "try me",
+          "1_0": "Locked",
+          "1_1": "cannot change",
+          "2_0": "Row 3 below is hidden",
+          "3_0": "you cannot see this",
+        },
+        styles: {
+          "0_0": { bold: true },
+          "1_0": { bold: true },
+          "1_1": { locked: true, bg: "#fee2e2" },
+        },
+        hiddenRows: new Set([3]),
+      },
+    ],
+  );
+}

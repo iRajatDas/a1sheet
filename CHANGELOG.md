@@ -10,6 +10,37 @@ backfilled.
 
 ### Added
 
+- **Reference picking while typing a formula.** Clicking a cell mid-formula
+  writes its reference at the caret instead of moving the selection; dragging
+  grows that reference into a range; every reference is outlined in the grid and
+  coloured by group, so repeated references match. A click past a finished
+  operand still selects, as in Sheets. `findRefSpans`, `insertRefAtCaret`, and
+  `isFormulaSource` are exported for custom editors, along with the
+  `useFormulaRefs` and `useCaretBinding` hooks.
+- **`explainErrorValue`** turns an error sentinel into a sentence saying what to
+  do about it. The status bar shows it for the active cell.
+- `Theme.refColors`, the palette for reference outlines.
+- `EditingState.caret`, so both editors and the grid agree on where the caret is.
+
+### Fixed (grid interaction)
+
+- **Clicking a cell no longer kills the keyboard.** A cell is a plain `<div>`,
+  so mousedown moved focus to `<body>` — and every shortcut, the clipboard
+  handlers, and "select a cell and start typing" live on the hidden textarea.
+  The grid only worked if you never clicked it.
+- **Dragging across cells no longer selects their text.** Same unsuppressed
+  mousedown default.
+- **The active cell is the anchor, not the drag end.** Drag D5→F13 and D5 stays
+  active and untinted, as Excel and Sheets do. Arrow keys step from it, typing
+  lands in it, and the formula bar no longer flickers through every cell a drag
+  passes over.
+- Row and column headers highlight across the selected range.
+- Translucent tints are overlays rather than `background`, which had left sticky
+  headers and frozen rows see-through.
+- The fill handle sits at the corner of the selection regardless of the anchor.
+
+### Added (file reading)
+
 - **Cancellation and progress for file reads.** `readWorkbookFile`, `readXlsx`,
   and `csvToCells` take an optional options object with `signal` and
   `onProgress`. Reads yield to the event loop between chunks, so a large file no

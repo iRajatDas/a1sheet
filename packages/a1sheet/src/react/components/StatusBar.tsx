@@ -8,12 +8,17 @@
  * fill, and paste all ignore it and act on the primary selection.
  */
 import type { ReactNode } from "react";
+import { explainErrorValue } from "../../formula/errorText.js";
 import { normalizeRange, toA1 } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
 import { useSheetContext } from "../context.js";
 
 export function StatusBar(): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.StatusBar");
+
+  // A sentinel in a cell says something is wrong without saying what. Explain
+  // the active cell's, which is the one the user is looking at.
+  const error = explainErrorValue(api.getValue(api.active.row, api.active.col));
 
   const ranges: Range[] = [api.selection, ...api.extraRanges];
 
@@ -66,6 +71,11 @@ export function StatusBar(): ReactNode {
       }}
     >
       <span>{rangeLabel}</span>
+      {error && (
+        <span role="status" style={{ color: theme.refColors[1] }}>
+          {error}
+        </span>
+      )}
       {api.extraRanges.length > 0 && (
         <span>{api.extraRanges.length + 1} ranges</span>
       )}

@@ -87,12 +87,16 @@ export type {
   MenuAnchor,
   RenamingState,
 } from "./types.js";
+export type { CaretBinding } from "./useCaretBinding.js";
+export { useCaretBinding } from "./useCaretBinding.js";
 export type { CopiedGrid, UseClipboardResult } from "./useClipboard.js";
 export { useClipboard } from "./useClipboard.js";
 export type { EditingState, UseEditingResult } from "./useEditing.js";
 export { useEditing } from "./useEditing.js";
 export type { UseFillHandleResult } from "./useFillHandle.js";
 export { useFillHandle } from "./useFillHandle.js";
+export type { UseFormulaRefsResult } from "./useFormulaRefs.js";
+export { useFormulaRefs } from "./useFormulaRefs.js";
 export type { UseRowWindowResult, WindowRow } from "./useRowWindow.js";
 export { useRowWindow } from "./useRowWindow.js";
 export type { UseSelectionResult } from "./useSelection.js";

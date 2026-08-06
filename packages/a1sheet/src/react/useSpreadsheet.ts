@@ -19,6 +19,7 @@ import type { Range, Workbook } from "../model/types.js";
 import { type UseClipboardResult, useClipboard } from "./useClipboard.js";
 import { type UseEditingResult, useEditing } from "./useEditing.js";
 import { type UseFillHandleResult, useFillHandle } from "./useFillHandle.js";
+import { type UseFormulaRefsResult, useFormulaRefs } from "./useFormulaRefs.js";
 import { type UseRowWindowResult, useRowWindow } from "./useRowWindow.js";
 import { type UseSelectionResult, useSelection } from "./useSelection.js";
 import { type UseSheetOpsResult, useSheetOps } from "./useSheetOps.js";
@@ -48,6 +49,8 @@ export interface UseSpreadsheetResult
   rowWindow: UseRowWindowResult;
   clipboard: UseClipboardResult;
   fill: UseFillHandleResult;
+  /** Reference picking and highlighting while a formula is being typed. */
+  formulaRefs: UseFormulaRefsResult;
   /** Wire to the scroll container's onScroll and its measured height. */
   setScrollTop(px: number): void;
   setViewportHeight(px: number): void;
@@ -74,6 +77,7 @@ export function useSpreadsheet(
   const editing = useEditing();
   const clipboard = useClipboard();
   const fill = useFillHandle();
+  const formulaRefs = useFormulaRefs(editing.editing, editing.setValue);
   const ops = useSheetOps(wb.sheet, selection.selection, wb.updateSheet);
 
   const [scrollTop, setScrollTop] = useState(0);
@@ -122,12 +126,14 @@ export function useSpreadsheet(
   const commitEdit = useCallback(
     (move?: [number, number]) => {
       const done = editing.commit();
+      // Any reference the user was dragging out ends with the edit that owns it.
+      formulaRefs.endPick();
       if (done) setCell(done.row, done.col, done.value);
       if (move) {
         selection.move(move[0], move[1], wb.sheet.numRows, wb.sheet.numCols);
       }
     },
-    [editing, setCell, selection, wb.sheet.numRows, wb.sheet.numCols],
+    [editing, formulaRefs, setCell, selection, wb.sheet.numRows, wb.sheet.numCols],
   );
 
   const isSelected = useCallback(
@@ -153,6 +159,7 @@ export function useSpreadsheet(
     rowWindow,
     clipboard,
     fill,
+    formulaRefs,
     setScrollTop,
     setViewportHeight,
     setCell,

@@ -26,6 +26,7 @@ import {
   useRef,
 } from "react";
 import { colToLetters } from "../../model/address.js";
+import type { Range } from "../../model/types.js";
 import {
   DEFAULT_COL_WIDTH,
   HEADER_HEIGHT,
@@ -136,6 +137,36 @@ export function Grid(): ReactNode {
       // inline would outrank the class that highlights a header in the selection.
     }
     return style;
+  }
+
+  /**
+   * Pixel box for a range, in the grid element's coordinates.
+   *
+   * The inverse of `hitTest`: a row's y is its position in the visible order, so
+   * hidden and filtered-out rows collapse exactly as they do on screen. Returns
+   * null when no part of the range is currently visible, which is why this
+   * cannot be a plain multiply — a filtered sheet has no linear row mapping.
+   */
+  function rectFor(range: Range): CSSProperties | null {
+    const visualRow = (r: number) => {
+      if (r < frozenRows) return r;
+      const index = rowWindow.visibleRows.indexOf(r);
+      return index === -1 ? null : frozenRows + index;
+    };
+
+    const top = visualRow(range.r1);
+    const bottom = visualRow(range.r2);
+    if (top === null || bottom === null) return null;
+
+    const left = colOffset(range.c1);
+    const right = colOffset(range.c2) + colWidth(range.c2);
+
+    return {
+      left: ROW_HEADER_WIDTH + left,
+      top: HEADER_HEIGHT + top * ROW_HEIGHT,
+      width: right - left,
+      height: (bottom - top + 1) * ROW_HEIGHT,
+    };
   }
 
   /**
@@ -374,6 +405,31 @@ export function Grid(): ReactNode {
         {rowWindow.windowRows.map(({ absRow, gridRow }) =>
           renderRow(absRow, gridRow, false),
         )}
+
+        {/* Reference outlines for the formula being typed. Rendered inside the
+            grid element so they scroll with it, and as siblings of the cells so
+            a cell's own borders are not disturbed. */}
+        {api.formulaRefs.spans.map((span) => {
+          const box = rectFor(span.range);
+          if (!box) return null;
+          const color = theme.refColors[
+            span.group % Math.max(1, theme.refColors.length)
+          ] as string;
+          return (
+            <div
+              key={`${span.start}-${span.end}`}
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                ...box,
+                border: `2px solid ${color}`,
+                background: `${color}14`,
+                pointerEvents: "none",
+                zIndex: 6,
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* Fill-drag overlay: hit-tests raw mouse coordinates. */}

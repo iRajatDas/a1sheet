@@ -97,6 +97,43 @@ ref.current?.api.setCell(0, 0, "hi");
 Styling is inline with a `theme` prop and a `classNamePrefix` — no stylesheet to
 import, so dropping this into an existing app needs no build-config change.
 
+### Formula editing
+
+Typing a formula puts the grid into reference-picking mode, as Excel and Sheets
+do. Clicking a cell writes its reference at the caret instead of moving the
+selection; dragging grows that one reference into a range; and every reference
+in the formula is outlined in the grid, colour-matched so repeated references
+read as the same thing.
+
+A click only picks when the caret is somewhere a reference can go. After a
+finished operand — `=A1+2` with the caret at the end — a click means what it
+usually means, and selects.
+
+The string mechanics are exported and framework-agnostic, so a custom editor
+gets the same behaviour:
+
+```ts
+import { findRefSpans, insertRefAtCaret } from "a1sheet";
+
+findRefSpans("=SUM(B2:C4)+A1");
+// [{ start: 5, end: 10, text: "B2:C4", range: {…}, group: 0 },
+//  { start: 12, end: 14, text: "A1",    range: {…}, group: 1 }]
+
+insertRefAtCaret("=SUM(", 5, "B2");   // → { value: "=SUM(B2", caret: 7, span: {…} }
+insertRefAtCaret("=A1+2", 5, "B2");   // → null: not a reference position
+```
+
+Error values carry an explanation rather than only a sentinel — a circular
+reference reports itself in every cell of the cycle, not just the one that
+closed it:
+
+```ts
+import { explainErrorValue } from "a1sheet";
+
+explainErrorValue("#CYCLE!");
+// "Circular reference: this formula depends on its own result. …"
+```
+
 ### Reading large files
 
 `readWorkbookFile` (and `readXlsx`, and `csvToCells`) take an optional second

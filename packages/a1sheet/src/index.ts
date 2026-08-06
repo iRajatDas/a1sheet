@@ -26,11 +26,25 @@ export type { FormatOptions } from "./format/numFmt.js";
 export { formatValue, NUM_FMTS } from "./format/numFmt.js";
 // -------------------------------------------------------------- formula
 export type { BinaryOp, CompareOp, Node, RefToken, Token } from "./formula/ast.js";
+export { explainErrorValue } from "./formula/errorText.js";
 export type { EvalContext, Evaluator } from "./formula/evaluate.js";
-export { CYCLE_ERROR, createEvaluator, evalNode } from "./formula/evaluate.js";
+export {
+  CYCLE_ERROR,
+  createEvaluator,
+  ERROR_VALUES,
+  evalNode,
+  isErrorValue,
+} from "./formula/evaluate.js";
 export type { FormulaFunction } from "./formula/functions/registry.js";
 export { FUNCTIONS, registerFunction } from "./formula/functions/registry.js";
 export { parseFormula } from "./formula/parse.js";
+export type { RefInsertion, RefSpan } from "./formula/refEditing.js";
+// Locating and inserting references in formula source, for custom editors.
+export {
+  findRefSpans,
+  insertRefAtCaret,
+  isFormulaSource,
+} from "./formula/refEditing.js";
 export { shiftFormulaRefs } from "./formula/refs.js";
 export { extrapolateSeries } from "./formula/series.js";
 export { tokenize } from "./formula/tokenize.js";

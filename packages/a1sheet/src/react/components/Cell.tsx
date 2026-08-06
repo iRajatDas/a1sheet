@@ -13,6 +13,7 @@ import { cellKey } from "../../model/address.js";
 import { getMergeAt } from "../../model/sheet.js";
 import { ROW_HEIGHT } from "../constants.js";
 import { useSheetContext } from "../context.js";
+import { useCaretBinding } from "../useCaretBinding.js";
 
 export interface CellProps {
   row: number;
@@ -27,6 +28,14 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Cell");
   const { sheet, selection, editing } = api;
 
+  // Every hook runs before the merge bail-out below — a covered cell returns
+  // null, and a conditional hook call is an error.
+  const isEditing = editing?.row === row && editing.col === col;
+  const caret = useCaretBinding(
+    isEditing ? editing.caret : undefined,
+    api.setCaret,
+  );
+
   const merge = getMergeAt(sheet, row, col);
   // A cell covered by a merge is not rendered at all; the merge's top-left cell
   // spans over it.
@@ -36,7 +45,6 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   const style = sheet.styles[key] ?? {};
   const selected = api.isSelected(row, col);
   const active = row === api.active.row && col === api.active.col;
-  const isEditing = editing?.row === row && editing.col === col;
 
   const gridColumn = col + 2;
   const bounds = api.bounds;
@@ -94,8 +102,13 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
         // preventDefault stops both; the focus() call is what puts the keyboard
         // back, because the default it just suppressed was the thing that moved it.
         e.preventDefault();
-        focusRef.current?.focus();
 
+        // Mid-formula, a click writes a reference and the editor keeps the
+        // caret. `pickAt` returns false when the caret is past a finished
+        // operand, which means the click really did mean "select this cell".
+        if (api.formulaRefs.pickAt(row, col)) return;
+
+        focusRef.current?.focus();
         if (editing) api.commitEdit();
         if (e.ctrlKey || e.metaKey) {
           api.addRange(selection);
@@ -108,8 +121,10 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
         }
       }}
       onMouseEnter={(e) => {
-        // Drag-select. Skipped during a fill drag, which owns its own overlay.
-        if (e.buttons === 1 && !api.fill.dragging) api.extendTo(row, col);
+        if (e.buttons !== 1 || api.fill.dragging) return;
+        // Dragging after a reference click grows that reference into a range.
+        if (api.formulaRefs.active) api.formulaRefs.extendPickTo(row, col);
+        else api.extendTo(row, col);
       }}
       onDoubleClick={() => api.startEdit(sheet, row, col)}
       onContextMenu={(e) => {
@@ -123,8 +138,14 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
         <input
           // biome-ignore lint/a11y/noAutofocus: the editor must take the caret
           autoFocus
+          ref={caret.ref}
           value={editing.value}
-          onChange={(e) => api.setValue(e.target.value)}
+          onSelect={caret.onSelect}
+          // The caret is passed through so typing in the middle of a formula
+          // does not get yanked to the end on the next render.
+          onChange={(e) =>
+            api.setValue(e.target.value, e.target.selectionStart ?? undefined)
+          }
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();

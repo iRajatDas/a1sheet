@@ -16,6 +16,12 @@ export interface Theme {
   cellText: string;
   selectedBg: string;
   toolbarBg: string;
+  /**
+   * Outline colors for references in a formula being edited, cycled by the
+   * reference's group. Give it as many entries as you like; a formula with more
+   * distinct references than colors reuses them from the start.
+   */
+  refColors: readonly string[];
   fontFamily: string;
   monoFontFamily: string;
   fontSize: string;
@@ -32,6 +38,7 @@ export const defaultTheme: Theme = {
   cellText: "#1e293b",
   selectedBg: "rgba(13, 148, 136, 0.10)",
   toolbarBg: "#ffffff",
+  refColors: ["#2563eb", "#dc2626", "#7c3aed", "#ea580c", "#0891b2"] as const,
   fontFamily:
     'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   monoFontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",

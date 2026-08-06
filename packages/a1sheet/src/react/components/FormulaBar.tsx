@@ -16,11 +16,13 @@
 import { type ReactNode, useState } from "react";
 import { normalizeRange, parseRangeRef, toA1 } from "../../model/address.js";
 import { useSheetContext } from "../context.js";
+import { useCaretBinding } from "../useCaretBinding.js";
 
 export function FormulaBar(): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.FormulaBar");
   const [nameBox, setNameBox] = useState("");
   const { selection, editing, active } = api;
+  const caret = useCaretBinding(editing?.caret, api.setCaret);
 
   // The formula bar always shows the active cell — the anchor — not the moving end
   // of a drag, which would make the bar flicker through every cell you drag over.
@@ -79,12 +81,15 @@ export function FormulaBar(): ReactNode {
       <input
         className={`${prefix}input`}
         aria-label="Formula"
+        ref={caret.ref}
         value={value}
+        onSelect={caret.onSelect}
         onChange={(e) => {
+          const at = e.target.selectionStart ?? undefined;
           if (!editingHere) {
             api.startEdit(api.sheet, active.row, active.col, e.target.value);
           } else {
-            api.setValue(e.target.value);
+            api.setValue(e.target.value, at);
           }
         }}
         onKeyDown={(e) => {

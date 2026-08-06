@@ -15,6 +15,15 @@ export interface EditingState {
   row: number;
   col: number;
   value: string;
+  /**
+   * Caret offset within `value`.
+   *
+   * Part of the edit rather than of the input element because clicking a cell
+   * mid-formula has to decide what to do from where the caret is, and by then
+   * the input has lost focus to the click. Both editors report it back on every
+   * keystroke and selection change.
+   */
+  caret: number;
 }
 
 export interface UseEditingResult {
@@ -22,7 +31,10 @@ export interface UseEditingResult {
   isEditing: boolean;
   /** No-ops on a locked cell. `seed` replaces the content; omit to edit in place. */
   startEdit(sheet: Sheet, row: number, col: number, seed?: string): void;
-  setValue(value: string): void;
+  /** Sets the text. The caret goes to the end unless `caret` says otherwise. */
+  setValue(value: string, caret?: number): void;
+  /** Reports where the caret moved to, without changing the text. */
+  setCaret(caret: number): void;
   /** Returns the committed value and clears editing state; null if nothing was open. */
   commit(): EditingState | null;
   cancel(): void;
@@ -44,15 +56,24 @@ export function useEditing(): UseEditingResult {
   const startEdit = useCallback(
     (sheet: Sheet, row: number, col: number, seed?: string) => {
       if (sheet.styles[cellKey(row, col)]?.locked) return;
-      set({ row, col, value: seed ?? sheet.cells[cellKey(row, col)] ?? "" });
+      const value = seed ?? sheet.cells[cellKey(row, col)] ?? "";
+      set({ row, col, value, caret: value.length });
     },
     [set],
   );
 
   const setValue = useCallback(
-    (value: string) => {
+    (value: string, caret?: number) => {
       if (!ref.current) return;
-      set({ ...ref.current, value });
+      set({ ...ref.current, value, caret: caret ?? value.length });
+    },
+    [set],
+  );
+
+  const setCaret = useCallback(
+    (caret: number) => {
+      if (!ref.current || ref.current.caret === caret) return;
+      set({ ...ref.current, caret });
     },
     [set],
   );
@@ -70,6 +91,7 @@ export function useEditing(): UseEditingResult {
     isEditing: editing !== null,
     startEdit,
     setValue,
+    setCaret,
     commit,
     cancel,
   };

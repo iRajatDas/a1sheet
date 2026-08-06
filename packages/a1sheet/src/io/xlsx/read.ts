@@ -6,12 +6,17 @@
  * from these (`makeSheet` plus an overlay), so imported sheets pick up default
  * colWidths, frozen panes, and so on.
  *
+ * Reads more than the cells: the theme palette, the style tables, table styling,
+ * conditional formats, and in-cell images all live in other parts of the package
+ * and are pulled together here.
+ *
  * Trusts well-formed output from Excel, Sheets, and LibreOffice. Charts, pivot
- * tables, data validation, and conditional formatting are IGNORED, not errors.
+ * tables, and data validation are IGNORED, not errors.
  */
 import { MalformedFileError, UnsupportedFormatError } from "../../errors.js";
 import { lettersToCol } from "../../model/address.js";
 import type {
+  CellImage,
   CellKey,
   CellValue,
   CondFormat,
@@ -27,6 +32,7 @@ import {
 import { listZipEntries, readZipMember } from "../zip/zip.js";
 import { parseCondFormats } from "./condFormat.js";
 import { excelSerialToDaySerial } from "./dates.js";
+import { parseImageTable } from "./images.js";
 import { parseThemePalette } from "./palette.js";
 import { parseDifferentialStyle, parseStylesXml } from "./styles.js";
 import {
@@ -52,6 +58,8 @@ export interface XlsxSheetData {
   cachedValues: Record<CellKey, CellValue>;
   /** Conditional formats, with their `<dxfs>` styles already resolved. */
   condFormats: CondFormat[];
+  /** In-cell images, resolved to a data URI or a source URL. */
+  images: Record<CellKey, CellImage>;
   merges: Range[];
   rows: number;
   cols: number;
@@ -67,6 +75,20 @@ function parseRef(ref: string): { row: number; col: number } | null {
   const m = ref.match(REF_RE);
   if (!m?.[1] || !m[2]) return null;
   return { col: lettersToCol(m[1].toUpperCase()), row: parseInt(m[2], 10) - 1 };
+}
+
+/**
+ * Strips the prefixes Excel puts on functions that postdate the file format.
+ *
+ * `_xlfn.` marks a function newer than the OOXML spec and `_xlws.` a
+ * worksheet-scoped one, so `SORT` is written `_xlfn._xlws.SORT`. They are noise
+ * to any other reader, and leaving them on guarantees `#NAME?` even for the
+ * functions this engine does implement.
+ */
+const MODERN_FN_PREFIX = /\b_xl(?:fn|ws)\./g;
+
+function normalizeFormula(text: string): string {
+  return text.replace(MODERN_FN_PREFIX, "");
 }
 
 /**
@@ -191,6 +213,9 @@ export async function readXlsx(
   const xfStyles = parseStylesXml(stylesXml, palette);
   const dxfs = parseDxfs(stylesXml, palette, parseDifferentialStyle);
 
+  // Workbook-level: cells on any sheet index into one table of rich values.
+  const imageTable = parseImageTable({ files, read, names });
+
   // Sheet names come from workbook.xml; order falls back to the file numbering.
   const wbXml = read(names.find((n) => /xl\/workbook\.xml$/i.test(n)));
   const sheetNames = wbXml
@@ -236,6 +261,7 @@ export async function readXlsx(
     const cells: Record<CellKey, RawCell> = {};
     const styles: Record<CellKey, StyleObject> = {};
     const cachedValues: Record<CellKey, CellValue> = {};
+    const images: Record<CellKey, CellImage> = {};
     let maxR = 0;
     let maxC = 0;
 
@@ -264,7 +290,8 @@ export async function readXlsx(
         // formula, where the anchor holds the expression. Those cells still
         // carry a `<v>`, so they read as literals rather than as blank formulas.
         const text = textOf(f.inner);
-        value = text === "" ? (v ? textOf(v.inner) : "") : `=${text}`;
+        value =
+          text === "" ? (v ? textOf(v.inner) : "") : `=${normalizeFormula(text)}`;
       } else if (type === "s") {
         const idx = parseInt(v ? textOf(v.inner) : "0", 10);
         value = sharedStrings[idx] ?? "";
@@ -276,6 +303,13 @@ export async function readXlsx(
       }
 
       const key = `${row}_${col}` as CellKey;
+
+      // `vm` is the cell's link into the rich-value chain that ends at a picture.
+      const vm = Number.parseInt(c.attrs.vm ?? "", 10);
+      const image = Number.isFinite(vm)
+        ? imageTable.byValueMetadata.get(vm)
+        : undefined;
+      if (image) images[key] = image;
 
       const sIdx = c.attrs.s;
       const style = (sIdx ? xfStyles[parseInt(sIdx, 10)] : null) ?? undefined;
@@ -356,6 +390,7 @@ export async function readXlsx(
       styles,
       cachedValues,
       condFormats,
+      images,
       merges,
       rows: maxR + 1,
       cols: maxC + 1,
@@ -376,6 +411,7 @@ export async function readXlsx(
           styles: {},
           cachedValues: {},
           condFormats: [],
+          images: {},
           merges: [],
           rows: 1,
           cols: 1,

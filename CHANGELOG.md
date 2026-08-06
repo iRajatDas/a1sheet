@@ -8,6 +8,74 @@ backfilled.
 
 ## Unreleased
 
+### Added (XLSX import fidelity)
+
+An imported workbook used to read as a plainer version of itself. None of the
+reasons were in the cells.
+
+- **Theme colours resolve.** Excel writes most colours as
+  `<color theme="4" tint="-0.25"/>`, against the palette in
+  `xl/theme/theme1.xml`; the reader looked only at `rgb`, so almost every colour
+  in a file Excel wrote silently became no colour at all. This was the single
+  biggest cause. The legacy `indexed` palette resolves too, and `auto` means
+  inherit rather than black — defaulting to black is how a missing border colour
+  becomes a black grid.
+- **Borders.** `StyleObject.borders`, thirteen OOXML line kinds mapped onto CSS,
+  read and written. An edge Excel marks `auto` takes the cell's text colour.
+- **Font family and size.** `StyleObject.fontFamily` and `fontSize` (pixels). A
+  family from a file keeps the theme's stack behind it, so a reader without Aptos
+  Narrow falls back to the sheet's own face rather than the browser's.
+- **Vertical alignment, text wrapping, and gradient fills.**
+  `StyleObject.valign`, `wrap`, and `gradient` — the last read as stops and drawn
+  as a CSS `linear-gradient`.
+- **Named cell styles are inherited.** A `<cellXfs>` entry can take its font,
+  fill, border, and alignment from a named style through its `xfId`, and Excel
+  usually omits the `applyFont`/`applyBorder` flags meant to signal it. Titles and
+  headings carry their borders and centring that way.
+- **`StyleObject.numFmtCode`** holds the file's literal format code and is
+  preferred over the six-value `numFmt` bucket, which stays for the format
+  dropdown. A new renderer covers sections, literal signs, decimals, grouping,
+  percentages, currency, dates, times, elapsed time, and colour hints — so a goal
+  difference formatted `+0;-0;0` shows `+45` instead of `45`, and a kick-off shows
+  `8/16/24 20:00` instead of a bare date. Built-in format ids carry no code in the
+  file, so those are a table here.
+- **Table styling.** `Format as Table` keeps a table's appearance in
+  `xl/tables/*.xml`, not in its cells. Both mechanisms are read: the differential
+  formats the file states, and the built-in style names it does not —
+  `TableStyleMedium4` means the third theme accent, a colour that appears nowhere
+  in the workbook that shows it. Applied under the cells' own formatting, which
+  stays more specific.
+- **Conditional formatting.** `Sheet.condFormats`, evaluated at render time rather
+  than flattened, so a rule keeps reacting to edits. `expression`, `cellIs`,
+  `containsText`, and `containsBlanks` rules, with priority order and
+  `stopIfTrue`; an expression's formula is shifted per cell the way a copied one
+  is. Colour scales, data bars, and icon sets are read and dropped. Worth having
+  even to display a static file: the sample workbook styles its headings this way,
+  not with cell formatting.
+- **In-cell images.** `Sheet.images` and `CellImage`. `=IMAGE("…")` stores
+  `#VALUE!` in the cell and the picture five parts away, so the cell used to
+  import as the error that is literally in it. The embedded copy is preferred over
+  the source URL — no request, works offline, and cannot be changed by whoever
+  owns the address — with one data URI shared per media part, a 16 MiB budget per
+  workbook, and a raster-only allow-list. Editing such a cell removes the image;
+  typing an `IMAGE()` call adds one.
+- **`IMAGE` is a formula function,** returning its URL, so a cell whose picture
+  cannot be drawn shows where it was meant to come from.
+- **Excel's `_xlfn.` and `_xlws.` prefixes are stripped on import.** They mark
+  functions newer than the file format, and left in place they guarantee `#NAME?`
+  even for functions this engine does implement.
+- **`Evaluator.evaluate(formulaBody)`** evaluates a formula belonging to no cell.
+  Conditional-format rules were the first thing to need it.
+
+Two bugs the tests caught rather than I did: `<u val="none"/>` is how a
+differential format turns underline *off*, and treating the tag's presence as
+truth underlined every table header; and scanning the whole document for
+`<numFmt>` picks up the ones inside `<dxfs>`, where a `numFmtId="0"` of "General"
+gave every plain cell in the workbook a format code.
+
+Export still writes cells, styles, merges, and sizing — not tables, conditional
+formats, or images. See `docs/LIMITATIONS.md`.
+
 ### Fixed (XLSX import)
 
 - **Imported dates were seventy years out.** SpreadsheetML counts days from

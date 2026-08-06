@@ -20,14 +20,6 @@ and paste into Excel by hand will disagree.
 → `src/formula/values.ts` (`DAY_MS`) and `src/formula/functions/date.ts`; the
 conversion is `src/io/xlsx/dates.ts`.
 
-**A date cell shows the date and not the time.** The number format is one of six
-buckets, and `date` renders `yyyy-mm-dd`, so a value of 2024-08-16 20:00 imported
-from Excel displays as `2024-08-16`. The time is in the value, not lost — only
-unshown.
-→ `NumFmt` in `src/model/types.ts` and the `date` case of `formatValue` in
-`src/format/numFmt.ts`. Doing this properly means holding the file's format code
-rather than bucketing it.
-
 **A formula this engine cannot evaluate displays the value it was imported
 with, and that value is never recalculated.** `Sheet.cachedValues` holds what
 Excel last computed for each formula cell, and it is shown whenever evaluation
@@ -39,12 +31,19 @@ formula cell itself drops its imported value, and the error appears.
 → `orImported` in `src/formula/evaluate.ts`. Removing the caveat means
 implementing the functions, not changing the fallback.
 
-**Structured table references (`tblMatches[column]`) are not implemented,** nor
-are the table definitions in `xl/tables/*.xml` that give them meaning. A table's
-banded fills and header styling come from its table style rather than from cell
-formatting, so an imported table arrives unstyled as well as uncalculated.
-→ `src/formula/tokenize.ts` for the reference syntax; the reader would need to
-parse `xl/tables/` and resolve a name to a range.
+**Structured table references (`tblMatches[column]`) do not evaluate.** The table
+definitions in `xl/tables/*.xml` ARE read — a table's styling is applied — but the
+reference syntax is not, so a formula using one falls back to its imported value.
+→ `src/formula/tokenize.ts` for the syntax; `src/io/xlsx/tables.ts` already has
+the range and column names to resolve against.
+
+**No dynamic arrays.** A formula returning a range does not spill into its
+neighbours, and `LET`, `LAMBDA`, `MAP`, `MAKEARRAY`, `HSTACK`, `VSTACK`,
+`SEQUENCE`, `UNIQUE`, `SORT`, `CHOOSECOLS`, and `XLOOKUP` are not implemented. An
+imported workbook built on them displays, from its cached values, but does not
+recalculate.
+→ `FormulaValue` in `src/formula/values.ts` would need a 2D array kind, and the
+sheet a map of spilled ranges so a spill can be invalidated as a unit.
 
 **`IF` is not lazy.** Both branches are evaluated before dispatch. No correctness
 impact (there are no side effects), but the unused branch still computes.
@@ -56,11 +55,13 @@ impact (there are no side effects), but the unused branch still computes.
 
 ## Grid
 
-**Cells do not wrap,** so auto-fitting a row means returning it to the default
-height — there is no taller content for it to hug. Row heights are otherwise
-free, and the offset tables already handle whatever you set.
-→ `white-space: nowrap` on `.cell` in `src/react/styles.ts`, then `autoFitRow`
-in `Grid` needs to measure instead of reset.
+**A wrapped cell does not grow its row.** `wrap` on a style makes text run onto
+more lines, but the row keeps whatever height it has, so the extra lines are
+clipped — and auto-fitting a row still means returning it to the default height
+rather than measuring. Row heights are otherwise free, and the offset tables
+handle whatever you set.
+→ `autoFitRow` in `Grid` needs to measure wrapped text; automatic growth would
+mean the row window asking the DOM for a height it currently computes.
 
 **Auto-fitting a column samples at most `AUTOFIT_SAMPLE_LIMIT` cells** (2,000)
 and stops. A longer value further down the column stays clipped. The cap exists
@@ -117,31 +118,35 @@ relative refs shift when they should not.
 
 ## Formatting
 
-**No borders.** Bold, italic, underline, color, background, and number format are
-supported.
-→ Add fields to `StyleObject`, render them in `Cell`, and add a `<borders>`
-section to `src/io/xlsx/styles.ts`, which currently writes a single empty
-`<border/>` placeholder.
+**No indent or text rotation.** A style carries bold, italic, underline, colour,
+fill, gradient, borders, font family, font size, horizontal and vertical
+alignment, wrapping, and a number-format code.
+→ `StyleObject` in `src/model/types.ts`, then `cellCss` in
+`src/react/cellStyle.ts` and both directions of `src/io/xlsx/styles.ts`.
 
-**A style is bold, italic, underline, colour, fill, alignment, and one of six
-number formats.** No font family, no font size, no vertical alignment, no text
-wrapping, no indent, no rotation. Every one of those is common in a real Excel
-file, so an imported workbook reads as a plainer version of itself even where the
-import worked.
-→ `StyleObject` in `src/model/types.ts` is the single place; each field then needs
-rendering in `Cell` and a branch in `src/io/xlsx/styles.ts` both ways.
+**Tint is approximated in RGB, not HSL.** OOXML specifies `tint` against HSL
+luminance; the RGB form every other implementation uses differs by a shade or two
+on saturated colours and not at all on greys.
+→ `applyTint` in `src/io/xlsx/palette.ts`.
 
-**Theme colours import as no colour at all.** Excel writes most fills and font
-colours as `<color theme="3" tint="0.4"/>` rather than as RGB, resolved against
-the palette in `xl/theme/theme1.xml`. `rgbToColor` reads only the `rgb`
-attribute, so a themed colour silently becomes the default — which is why a
-workbook using Excel's own palette imports almost monochrome.
-→ Parse `<a:clrScheme>` from `xl/theme/theme1.xml`, index it by the theme number,
-apply `tint`, and pass the resolved palette into `parseStylesXml`.
+**Built-in table style recipes are approximated.** `TableStyleMedium4` resolves to
+the right theme accent, and the header is filled with it while the body is striped
+with a wash of it. Excel's actual definitions are several hundred entries in its
+own resources, differing in border weight and stripe opacity per family.
+→ `builtinRecipe` in `src/io/xlsx/tables.ts`.
 
-**No conditional formatting.**
-→ A new per-sheet `condFormats: [{range, rule, style}]`, resolved in `Cell` after
-the base style and before the inline style fields are read.
+**Graphical conditional-format rules are dropped.** Colour scales, data bars, and
+icon sets are drawings rather than styles, and `top10`/`aboveAverage` need
+statistics over the whole range. Expression, `cellIs`, `containsText`, and
+`containsBlanks` rules all work.
+→ `parseRule` in `src/io/xlsx/condFormat.ts` and `matches` in
+`src/format/condFormat.ts`; a data bar also needs something drawn behind the text.
+
+**Conditional formats are re-evaluated on every render** of the cells they cover.
+Each rule's formula is memoized per evaluator, so a rule over a thousand cells
+with absolute references costs one evaluation — but a rule with relative
+references costs one per cell.
+→ `condStyleFor` in `src/react/useSpreadsheet.ts`.
 
 **No data validation dropdowns.**
 
@@ -153,23 +158,39 @@ necessary.
 → Implement `src/io/zip/deflate.ts`, then switch the `method` field in
 `src/io/zip/zip.ts` from 0 to 8 for the XML entries. Fixed-Huffman is sufficient.
 
-**XLSX import ignores charts, pivot tables, data validation, and conditional
-formatting** rather than erroring on them. It trusts well-formed output from
-Excel, Sheets, and LibreOffice and does not handle every OOXML edge case.
+**XLSX import ignores charts, pivot tables, and data validation** rather than
+erroring on them. It trusts well-formed output from Excel, Sheets, and LibreOffice
+and does not handle every OOXML edge case.
 → `src/io/xlsx/read.ts`.
 
-**`numFmt` round-tripping is heuristic.** Arbitrary OOXML format codes collapse
-into the nearest of our six enum values rather than surviving exactly.
+**`StyleObject.numFmt` is heuristic; `numFmtCode` is exact.** Arbitrary format
+codes collapse into the nearest of six enum values for the format dropdown to
+show, while the literal code travels alongside and is what renders.
 → `numFmtToKey` in `src/io/xlsx/styles.ts`.
 
 **Merged-cell-specific styling is not read.** Merges themselves round-trip.
 
-**Images are not read, including in-cell ones.** A cell holding
-`=IMAGE("https://…")` is stored by Excel as an error value plus a rich-value
-record pointing at a PNG in `xl/media/`, so it imports as the `#VALUE!` that is
-literally in the file. Faithful to the bytes, not to what Excel draws.
-→ `xl/richData/` and `xl/media/` would need reading, plus a cell value kind that
-is not a string or a number.
+**Only in-cell images are read.** `=IMAGE("…")` resolves to the PNG the file
+embeds, or to its source URL. Floating pictures, shapes, and charts anchored over
+the grid (`xl/drawings/`) are not read at all.
+→ `src/io/xlsx/images.ts` covers the rich-value chain; drawings are a separate
+part with their own anchor model.
+
+**Embedded images are capped at 16 MiB of distinct bytes per workbook.** Past that
+an image falls back to its source URL, which costs a request instead of memory. An
+image with no URL either is not drawn.
+→ `EMBED_BUDGET_BYTES` in `src/io/xlsx/images.ts`. A Blob URL per image would lift
+the cap at the price of a lifecycle to manage.
+
+**Only raster images are embedded** — PNG, JPEG, GIF, WebP, BMP. Anything else
+falls back to its URL. An allow-list rather than a block-list, so a format nobody
+has vetted never becomes a `data:` URI.
+→ `EMBEDDABLE` in `src/io/xlsx/images.ts`.
+
+**Exporting does not write images, tables, or conditional formats.** They are read
+and rendered; `writeXlsx` emits cells, styles, merges, and sizing. A round trip
+through export therefore flattens a table to its cell colours and drops the rest.
+→ `src/io/xlsx/write.ts` and `src/io/xlsx/writeStyles.ts`.
 
 **Reads are paced, not off-thread.** `readWorkbookFile` yields to the event loop
 between chunks and honors an `AbortSignal`, so the tab stays responsive and an

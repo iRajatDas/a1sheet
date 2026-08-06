@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { condStyleFor } from "../../format/condFormat.js";
 import { formatValue } from "../../format/numFmt.js";
 import { createEvaluator } from "../../formula/evaluate.js";
+import { imageUrlIn } from "../../formula/imageCall.js";
 import type { CellKey } from "../../model/types.js";
 import { daySerialToExcelSerial, excelSerialToDaySerial } from "./dates.js";
 import { readXlsx } from "./read.js";
@@ -184,6 +185,28 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
         data.styles["1_6" as CellKey],
       ),
     ).toBe("8/16/24 20:00");
+  });
+
+  test("an IMAGE cell yields a picture rather than #VALUE!", async () => {
+    // Data!J2 is `=IMAGE("…Arsenal_FC…png")`, which Excel stores as the error
+    // value #VALUE! plus a vm pointing at an embedded PNG.
+    const [data] = await readXlsx(bytes);
+    if (!data) throw new Error("no sheets");
+
+    expect(data.images["1_9" as CellKey]?.src).toStartWith(
+      "data:image/png;base64,",
+    );
+    // …and the formula still evaluates to something meaningful, so a cell whose
+    // image cannot be drawn shows where it came from.
+    const evaluator = createEvaluator(data.cells, {}, data.cachedValues);
+    expect(evaluator.getCellDisplay(1, 9)).toContain("Arsenal_FC");
+  });
+
+  test("Excel's modern-function prefix is stripped so the call is recognizable", () => {
+    // `_xlfn.IMAGE` and `_xlfn._xlws.SORT` are how Excel writes functions newer
+    // than the format. Left in place they guarantee #NAME? even where we have
+    // the function.
+    expect(imageUrlIn('=IMAGE("x.png")')).toBe("x.png");
   });
 
   test("dates survive the trip back out to a file", async () => {

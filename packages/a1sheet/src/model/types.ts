@@ -167,6 +167,19 @@ export type CondRule =
     }
   | { readonly type: "containsBlanks"; readonly negate: boolean };
 
+/**
+ * An image drawn inside a cell, from `=IMAGE("…")`.
+ *
+ * `src` is either a `data:` URI of a copy embedded in the file or the source URL
+ * the formula names. Embedded is preferred: no request, works offline, and cannot
+ * be changed by whoever controls the address.
+ */
+export interface CellImage {
+  src: string;
+  /** Alternative text. The source URL, which is the only description available. */
+  alt?: string;
+}
+
 export interface CondFormat {
   range: Range;
   /**
@@ -205,6 +218,12 @@ export interface Sheet {
    * is the whole point of it being conditional.
    */
   condFormats: readonly CondFormat[];
+  /**
+   * Images to draw in cells, from `IMAGE()` formulas. Separate from `cells`
+   * because the formula's own value is a URL — the picture is what it means, not
+   * what it is.
+   */
+  images: Record<CellKey, CellImage>;
   /** Column index -> width in px. Absent means DEFAULT_COL_WIDTH. */
   colWidths: Record<number, number>;
   /** Row index -> height in px. Absent means ROW_HEIGHT. */

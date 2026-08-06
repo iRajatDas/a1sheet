@@ -20,6 +20,19 @@ export const textFunctions: Record<string, FormulaFunction> = {
   MID: (a) =>
     toText(a[0]).slice(toNumber(a[1]) - 1, toNumber(a[1]) - 1 + toNumber(a[2])),
 
+  /**
+   * The URL of an image to draw in the cell.
+   *
+   * Evaluates to the URL, because a formula's value has to be a scalar — the
+   * picture is drawn from `Sheet.images`, which the reader and `setCell` keep in
+   * step with the formula. So a cell whose image cannot be fetched still shows
+   * where it was meant to come from instead of an error.
+   *
+   * Excel's further arguments (alt text, sizing, dimensions) are accepted and
+   * ignored rather than rejected, so a file using them imports.
+   */
+  IMAGE: (a) => toText(a[0]),
+
   TRIM: (a) => toText(a[0]).trim(),
   UPPER: (a) => toText(a[0]).toUpperCase(),
   LOWER: (a) => toText(a[0]).toLowerCase(),

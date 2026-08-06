@@ -59,6 +59,70 @@ describe("a formula the engine does not implement", () => {
   });
 });
 
+describe("a cell holding an IMAGE formula", () => {
+  const withImage = (): Workbook => {
+    const sheet: Sheet = {
+      ...makeSheet("Pictures"),
+      cells: { "0_0": '=IMAGE("https://example.test/crest.png")' } as Record<
+        CellKey,
+        string
+      >,
+      images: {
+        "0_0": { src: "data:image/png;base64,AAAA", alt: "a crest" },
+      } as Record<CellKey, { src: string; alt?: string }>,
+    };
+    return { sheets: [sheet], activeSheetIndex: 0, namedRanges: {} };
+  };
+
+  test("draws the picture instead of the URL", () => {
+    render(<Spreadsheet defaultWorkbook={withImage()} />);
+
+    const img = document.querySelector('[data-row="0"][data-col="0"] img');
+    expect(img?.getAttribute("src")).toBe("data:image/png;base64,AAAA");
+    // The value is still a URL, and showing it beside the image would be noise.
+    expect(cellText(0, 0)).toBe("");
+  });
+
+  test("the source URL is the alternative text", () => {
+    render(<Spreadsheet defaultWorkbook={withImage()} />);
+    const img = document.querySelector('[data-row="0"][data-col="0"] img');
+    expect(img?.getAttribute("alt")).toBe("a crest");
+  });
+
+  test("replacing the formula removes the picture", () => {
+    // Otherwise the image outlives the formula that asked for it.
+    render(<Spreadsheet defaultWorkbook={withImage()} />);
+
+    const cell = document.querySelector('[data-row="0"][data-col="0"]');
+    if (!cell) throw new Error("no cell");
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    const editor = screen.getByRole("textbox", { name: /formula/i });
+    fireEvent.change(editor, { target: { value: "just text" } });
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    expect(document.querySelector('[data-row="0"][data-col="0"] img')).toBeNull();
+    expect(cellText(0, 0)).toBe("just text");
+  });
+
+  test("typing an IMAGE formula draws one", () => {
+    render(<Spreadsheet />);
+
+    const cell = document.querySelector('[data-row="0"][data-col="0"]');
+    if (!cell) throw new Error("no cell");
+    fireEvent.mouseDown(cell);
+    fireEvent.doubleClick(cell);
+    const editor = screen.getByRole("textbox", { name: /formula/i });
+    fireEvent.change(editor, {
+      target: { value: '=IMAGE("https://example.test/x.png")' },
+    });
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    const img = document.querySelector('[data-row="0"][data-col="0"] img');
+    expect(img?.getAttribute("src")).toBe("https://example.test/x.png");
+  });
+});
+
 describe("the stylesheet", () => {
   test("sets cells in the body font, not the monospace one", () => {
     // A grid of names and totals in a monospace face reads as a terminal. The

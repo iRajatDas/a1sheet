@@ -14,6 +14,7 @@ import { useCallback, useMemo, useState } from "react";
 import { condStyleFor as condStyleFor_ } from "../format/condFormat.js";
 import { formatValue } from "../format/numFmt.js";
 import { createEvaluator, type Evaluator } from "../formula/evaluate.js";
+import { imageUrlIn } from "../formula/imageCall.js";
 import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
 import type { Range, StyleObject, Workbook } from "../model/types.js";
@@ -161,6 +162,15 @@ export function useSpreadsheet(
         // Whatever an import computed for this cell describes the formula that
         // was here, not the one the user just typed.
         delete sheet.cachedValues[key];
+
+        // Typing an IMAGE() call draws the image, and replacing that formula
+        // removes it — otherwise the picture would outlive the formula that
+        // asked for it. An imported cell keeps its embedded copy until edited,
+        // since the URL is all a typed formula can offer.
+        const url = imageUrlIn(raw);
+        if (url) sheet.images[key] = { src: url, alt: url };
+        else delete sheet.images[key];
+
         return sheet;
       });
     },

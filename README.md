@@ -153,8 +153,8 @@ explainErrorValue("#CYCLE!");
 
 Drag the divider on a column header to resize the column, or the one below a row
 header to resize the row. Double-click a divider to auto-fit: a column sizes to
-its widest value, a row returns to the default height (cells are single-line, so
-that is the height that hugs their content).
+its widest value, a row returns to the default height — a wrapped cell does not
+yet grow its row, so there is no taller content for a row to hug.
 
 Sizes live on the sheet, so they are yours to set and to persist:
 
@@ -324,7 +324,7 @@ The parts worth knowing before editing:
 
 ## What works
 
-Everything from the POC is ported, typed, and under test — 156 tests.
+Everything from the POC is ported, typed, and under test.
 
 - **Grid** — CSS Grid with row and column virtualization, sticky freeze panes,
   merged cells, row and column resize with double-click auto-fit,
@@ -333,8 +333,10 @@ Everything from the POC is ported, typed, and under test — 156 tests.
   navigation, Delete to clear, drag-select, Ctrl+click multi-select.
 - **Formulas** — 30 functions, `$` anchoring, named ranges, lazy memoized
   evaluation, cycle detection, live recalculation on edit.
-- **Formatting** — bold/italic/underline, alignment, text and fill color, six
-  number formats, cell locking, Ctrl+B/I/U.
+- **Formatting** — bold/italic/underline, font family and size, horizontal and
+  vertical alignment, wrapping, text and fill colour, gradients, borders, number
+  formats by literal format code, conditional formatting, cell locking,
+  Ctrl+B/I/U.
 - **Structure** — insert/delete row and column, merge/unmerge, freeze, sort,
   per-column value filters, multiple sheets, undo/redo (50 levels).
 - **Clipboard** — copy/cut/paste with relative-reference shifting on internal
@@ -350,23 +352,39 @@ obscurely — both are binary formats, out of scope.
 
 ### What an import keeps, and what it does not
 
-Worth knowing before you point this at a real workbook. It reads values, formula
-text, merges, custom column widths and row heights, bold/italic/underline, RGB
-text and fill colours, alignment, and a number format bucketed into one of six
-kinds. Dates are converted from Excel's 1899-12-30 epoch to this engine's.
+Worth knowing before you point this at a real workbook.
 
-It does not read borders, font family or size, text wrapping, theme colours
-(`<color theme="3"/>`, which is how Excel writes most of them), table styles,
-conditional formatting, or images — so a workbook laid out in Excel arrives
-plainer than it looked there.
+**Formatting.** Values, formula text, merges, and custom column widths and row
+heights. Fonts — family, size, bold, italic, underline, colour. Fills, including
+gradients. Borders, with their line kinds and colours. Horizontal and vertical
+alignment and text wrapping. Number formats by their literal format code, so `+45`
+and `8/16/24 20:00` survive rather than collapsing to `45` and a bare date.
 
-Formulas are kept as text and re-evaluated, and this engine implements 30
-functions against Excel's several hundred. Where evaluation fails, the cell shows
-the value Excel last computed for it, from `Sheet.cachedValues`; such a cell is
-effectively read-only, since nothing here can recalculate a formula it could not
-parse. Editing it drops the imported value and reveals the error.
+Colours are resolved through the workbook theme, which matters more than it
+sounds: Excel writes most of them as `<color theme="4" tint="-0.25"/>`, not as
+RGB. Formatting that lives outside the cell is read too — the borders and centring
+a cell inherits from a named style, a table's header and banding from
+`xl/tables/`, and conditional formats, which real workbooks use for headings and
+not only for highlighting. In-cell `=IMAGE("…")` draws the picture the file
+embeds.
 
-Each gap is listed with its extension point in
+Not read: indent, text rotation, data validation, charts, pivot tables, floating
+pictures and shapes. Conditional colour scales, data bars, and icon sets are
+dropped, being drawings rather than styles.
+
+**Formulas.** Kept as text and re-evaluated, and this engine implements ~30
+functions against Excel's several hundred — no dynamic arrays, `LET`, `LAMBDA`, or
+structured table references. Where evaluation fails, the cell shows the value
+Excel last computed for it, from `Sheet.cachedValues`. Such a cell is effectively
+read-only: nothing here can recalculate a formula it could not parse, so editing
+its inputs will not change it. Editing the cell itself drops the imported value
+and reveals the error.
+
+**Export** writes cells, styles, merges, and sizing — not tables, conditional
+formats, or images. A round trip through export flattens a table to its cell
+colours.
+
+Every gap is listed with the extension point where the work would start:
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 ## Limitations

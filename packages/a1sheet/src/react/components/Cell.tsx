@@ -57,6 +57,8 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   const base = sheet.styles[key] ?? {};
   const conditional = api.condStyleFor(row, col);
   const style = conditional ? { ...base, ...conditional } : base;
+  // An IMAGE() cell draws its picture instead of its value, which is a URL.
+  const image = sheet.images[key];
   const selected = api.isSelected(row, col);
   const active = row === api.active.row && col === api.active.col;
 
@@ -139,6 +141,22 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
       }}
       title={style.locked ? "Locked cell" : undefined}
     >
+      {isEditing ? null : image ? (
+        // Contained rather than stretched, so a crest keeps its proportions in a
+        // cell whose size the user chose for the text beside it. The URL is the
+        // only description the file offers, so it is the alt text.
+        <img
+          src={image.src}
+          alt={image.alt ?? ""}
+          style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            objectFit: "contain",
+            display: "block",
+          }}
+        />
+      ) : null}
+
       {isEditing ? (
         <input
           // biome-ignore lint/a11y/noAutofocus: the editor must take the caret
@@ -164,7 +182,7 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
           }}
           onBlur={() => api.commitEdit()}
         />
-      ) : (
+      ) : image ? null : (
         api.getDisplay(row, col)
       )}
 

@@ -7,6 +7,7 @@
  */
 import { cellKey } from "./address.js";
 import type {
+  CellImage,
   CellKey,
   CellValue,
   CondFormat,
@@ -30,6 +31,7 @@ export function makeSheet(name: string): Sheet {
     styles: {},
     cachedValues: {},
     condFormats: [],
+    images: {},
     colWidths: {},
     rowHeights: {},
     merges: [],
@@ -57,6 +59,7 @@ export function cloneSheet(sheet: Sheet): Sheet {
     // Frozen values, replaced wholesale rather than edited, so the array itself
     // may be shared. Ranges inside it still move on insert and delete.
     condFormats: sheet.condFormats,
+    images: { ...sheet.images },
     colWidths: { ...sheet.colWidths },
     rowHeights: { ...sheet.rowHeights },
     merges: sheet.merges.map((m) => ({ ...m })),
@@ -172,6 +175,7 @@ function shiftRows(sheet: Sheet, at: number, delta: number): Sheet {
     styles: shiftKeys(sheet.styles, "row", at, delta),
     cachedValues: shiftKeys(sheet.cachedValues, "row", at, delta),
     condFormats: shiftCondFormats(sheet.condFormats, "row", at, delta),
+    images: shiftKeys(sheet.images, "row", at, delta),
     rowHeights: shiftIndexMap(sheet.rowHeights, at, delta),
     rowLabels: shiftIndexMap(sheet.rowLabels, at, delta),
     hiddenRows: shiftIndexSet(sheet.hiddenRows, at, delta),
@@ -185,6 +189,7 @@ function shiftCols(sheet: Sheet, at: number, delta: number): Sheet {
     styles: shiftKeys(sheet.styles, "col", at, delta),
     cachedValues: shiftKeys(sheet.cachedValues, "col", at, delta),
     condFormats: shiftCondFormats(sheet.condFormats, "col", at, delta),
+    images: shiftKeys(sheet.images, "col", at, delta),
     colWidths: shiftIndexMap(sheet.colWidths, at, delta),
     colLabels: shiftIndexMap(sheet.colLabels, at, delta),
     filters: shiftIndexMap(sheet.filters, at, delta),
@@ -256,6 +261,7 @@ export function sortByColumn(
   const cells: Record<CellKey, RawCell> = {};
   const styles: Record<CellKey, StyleObject> = {};
   const cachedValues: Record<CellKey, CellValue> = {};
+  const images: Record<CellKey, CellImage> = {};
   for (const [newRow, oldRow] of order.entries()) {
     for (let c = 0; c < sheet.numCols; c++) {
       const from = cellKey(oldRow, c);
@@ -266,6 +272,8 @@ export function sortByColumn(
       if (style !== undefined) styles[to] = style;
       const cached = sheet.cachedValues[from];
       if (cached !== undefined) cachedValues[to] = cached;
+      const image = sheet.images[from];
+      if (image !== undefined) images[to] = image;
     }
   }
   // Preserve anything below the sorted range untouched.
@@ -279,8 +287,9 @@ export function sortByColumn(
   keepBelow(sheet.cells, cells);
   keepBelow(sheet.styles, styles);
   keepBelow(sheet.cachedValues, cachedValues);
+  keepBelow(sheet.images, images);
 
-  return { ...sheet, cells, styles, cachedValues };
+  return { ...sheet, cells, styles, cachedValues, images };
 }
 
 /** Reads a cell's style, or undefined when the cell has no explicit formatting. */

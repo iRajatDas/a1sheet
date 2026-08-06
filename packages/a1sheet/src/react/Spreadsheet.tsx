@@ -15,7 +15,7 @@
  *     <MyFooter />
  *   </Sheet.Root>
  */
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef } from "react";
 import { AddRows } from "./components/AddRows.js";
 import { ColumnMenu } from "./components/ColumnMenu.js";
 import { ContextMenu } from "./components/ContextMenu.js";

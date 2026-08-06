@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { useSheetContext } from "../context.js";
+import { PlusIcon, TrashIcon } from "./icons.js";
 
 export function SheetTabs(): ReactNode {
   const { api, theme, prefix, ui } = useSheetContext("Sheet.Tabs");
@@ -66,22 +67,24 @@ export function SheetTabs(): ReactNode {
 
       <button
         type="button"
-        className={`${prefix}btn`}
+        className={`${prefix}btn ${prefix}iconbtn`}
         title="Add sheet"
-        style={{ marginLeft: 6, marginBottom: 4, padding: "2px 8px" }}
+        aria-label="Add sheet"
+        style={{ marginLeft: 6, marginBottom: 4 }}
         onClick={() => api.addSheetAt()}
       >
-        +
+        <PlusIcon />
       </button>
       {workbook.sheets.length > 1 && (
         <button
           type="button"
-          className={`${prefix}btn`}
+          className={`${prefix}btn ${prefix}iconbtn`}
           title="Delete the active sheet"
-          style={{ marginBottom: 4, padding: "2px 8px" }}
+          aria-label="Delete the active sheet"
+          style={{ marginBottom: 4 }}
           onClick={() => api.deleteSheetAt(workbook.activeSheetIndex)}
         >
-          −
+          <TrashIcon />
         </button>
       )}
     </div>

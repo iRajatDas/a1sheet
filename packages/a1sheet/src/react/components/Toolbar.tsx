@@ -3,6 +3,9 @@
 /**
  * Formatting and structure toolbar. Ported from ref/Spreadsheet.jsx:509-542.
  *
+ * Every button is icon-only and carries a `title` and an `aria-label` with the
+ * same words, so the tooltip and the accessible name cannot drift.
+ *
  * Freeze freezes up through the current selection. Anything else you want in
  * the bar is a child — `<Sheet.FileMenu />`, or your own buttons using the
  * `${prefix}btn` class:
@@ -16,6 +19,26 @@ import type { ReactNode } from "react";
 import { NUM_FMTS } from "../../format/numFmt.js";
 import type { NumFmt } from "../../model/types.js";
 import { useSheetContext } from "../context.js";
+import {
+  AlignCenterIcon,
+  AlignLeftIcon,
+  AlignRightIcon,
+  BoldIcon,
+  DeleteColIcon,
+  DeleteRowIcon,
+  FreezeIcon,
+  InsertColIcon,
+  InsertRowIcon,
+  ItalicIcon,
+  LockIcon,
+  MergeIcon,
+  RedoIcon,
+  UnderlineIcon,
+  UndoIcon,
+  UnfreezeIcon,
+  UnlockIcon,
+  UnmergeIcon,
+} from "./icons.js";
 
 export interface ToolbarProps {
   /** Rendered at the end of the bar, after a separator. */
@@ -31,16 +54,20 @@ const NUM_FMT_LABELS: Record<NumFmt, string> = {
   date: "Date",
 };
 
+/** Both colour wells are the height of a button, so the bar stays one line. */
+const COLOR_WELL_SIZE = 28;
+
 export function Toolbar({ children }: ToolbarProps = {}): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.Toolbar");
   const s = api.activeStyle;
-  const btn = (on?: boolean) => `${prefix}btn${on ? ` ${prefix}on` : ""}`;
+  const base = `${prefix}btn ${prefix}iconbtn`;
+  const cls = (on?: boolean) => (on ? `${base} ${prefix}on` : base);
 
   return (
     <div
       style={{
         display: "flex",
-        gap: 6,
+        gap: 4,
         alignItems: "center",
         padding: "6px 10px",
         borderBottom: `1px solid ${theme.border}`,
@@ -50,71 +77,87 @@ export function Toolbar({ children }: ToolbarProps = {}): ReactNode {
     >
       <button
         type="button"
-        className={btn()}
+        className={base}
         onClick={api.undo}
         disabled={!api.canUndo}
         title="Undo (Ctrl+Z)"
+        aria-label="Undo (Ctrl+Z)"
       >
-        ↶
+        <UndoIcon />
       </button>
       <button
         type="button"
-        className={btn()}
+        className={base}
         onClick={api.redo}
         disabled={!api.canRedo}
         title="Redo (Ctrl+Y)"
+        aria-label="Redo (Ctrl+Y)"
       >
-        ↷
+        <RedoIcon />
       </button>
       <span className={`${prefix}sep`} />
 
       <button
         type="button"
-        className={btn(s.bold)}
+        className={cls(s.bold)}
         onClick={() => api.applyStyle({ bold: !s.bold })}
         title="Bold (Ctrl+B)"
+        aria-label="Bold (Ctrl+B)"
+        aria-pressed={s.bold ?? false}
       >
-        <b>B</b>
+        <BoldIcon />
       </button>
       <button
         type="button"
-        className={btn(s.italic)}
+        className={cls(s.italic)}
         onClick={() => api.applyStyle({ italic: !s.italic })}
         title="Italic (Ctrl+I)"
+        aria-label="Italic (Ctrl+I)"
+        aria-pressed={s.italic ?? false}
       >
-        <i>I</i>
+        <ItalicIcon />
       </button>
       <button
         type="button"
-        className={btn(s.underline)}
+        className={cls(s.underline)}
         onClick={() => api.applyStyle({ underline: !s.underline })}
         title="Underline"
+        aria-label="Underline"
+        aria-pressed={s.underline ?? false}
       >
-        <u>U</u>
+        <UnderlineIcon />
       </button>
+      <span className={`${prefix}sep`} />
+
       <button
         type="button"
-        className={btn(s.align === "left")}
+        className={cls(s.align === "left")}
         onClick={() => api.applyStyle({ align: "left" })}
         title="Align left"
+        aria-label="Align left"
+        aria-pressed={s.align === "left"}
       >
-        ⯇
+        <AlignLeftIcon />
       </button>
       <button
         type="button"
-        className={btn(s.align === "center")}
+        className={cls(s.align === "center")}
         onClick={() => api.applyStyle({ align: "center" })}
         title="Align center"
+        aria-label="Align center"
+        aria-pressed={s.align === "center"}
       >
-        ≡
+        <AlignCenterIcon />
       </button>
       <button
         type="button"
-        className={btn(s.align === "right")}
+        className={cls(s.align === "right")}
         onClick={() => api.applyStyle({ align: "right" })}
         title="Align right"
+        aria-label="Align right"
+        aria-pressed={s.align === "right"}
       >
-        ⯈
+        <AlignRightIcon />
       </button>
 
       <input
@@ -124,8 +167,8 @@ export function Toolbar({ children }: ToolbarProps = {}): ReactNode {
         value={s.color ?? theme.cellText}
         onChange={(e) => api.applyStyle({ color: e.target.value as `#${string}` })}
         style={{
-          width: 28,
-          height: 28,
+          width: COLOR_WELL_SIZE,
+          height: COLOR_WELL_SIZE,
           padding: 0,
           border: `1px solid ${theme.buttonBorder}`,
           borderRadius: 6,
@@ -138,8 +181,8 @@ export function Toolbar({ children }: ToolbarProps = {}): ReactNode {
         value={s.bg ?? "#ffffff"}
         onChange={(e) => api.applyStyle({ bg: e.target.value as `#${string}` })}
         style={{
-          width: 28,
-          height: 28,
+          width: COLOR_WELL_SIZE,
+          height: COLOR_WELL_SIZE,
           padding: 0,
           border: `1px solid ${theme.buttonBorder}`,
           borderRadius: 6,
@@ -161,58 +204,89 @@ export function Toolbar({ children }: ToolbarProps = {}): ReactNode {
 
       <button
         type="button"
-        className={btn(s.locked)}
+        className={cls(s.locked)}
         onClick={() => api.applyStyle({ locked: !s.locked })}
-        title="Lock or unlock the selection"
+        title={s.locked ? "Unlock the selection" : "Lock the selection"}
+        aria-label={s.locked ? "Unlock the selection" : "Lock the selection"}
+        aria-pressed={s.locked ?? false}
       >
-        🔒
+        {s.locked ? <LockIcon /> : <UnlockIcon />}
       </button>
       <span className={`${prefix}sep`} />
 
       <button
         type="button"
-        className={btn()}
+        className={base}
         onClick={() => api.insertRowAt(api.selection.r2)}
+        title="Insert row"
+        aria-label="Insert row"
       >
-        +Row
+        <InsertRowIcon />
       </button>
       <button
         type="button"
-        className={btn()}
+        className={base}
         onClick={() => api.deleteRowAt(api.selection.r2)}
+        title="Delete row"
+        aria-label="Delete row"
       >
-        −Row
+        <DeleteRowIcon />
       </button>
       <button
         type="button"
-        className={btn()}
+        className={base}
         onClick={() => api.insertColAt(api.selection.c2)}
+        title="Insert column"
+        aria-label="Insert column"
       >
-        +Col
+        <InsertColIcon />
       </button>
       <button
         type="button"
-        className={btn()}
+        className={base}
         onClick={() => api.deleteColAt(api.selection.c2)}
+        title="Delete column"
+        aria-label="Delete column"
       >
-        −Col
+        <DeleteColIcon />
       </button>
-      <button type="button" className={btn()} onClick={api.mergeSelection}>
-        Merge
-      </button>
-      <button type="button" className={btn()} onClick={api.unmergeSelection}>
-        Unmerge
+      <span className={`${prefix}sep`} />
+
+      <button
+        type="button"
+        className={base}
+        onClick={api.mergeSelection}
+        title="Merge cells"
+        aria-label="Merge cells"
+      >
+        <MergeIcon />
       </button>
       <button
         type="button"
-        className={btn()}
+        className={base}
+        onClick={api.unmergeSelection}
+        title="Unmerge cells"
+        aria-label="Unmerge cells"
+      >
+        <UnmergeIcon />
+      </button>
+      <button
+        type="button"
+        className={base}
         onClick={api.freezeToSelection}
         title="Freeze up through the selection"
+        aria-label="Freeze up through the selection"
       >
-        Freeze
+        <FreezeIcon />
       </button>
-      <button type="button" className={btn()} onClick={api.unfreeze}>
-        Unfreeze
+      <button
+        type="button"
+        className={base}
+        onClick={api.unfreeze}
+        title="Unfreeze"
+        aria-label="Unfreeze"
+      >
+        <UnfreezeIcon />
       </button>
 
       {children && (

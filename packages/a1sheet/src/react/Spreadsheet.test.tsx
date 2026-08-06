@@ -23,9 +23,10 @@ describe("rendering", () => {
 
   test("renders the column and row headers in view", () => {
     const { container } = render(<Spreadsheet />);
-    // Column headers carry a trailing "▾" filter button.
-    const heads = [...container.querySelectorAll(".a1s-head")].map((el) =>
-      (el.textContent ?? "").replace("▾", ""),
+    // A column header also holds the filter button, but that is an SVG icon
+    // and contributes no text.
+    const heads = [...container.querySelectorAll(".a1s-head")].map(
+      (el) => el.textContent ?? "",
     );
     expect(heads).toContain("A");
     expect(heads).toContain("B");

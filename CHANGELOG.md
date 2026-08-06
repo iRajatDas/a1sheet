@@ -8,6 +8,47 @@ backfilled.
 
 ## Unreleased
 
+### Changed (appearance)
+
+- **The controls are drawn with icons instead of typographic glyphs and one
+  emoji.** `↶ ↷ ⯇ ≡ ⯈ ▾ − 🔒` were resolving through the host page's font stack,
+  so they changed shape, weight, and baseline from machine to machine, and
+  several have no coverage in the common UI fonts at all — they landed as a
+  tofu box. The emoji was worse: a colour bitmap on most platforms, so it
+  ignored `color` and the lock stayed black when its button went active teal.
+  They are now inline SVG from [Tabler Icons](https://tabler.io/icons) (MIT),
+  copied into the source rather than installed — `dependencies` stays empty.
+  See `packages/a1sheet/THIRD-PARTY-NOTICES.md`. A test renders the preset and
+  fails on any decorative glyph in the output, so this cannot quietly come back.
+- **Toolbar buttons are icon-only** and carry a `title` and a matching
+  `aria-label`. If you were finding them by text — `getByText("+Row")`,
+  `getByText("Freeze")` — use the label: "Insert row", "Delete row",
+  "Insert column", "Delete column", "Merge cells", "Unmerge cells", "Freeze up
+  through the selection", "Unfreeze". `Sheet.FileMenu` keeps its text, since
+  "CSV" and "XLSX" are not drawable.
+- **The grid draws its own scrollbars, one per axis, in channels of their own.**
+  macOS and mobile default to overlay scrollbars: they fade in over the content
+  while you scroll, so they cover the rightmost column and the bottom row
+  exactly while you are moving through them, and taking no layout space they
+  leave the grid nothing to lay itself out around. Styling the native ones does
+  not fix it — `::-webkit-scrollbar` is non-standard and Firefox ignores it,
+  `scrollbar-width` offers only `thin` and `auto`, and neither engine can be
+  told "always visible". The scroll container now hides its native bars and two
+  identical ones sit beside it, always present, as in Sheets and Excel.
+  Scrolling is still the browser's — the bars write `scrollTop`/`scrollLeft`
+  and follow the resulting `scroll` event — so the wheel, trackpad, keyboard,
+  and `scrollIntoView` are untouched. Each bar is a `role="scrollbar"` with
+  `aria-controls` pointing at the container. Dragging the thumb and clicking
+  the track to page both work.
+- **`Theme` gained `scrollbarTrack`, `scrollbarThumb`, and
+  `scrollbarThumbHover`.** A custom dark theme should set them — the channel is
+  a real surface, and left at the defaults it is a light stripe down the
+  right-hand edge. `Partial<Theme>` still fills the rest in, so nothing breaks.
+- **`useSpreadsheet` returns `scrollTop`, `scrollLeft`, `viewportHeight`, and
+  `viewportWidth`.** The setters were already public; the values were not, so
+  nothing outside the hook could describe the window into the sheet. The
+  grid's own scrollbars were the first thing to need them.
+
 ### Changed (breaking: file I/O is a primitive)
 
 - **`Sheet.Toolbar` no longer takes `onImport`, `onExportCsv`, or

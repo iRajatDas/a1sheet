@@ -216,12 +216,12 @@ describe("formatting", () => {
 });
 
 describe("structure", () => {
-  test("+Row shifts existing content down", () => {
+  test("Insert row shifts existing content down", () => {
     const { cellText, container } = setup({ "0_0": "shifted" });
     const before = [...container.querySelectorAll(".a1s-cell")].findIndex(
       (el) => el.textContent === "shifted",
     );
-    fireEvent.click(screen.getByText("+Row"));
+    fireEvent.click(screen.getByTitle("Insert row"));
     const after = [...container.querySelectorAll(".a1s-cell")].findIndex(
       (el) => el.textContent === "shifted",
     );

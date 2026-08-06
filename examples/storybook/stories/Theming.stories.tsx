@@ -59,7 +59,7 @@ export const Dark: Story = {
     docs: {
       description: {
         story:
-          "Ten values. Note `selectedBg` is deliberately translucent — the selection tint is painted as an `::after` overlay so it composites over a cell's own fill instead of replacing it.",
+          "Thirteen values. Note `selectedBg` is deliberately translucent — the selection tint is painted as an `::after` overlay so it composites over a cell's own fill instead of replacing it. The three `scrollbar*` keys matter more than they look: the grid draws its own scrollbars in channels beside the cells rather than letting the platform float them over the content, so those channels are a real surface and stay light unless you colour them.",
       },
     },
   },
@@ -78,6 +78,9 @@ export const HighContrast: Story = {
       cellText: "#000000",
       selectedBg: "rgba(0,0,0,0.18)",
       toolbarBg: "#ffffff",
+      scrollbarTrack: "#ffffff",
+      scrollbarThumb: "#000000",
+      scrollbarThumbHover: "#000000",
       fontSize: "15px",
     }),
 };

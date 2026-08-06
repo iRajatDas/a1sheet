@@ -58,6 +58,15 @@ export interface UseSpreadsheetResult
   setScrollLeft(px: number): void;
   setViewportHeight(px: number): void;
   setViewportWidth(px: number): void;
+  /**
+   * The same four values read back. Virtualization is driven by these, and so
+   * is anything that has to describe the window into the sheet — the grid's own
+   * scrollbars are the first such thing.
+   */
+  scrollTop: number;
+  scrollLeft: number;
+  viewportHeight: number;
+  viewportWidth: number;
   /** Writes a raw value into a cell, respecting `locked`. */
   setCell(row: number, col: number, raw: string): void;
   /** Commits the open edit, optionally moving the selection afterwards. */
@@ -172,6 +181,10 @@ export function useSpreadsheet(
     setScrollLeft,
     setViewportHeight,
     setViewportWidth,
+    scrollTop,
+    scrollLeft,
+    viewportHeight,
+    viewportWidth,
     setCell,
     commitEdit,
     isSelected,

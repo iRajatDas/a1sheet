@@ -212,6 +212,11 @@ export const DARK = {
   cellText: "#e2e8f0",
   selectedBg: "rgba(45,212,191,0.16)",
   toolbarBg: "#0f172a",
+  // The scrollbar gutter is a real surface, so a dark theme has to colour it
+  // too — left at the default it is a light stripe down the right-hand edge.
+  scrollbarTrack: "#0f172a",
+  scrollbarThumb: "#334155",
+  scrollbarThumbHover: "#475569",
 } as const;
 
 /** Numbers in every supported format, for the formatting story. */

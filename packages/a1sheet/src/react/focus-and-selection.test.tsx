@@ -31,11 +31,12 @@ function setup(
 
   /**
    * Labels of the header cells carrying the "spanned by the selection" class.
-   * Column headers also contain the filter caret, which is not part of the label.
+   * A column header also holds the filter button, but that is an SVG icon and
+   * contributes no text, so the label is the whole of textContent.
    */
   const litHeaders = () =>
-    [...container.querySelectorAll(".a1s-head.a1s-headon")].map((el) =>
-      (el.textContent ?? "").replace("▾", ""),
+    [...container.querySelectorAll(".a1s-head.a1s-headon")].map(
+      (el) => el.textContent ?? "",
     );
 
   return { container, cellAt, textarea, litHeaders };

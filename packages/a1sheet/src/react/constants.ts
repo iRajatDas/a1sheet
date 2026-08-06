@@ -52,3 +52,15 @@ export const BUFFER_ROWS = 6;
  * the same pixel margin costs far fewer cells.
  */
 export const BUFFER_COLS = 2;
+
+/**
+ * Width of the vertical scrollbar's channel and height of the horizontal one.
+ * The two are equal so the bars read as one control turned on its side.
+ */
+export const SCROLLBAR_SIZE = 14;
+
+/**
+ * Floor for the thumb. At a hundred thousand rows the proportional thumb is
+ * under a pixel tall, which is neither visible nor grabbable.
+ */
+export const SCROLLBAR_MIN_THUMB = 28;

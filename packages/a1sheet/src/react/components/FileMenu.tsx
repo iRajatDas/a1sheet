@@ -28,6 +28,7 @@ import {
 } from "../../model/sheet.js";
 import type { Sheet as SheetModel } from "../../model/types.js";
 import { useSheetContext } from "../context.js";
+import { ExportIcon, ImportIcon } from "./icons.js";
 
 const PERCENT = 100;
 
@@ -98,6 +99,7 @@ export function FileMenu(): ReactNode {
         className={`${prefix}btn`}
         onClick={() => fileRef.current?.click()}
       >
+        <ImportIcon />
         Import
       </button>
       <input
@@ -118,6 +120,7 @@ export function FileMenu(): ReactNode {
         className={`${prefix}btn`}
         onClick={() => downloadCsv(sheet.cells, api.evaluator, `${sheet.name}.csv`)}
       >
+        <ExportIcon />
         Export CSV
       </button>
       <button
@@ -137,6 +140,7 @@ export function FileMenu(): ReactNode {
           )
         }
       >
+        <ExportIcon />
         Export XLSX
       </button>
     </>

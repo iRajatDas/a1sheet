@@ -101,7 +101,16 @@ ref.current?.api.setCell(0, 0, "hi");
 ```
 
 Styling is inline with a `theme` prop and a `classNamePrefix` — no stylesheet to
-import, so dropping this into an existing app needs no build-config change.
+import, so dropping this into an existing app needs no build-config change. A
+dark theme should set `scrollbarTrack`, `scrollbarThumb`, and
+`scrollbarThumbHover` along with the rest: the grid draws its own scrollbars in
+channels beside the cells rather than letting the platform float them over the
+content, so those channels are a real surface and stay light if you leave them
+alone.
+
+Icons are inline SVG from [Tabler Icons](https://tabler.io/icons) (MIT), copied
+into the source rather than installed so that `dependencies` stays empty. See
+`packages/a1sheet/THIRD-PARTY-NOTICES.md`.
 
 ### Formula editing
 

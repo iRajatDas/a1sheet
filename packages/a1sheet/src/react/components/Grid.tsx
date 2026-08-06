@@ -19,6 +19,8 @@
  * - The grid is therefore only as large as what is drawn. `minHeight` and
  *   `minWidth` restore the real extent so the scrollbar describes the sheet
  *   rather than the window into it.
+ * - The scrollbars are ours, in channels of their own to the right of and below
+ *   the scroll container, which hides its native ones. See `Scrollbar` for why.
  * - Freeze panes are `position: sticky` inside ONE scrolling container. A
  *   4-quadrant split with synced scrollLeft was considered and rejected in the POC.
  *   `stickyStyleFor` computes top/left/zIndex; the corner takes the highest z.
@@ -30,6 +32,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
 } from "react";
@@ -41,10 +44,13 @@ import {
   MAX_AUTOFIT_COL_WIDTH,
   MIN_COL_WIDTH,
   ROW_HEADER_WIDTH,
+  SCROLLBAR_SIZE,
 } from "../constants.js";
 import { useSheetContext } from "../context.js";
 import { useTextMeasurer } from "../useTextMeasurer.js";
 import { Cell } from "./Cell.js";
+import { ChevronDownIcon } from "./icons.js";
+import { Scrollbar } from "./Scrollbar.js";
 
 /** Left and right padding on a cell, from the stylesheet. Auto-fit must clear it. */
 const CELL_PADDING_X = 12;
@@ -73,6 +79,26 @@ export function Grid({ children }: GridProps = {}): ReactNode {
     startH: number;
   } | null>(null);
   const measureText = useTextMeasurer();
+  const scrollerId = useId();
+
+  /**
+   * Move the scroll container, not the virtualization state.
+   *
+   * The two are kept in step by the container's own `scroll` event: writing
+   * `scrollTop` here fires it, and the handler above is what tells the window
+   * where to draw. Setting `api.setScrollTop` directly instead would move the
+   * drawing without moving the element — the bug this pairing exists to avoid.
+   * The browser clamps out-of-range values, so a drag past either end settles
+   * at the end rather than needing clamping here.
+   */
+  const scrollToTop = useCallback((offset: number) => {
+    const el = containerRef.current;
+    if (el) el.scrollTop = offset;
+  }, []);
+  const scrollToLeft = useCallback((offset: number) => {
+    const el = containerRef.current;
+    if (el) el.scrollLeft = offset;
+  }, []);
 
   const frozenRows = sheet.frozenRows || 0;
   const frozenCols = sheet.frozenCols || 0;
@@ -375,226 +401,263 @@ export function Grid({ children }: GridProps = {}): ReactNode {
 
   return (
     <div
-      ref={containerRef}
-      // Named so it can be found. Scrolling the sheet from outside means moving
-      // this element — setting `api.setScrollTop` alone only tells virtualization
-      // where to draw, and the container would stay where it was.
-      className={`${prefix}scroller`}
-      onScroll={(e) => {
-        const el = e.target as HTMLDivElement;
-        setScrollTop(el.scrollTop);
-        setScrollLeft(el.scrollLeft);
+      // Four areas: the sheet, a channel per axis, and the corner between them.
+      // The bars are siblings of the scroll container rather than inside it, so
+      // they can never be scrolled away from or drawn over the cells.
+      className={`${prefix}frame`}
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: "grid",
+        gridTemplateColumns: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
+        gridTemplateRows: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
       }}
-      onMouseUp={() => {
-        if (fill.dragging) fill.commit(api.updateSheet);
-      }}
-      style={{ flex: 1, minHeight: 0, overflow: "auto", position: "relative" }}
     >
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns,
-          gridTemplateRows,
-          // `min-content`, not a fixed height: each row now carries its own,
-          // and the track has to take it from the items in it.
-          gridAutoRows: "min-content",
-          // The real extent of the sheet on both axes, not of the window into
-          // it. Vertically, implicit tracks stop at the last rendered row, so
-          // the scrollbar would report a few hundred pixels for a hundred
-          // thousand rows. Horizontally the cause differs: this div is
-          // block-level, so it takes the scroller's width and the column tracks
-          // overflow it — which makes the scrollable width follow whichever
-          // cells happen to be rendered. Both tracks are fixed-size, so the
-          // surplus collects at the edges instead of stretching them.
-          minHeight: rowWindow.contentHeight,
-          minWidth: ROW_HEADER_WIDTH + colWindow.totalWidth,
-          position: "relative",
+        ref={containerRef}
+        id={scrollerId}
+        // Named so it can be found. Scrolling the sheet from outside means
+        // moving this element — setting `api.setScrollTop` alone only tells
+        // virtualization where to draw, and the container would stay put.
+        className={`${prefix}scroller`}
+        onScroll={(e) => {
+          const el = e.target as HTMLDivElement;
+          setScrollTop(el.scrollTop);
+          setScrollLeft(el.scrollLeft);
         }}
+        onMouseUp={() => {
+          if (fill.dragging) fill.commit(api.updateSheet);
+        }}
+        style={{ overflow: "auto", position: "relative" }}
       >
-        {/* corner */}
         <div
-          className={`${prefix}head`}
           style={{
-            gridColumn: 1,
-            gridRow: 1,
-            height: HEADER_HEIGHT,
-            ...stickyStyleFor(true, true),
+            display: "grid",
+            gridTemplateColumns,
+            gridTemplateRows,
+            // `min-content`, not a fixed height: each row now carries its own,
+            // and the track has to take it from the items in it.
+            gridAutoRows: "min-content",
+            // The real extent of the sheet on both axes, not of the window into
+            // it. Vertically, implicit tracks stop at the last rendered row, so
+            // the scrollbar would report a few hundred pixels for a hundred
+            // thousand rows. Horizontally the cause differs: this div is
+            // block-level, so it takes the scroller's width and the column tracks
+            // overflow it — which makes the scrollable width follow whichever
+            // cells happen to be rendered. Both tracks are fixed-size, so the
+            // surplus collects at the edges instead of stretching them.
+            minHeight: rowWindow.contentHeight,
+            minWidth: ROW_HEADER_WIDTH + colWindow.totalWidth,
+            position: "relative",
           }}
-        />
+        >
+          {/* corner */}
+          <div
+            className={`${prefix}head`}
+            style={{
+              gridColumn: 1,
+              gridRow: 1,
+              height: HEADER_HEIGHT,
+              ...stickyStyleFor(true, true),
+            }}
+          />
 
-        {/* column headers */}
-        {windowCols.map((c) => {
-          const isRenaming = renaming?.type === "col" && renaming.index === c;
-          const filtered = sheet.filters[c] !== undefined;
-          const inSelection = c >= bounds.c1 && c <= bounds.c2;
-          return (
-            <div
-              key={`ch${c}`}
-              className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
-              data-col={c}
-              style={{
-                gridColumn: c + 2,
-                gridRow: 1,
-                height: HEADER_HEIGHT,
-                ...stickyStyleFor(
-                  true,
-                  false,
-                  undefined,
-                  c < frozenCols ? c : undefined,
-                ),
-              }}
-              onMouseDown={(e) => {
-                if ((e.target as HTMLElement).tagName === "INPUT") return;
-                e.preventDefault();
-                focusRef.current?.focus();
-                api.select({ r1: 0, c1: c, r2: sheet.numRows - 1, c2: c });
-              }}
-              onDoubleClick={() =>
-                setRenaming({
-                  type: "col",
-                  index: c,
-                  value: sheet.colLabels[c] ?? colToLetters(c),
-                })
-              }
-            >
-              {isRenaming ? (
-                <input
-                  // biome-ignore lint/a11y/noAutofocus: inline rename must take the caret
-                  autoFocus
-                  value={renaming.value}
-                  style={{ width: "100%" }}
-                  onChange={(e) =>
-                    setRenaming({ ...renaming, value: e.target.value })
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      api.setColLabel(c, renaming.value);
-                      setRenaming(null);
+          {/* column headers */}
+          {windowCols.map((c) => {
+            const isRenaming = renaming?.type === "col" && renaming.index === c;
+            const filtered = sheet.filters[c] !== undefined;
+            const inSelection = c >= bounds.c1 && c <= bounds.c2;
+            return (
+              <div
+                key={`ch${c}`}
+                className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
+                data-col={c}
+                style={{
+                  gridColumn: c + 2,
+                  gridRow: 1,
+                  height: HEADER_HEIGHT,
+                  ...stickyStyleFor(
+                    true,
+                    false,
+                    undefined,
+                    c < frozenCols ? c : undefined,
+                  ),
+                }}
+                onMouseDown={(e) => {
+                  if ((e.target as HTMLElement).tagName === "INPUT") return;
+                  e.preventDefault();
+                  focusRef.current?.focus();
+                  api.select({ r1: 0, c1: c, r2: sheet.numRows - 1, c2: c });
+                }}
+                onDoubleClick={() =>
+                  setRenaming({
+                    type: "col",
+                    index: c,
+                    value: sheet.colLabels[c] ?? colToLetters(c),
+                  })
+                }
+              >
+                {isRenaming ? (
+                  <input
+                    // biome-ignore lint/a11y/noAutofocus: inline rename must take the caret
+                    autoFocus
+                    value={renaming.value}
+                    style={{ width: "100%" }}
+                    onChange={(e) =>
+                      setRenaming({ ...renaming, value: e.target.value })
                     }
-                    if (e.key === "Escape") setRenaming(null);
-                  }}
-                  onBlur={() => setRenaming(null)}
-                />
-              ) : (
-                <>
-                  {sheet.colLabels[c] ?? colToLetters(c)}
-                  <button
-                    type="button"
-                    aria-label={`Sort and filter column ${colToLetters(c)}`}
-                    style={{
-                      position: "absolute",
-                      right: 6,
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      padding: 0,
-                      fontSize: 10,
-                      color: filtered ? theme.accent : theme.headerText,
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        api.setColLabel(c, renaming.value);
+                        setRenaming(null);
+                      }
+                      if (e.key === "Escape") setRenaming(null);
                     }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const box = (e.target as HTMLElement).getBoundingClientRect();
-                      ui.setColumnMenu({ col: c, x: box.left, y: box.bottom });
-                    }}
-                  >
-                    ▾
-                  </button>
-                  <div
-                    className={`${prefix}resize`}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      resizeRef.current = {
-                        col: c,
-                        startX: e.clientX,
-                        startW: colWidth(c),
-                      };
-                    }}
-                    onDoubleClick={(e) => {
-                      // Without this the header's own double-click starts a
-                      // rename, which is not what aiming at the divider meant.
-                      e.stopPropagation();
-                      autoFitCol(c);
-                    }}
+                    onBlur={() => setRenaming(null)}
                   />
-                </>
-              )}
-            </div>
-          );
-        })}
+                ) : (
+                  <>
+                    {sheet.colLabels[c] ?? colToLetters(c)}
+                    <button
+                      type="button"
+                      aria-label={`Sort and filter column ${colToLetters(c)}`}
+                      style={{
+                        position: "absolute",
+                        right: 6,
+                        border: "none",
+                        background: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        display: "flex",
+                        color: filtered ? theme.accent : theme.headerText,
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const box = (
+                          e.target as HTMLElement
+                        ).getBoundingClientRect();
+                        ui.setColumnMenu({ col: c, x: box.left, y: box.bottom });
+                      }}
+                    >
+                      <ChevronDownIcon />
+                    </button>
+                    <div
+                      className={`${prefix}resize`}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        resizeRef.current = {
+                          col: c,
+                          startX: e.clientX,
+                          startW: colWidth(c),
+                        };
+                      }}
+                      onDoubleClick={(e) => {
+                        // Without this the header's own double-click starts a
+                        // rename, which is not what aiming at the divider meant.
+                        e.stopPropagation();
+                        autoFitCol(c);
+                      }}
+                    />
+                  </>
+                )}
+              </div>
+            );
+          })}
 
-        {/* frozen band, always rendered */}
-        {rowWindow.frozenRowsList.map(({ absRow, gridRow }) =>
-          renderRow(absRow, gridRow, true),
-        )}
+          {/* frozen band, always rendered */}
+          {rowWindow.frozenRowsList.map(({ absRow, gridRow }) =>
+            renderRow(absRow, gridRow, true),
+          )}
 
-        {/* One item standing in for every row scrolled off the top. Rows can
+          {/* One item standing in for every row scrolled off the top. Rows can
             differ in height, so the window cannot be placed by grid line — an
             absent row has no track and nothing to size it. This carries the
             whole distance in a single track instead. */}
-        <div
-          aria-hidden="true"
-          className={`${prefix}spacer`}
-          style={{
-            gridColumn: "1 / -1",
-            gridRow: frozenRows + 2,
-            height: rowWindow.leadingSpace,
-            pointerEvents: "none",
-          }}
-        />
+          <div
+            aria-hidden="true"
+            className={`${prefix}spacer`}
+            style={{
+              gridColumn: "1 / -1",
+              gridRow: frozenRows + 2,
+              height: rowWindow.leadingSpace,
+              pointerEvents: "none",
+            }}
+          />
 
-        {/* virtualized band */}
-        {rowWindow.windowRows.map(({ absRow, gridRow }) =>
-          renderRow(absRow, gridRow, false),
-        )}
+          {/* virtualized band */}
+          {rowWindow.windowRows.map(({ absRow, gridRow }) =>
+            renderRow(absRow, gridRow, false),
+          )}
 
-        {/* Reference outlines for the formula being typed. Rendered inside the
+          {/* Reference outlines for the formula being typed. Rendered inside the
             grid element so they scroll with it, and as siblings of the cells so
             a cell's own borders are not disturbed. */}
-        {api.formulaRefs.spans.map((span) => {
-          const box = rectFor(span.range);
-          if (!box) return null;
-          const color = theme.refColors[
-            span.group % Math.max(1, theme.refColors.length)
-          ] as string;
-          return (
-            <div
-              key={`${span.start}-${span.end}`}
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                ...box,
-                border: `2px solid ${color}`,
-                background: `${color}14`,
-                pointerEvents: "none",
-                zIndex: 6,
-              }}
-            />
-          );
-        })}
+          {api.formulaRefs.spans.map((span) => {
+            const box = rectFor(span.range);
+            if (!box) return null;
+            const color = theme.refColors[
+              span.group % Math.max(1, theme.refColors.length)
+            ] as string;
+            return (
+              <div
+                key={`${span.start}-${span.end}`}
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  ...box,
+                  border: `2px solid ${color}`,
+                  background: `${color}14`,
+                  pointerEvents: "none",
+                  zIndex: 6,
+                }}
+              />
+            );
+          })}
+        </div>
+
+        {/* End-of-sheet slot. Outside the grid element so it is not a grid item
+            competing for a track, but inside the scroller so it sits after the
+            last row and scrolls with it. */}
+        {children}
+
+        {/* Fill-drag overlay: hit-tests raw mouse coordinates. */}
+        {fill.dragging && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 20,
+              cursor: "crosshair",
+            }}
+            onMouseMove={(e) => {
+              const hit = hitTest(e.clientX, e.clientY);
+              if (hit) fill.moveTo(hit.row, hit.col);
+            }}
+            onMouseUp={() => fill.commit(api.updateSheet)}
+          />
+        )}
       </div>
 
-      {/* End-of-sheet slot. Outside the grid element so it is not a grid item
-          competing for a track, but inside the scroller so it sits after the
-          last row and scrolls with it. */}
-      {children}
-
-      {/* Fill-drag overlay: hit-tests raw mouse coordinates. */}
-      {fill.dragging && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 20,
-            cursor: "crosshair",
-          }}
-          onMouseMove={(e) => {
-            const hit = hitTest(e.clientX, e.clientY);
-            if (hit) fill.moveTo(hit.row, hit.col);
-          }}
-          onMouseUp={() => fill.commit(api.updateSheet)}
-        />
-      )}
+      <Scrollbar
+        orientation="vertical"
+        viewport={api.viewportHeight}
+        content={rowWindow.contentHeight}
+        offset={api.scrollTop}
+        controls={scrollerId}
+        onScrollTo={scrollToTop}
+        prefix={prefix}
+      />
+      <Scrollbar
+        orientation="horizontal"
+        viewport={api.viewportWidth}
+        content={ROW_HEADER_WIDTH + colWindow.totalWidth}
+        offset={api.scrollLeft}
+        controls={scrollerId}
+        onScrollTo={scrollToLeft}
+        prefix={prefix}
+      />
+      <div className={`${prefix}sbcorner`} />
     </div>
   );
 }

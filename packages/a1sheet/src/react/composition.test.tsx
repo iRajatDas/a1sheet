@@ -279,7 +279,7 @@ describe("file I/O is a primitive, not a preset privilege", () => {
 
     expect(screen.queryByText("Import")).toBeNull();
     expect(screen.queryByText("Export XLSX")).toBeNull();
-    expect(screen.getByText("Freeze")).toBeDefined();
+    expect(screen.getByTitle("Freeze up through the selection")).toBeDefined();
   });
 
   test("arbitrary children go into the toolbar too", () => {

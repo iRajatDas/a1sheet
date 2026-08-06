@@ -22,6 +22,7 @@ import type {
 } from "../../model/types.js";
 import { makeZip, type ZipEntry } from "../zip/zip.js";
 import { CUSTOM_NUMFMTS, NUMFMT_TO_ID, styleKey } from "./styles.js";
+import { pxToColWidth, pxToRowHeight } from "./units.js";
 import { colorToRgb, xmlEscape } from "./xml.js";
 
 /** Input shape for one sheet being written. */
@@ -31,6 +32,10 @@ export interface XlsxSheetInput {
   styles: Record<CellKey, StyleObject>;
   merges: Range[];
   namedRanges?: NamedRanges;
+  /** Column index -> width in px. Only entries present are written. */
+  colWidths?: Record<number, number>;
+  /** Row index -> height in px. Only entries present are written. */
+  rowHeights?: Record<number, number>;
 }
 
 const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
@@ -80,6 +85,18 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
     }
     for (const key of Object.keys(sheet.styles ?? {})) note(key);
 
+    // A resized row or column past the last value is still part of the sheet.
+    const colWidths = sheet.colWidths ?? {};
+    const rowHeights = sheet.rowHeights ?? {};
+    for (const key of Object.keys(rowHeights)) {
+      const r = Number(key);
+      if (r > maxR) maxR = r;
+    }
+    for (const key of Object.keys(colWidths)) {
+      const c = Number(key);
+      if (c > maxC) maxC = c;
+    }
+
     const rows = Math.max(maxR + 1, 1);
     const cols = Math.max(maxC + 1, 1);
 
@@ -112,7 +129,16 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
         }
       }
 
-      if (hasContent) rowsXml += `<row r="${r + 1}">${rowCells}</row>`;
+      // A row with a custom height but no content still has to be written, or
+      // the height has nothing to hang off and is lost on the round trip.
+      const height = rowHeights[r];
+      const heightAttr =
+        height === undefined
+          ? ""
+          : ` ht="${pxToRowHeight(height)}" customHeight="1"`;
+      if (hasContent || heightAttr) {
+        rowsXml += `<row r="${r + 1}"${heightAttr}>${rowCells}</row>`;
+      }
     }
 
     const merges = sheet.merges ?? [];
@@ -125,7 +151,23 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
           .join("")}</mergeCells>`
       : "";
 
-    return `${XML_DECL}<worksheet xmlns="${NS_MAIN}"><sheetData>${rowsXml}</sheetData>${mergeXml}</worksheet>`;
+    // <cols> must precede <sheetData>; Excel rejects the file otherwise. One
+    // element per column rather than per run — runs would need the widths
+    // sorted and grouped for a saving that does not matter at this scale.
+    const widthEntries = Object.keys(colWidths)
+      .map(Number)
+      .filter((c) => Number.isFinite(c))
+      .sort((a, b) => a - b);
+    const colsXml = widthEntries.length
+      ? `<cols>${widthEntries
+          .map(
+            (c) =>
+              `<col min="${c + 1}" max="${c + 1}" width="${pxToColWidth(colWidths[c] as number)}" customWidth="1"/>`,
+          )
+          .join("")}</cols>`
+      : "";
+
+    return `${XML_DECL}<worksheet xmlns="${NS_MAIN}">${colsXml}<sheetData>${rowsXml}</sheetData>${mergeXml}</worksheet>`;
   });
 
   // --- styles.xml, built from the collected style list ---

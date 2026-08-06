@@ -60,6 +60,9 @@ export async function readWorkbookFile(
         merges: [],
         rows,
         cols,
+        // CSV carries no layout information at all.
+        colWidths: {},
+        rowHeights: {},
       },
     ],
   };

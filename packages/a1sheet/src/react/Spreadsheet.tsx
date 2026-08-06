@@ -69,6 +69,8 @@ function PresetBody(): ReactNode {
           cells: s.cells,
           styles: s.styles,
           merges: s.merges,
+          colWidths: s.colWidths,
+          rowHeights: s.rowHeights,
           numRows: Math.max(200, s.rows),
           numCols: Math.max(26, s.cols),
         }));
@@ -106,6 +108,8 @@ function PresetBody(): ReactNode {
               cells: s.cells,
               styles: s.styles,
               merges: s.merges,
+              colWidths: s.colWidths,
+              rowHeights: s.rowHeights,
               namedRanges: api.workbook.namedRanges,
             })),
           )

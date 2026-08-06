@@ -38,24 +38,27 @@ and stops. A longer value further down the column stays clipped. The cap exists
 because a double-click must not stall on a hundred thousand measurements.
 → `autoFitCol` in `src/react/components/Grid.tsx`.
 
-**Row heights and column widths are not read from or written to XLSX.** They
-survive in the model and in memory, not through a round trip.
-→ `src/io/xlsx/read.ts` ignores `<col>` and `<row ht=…>`; `write.ts` emits
-neither.
+**XLSX sizing is approximate, and only what the file marks as custom.** Widths
+are stored in multiples of the widest digit of the normal font, assumed to be
+Calibri 11; a workbook using another font reads a few pixels off. A `<col>` or
+`ht=` without `customWidth`/`customHeight` is ignored, so a file laid out by
+Excel does not arrive with every column pinned.
+→ `src/io/xlsx/units.ts`.
+
+**A filter over a column containing a formula rescans every row on every edit.**
+A formula's displayed value can change while its raw text does not, so the
+incremental cache cannot see that the row needs re-testing and the column falls
+back to a full scan — about 60 ms per edit at 100k rows. Columns of plain values
+are incremental.
+→ `volatile` in `src/react/useFilterHidden.ts`; needs the evaluator to report
+which cells its last recalculation changed.
 
 **Committing an edit copies the whole cell map.** `useWorkbook` clones on write,
 so edit cost grows with the number of filled cells — about 26 ms at 10k, about
-390 ms at 1M. Virtualization does not help: this is the write path.
+390 ms at 1M. Virtualization does not help: this is the write path, and it is
+now the largest cost in the grid by a wide margin.
 → `cloneSheet` in `src/model/sheet.ts` and `updateSheet` in
 `src/react/useWorkbook.ts` would need structural sharing rather than a spread.
-
-**An active filter rescans every row on every edit.** An edit can change whether
-a row passes, and nothing tracks which rows an edit could have affected, so the
-scan is unconditional — about 97 ms at 100k rows with values in the filtered
-column. Rows with no value in that column are resolved once per column rather
-than once per row, so a sparse sheet is cheaper.
-→ `effectiveHiddenRows` in `src/react/useRowWindow.ts`; needs a per-row filter
-verdict cache invalidated by the cells that actually changed.
 
 **No column hiding.** Rows can be hidden; columns cannot.
 → Mirror the `visibleRows` compaction for columns, and make it interact with

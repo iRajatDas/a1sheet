@@ -24,9 +24,9 @@
  * revisiting this mapping.
  */
 import { useCallback, useMemo } from "react";
-import { cellKey } from "../model/address.js";
 import type { Sheet } from "../model/types.js";
 import { BUFFER_ROWS, HEADER_HEIGHT, ROW_HEIGHT } from "./constants.js";
+import { useFilterHidden } from "./useFilterHidden.js";
 
 /** An absolute row index paired with the CSS grid line it renders on. */
 export interface WindowRow {
@@ -77,53 +77,17 @@ export function useRowWindow(
 ): UseRowWindowResult {
   const frozenRows = sheet.frozenRows || 0;
 
-  // `sheet.cells` and `sheet.styles` are dependencies twice over: read directly
-  // below, and read through `getDisplay`. An edit can change whether a row
-  // passes the filter, so dropping either leaves the result stale.
+  // Filter exclusions are cached and incrementally maintained — see the hook.
+  // They are kept separate from the manual hides so that hiding a row by hand
+  // does not throw away a scan of the whole sheet.
+  const filterHidden = useFilterHidden(sheet, frozenRows, getDisplay);
+
   const effectiveHiddenRows = useMemo(() => {
+    if (filterHidden.size === 0) return new Set(sheet.hiddenRows);
     const hidden = new Set(sheet.hiddenRows);
-    const filterCols = Object.keys(sheet.filters).map(Number);
-    if (filterCols.length > 0) {
-      // A cell with no content and no style displays the same string in every
-      // row of its column, because nothing in that display depends on the row.
-      // Resolving it once per column instead of once per row is what keeps this
-      // scan affordable on a sparse sheet — it reruns on every edit, since an
-      // edit can change whether a row passes the filter.
-      const emptyDisplay = new Map<number, string>();
-      for (let r = frozenRows; r < sheet.numRows; r++) {
-        if (hidden.has(r)) continue;
-        for (const c of filterCols) {
-          const allowed = sheet.filters[c];
-          if (!allowed) continue;
-          const key = cellKey(r, c);
-          let display: string;
-          if (sheet.cells[key] === undefined && sheet.styles[key] === undefined) {
-            let cached = emptyDisplay.get(c);
-            if (cached === undefined) {
-              cached = getDisplay(r, c);
-              emptyDisplay.set(c, cached);
-            }
-            display = cached;
-          } else {
-            display = getDisplay(r, c);
-          }
-          if (!allowed.has(display)) {
-            hidden.add(r);
-            break;
-          }
-        }
-      }
-    }
+    for (const row of filterHidden) hidden.add(row);
     return hidden;
-  }, [
-    sheet.hiddenRows,
-    sheet.filters,
-    sheet.numRows,
-    sheet.cells,
-    sheet.styles,
-    frozenRows,
-    getDisplay,
-  ]);
+  }, [sheet.hiddenRows, filterHidden]);
 
   const visibleRows = useMemo(() => {
     const out: number[] = [];

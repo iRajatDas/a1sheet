@@ -19,6 +19,7 @@ import {
 } from "../progress.js";
 import { listZipEntries, readZipMember } from "../zip/zip.js";
 import { parseStylesXml } from "./styles.js";
+import { colWidthToPx, rowHeightToPx } from "./units.js";
 import { findElement, findElements, iterElements, textOf } from "./xml.js";
 
 /** One sheet as it comes out of the file, before becoming a full `Sheet`. */
@@ -29,6 +30,10 @@ export interface XlsxSheetData {
   merges: Range[];
   rows: number;
   cols: number;
+  /** Column index -> width in px, for columns the file marks as custom. */
+  colWidths: Record<number, number>;
+  /** Row index -> height in px, for rows the file marks as custom. */
+  rowHeights: Record<number, number>;
 }
 
 const REF_RE = /^([A-Za-z]+)(\d+)$/;
@@ -193,6 +198,34 @@ export async function readXlsx(
       }
     }
 
+    // Excel writes a <col> for runs of columns whether or not the user touched
+    // them, and a ht= on rows it merely laid out. `customWidth`/`customHeight`
+    // is the flag that means "someone set this deliberately" — without it, a
+    // file would import with every column pinned to a width nobody chose.
+    const colWidths: Record<number, number> = {};
+    for (const col of iterElements(xml, "col")) {
+      if (col.attrs.customWidth !== "1" || col.attrs.width === undefined) continue;
+      const width = Number.parseFloat(col.attrs.width);
+      const min = Number.parseInt(col.attrs.min ?? "", 10);
+      const max = Number.parseInt(col.attrs.max ?? "", 10);
+      if (!Number.isFinite(width) || !Number.isFinite(min)) continue;
+      const last = Number.isFinite(max) ? max : min;
+      const px = colWidthToPx(width);
+      // min/max are 1-based and inclusive, and one element covers a whole run.
+      for (let c = min; c <= last; c++) colWidths[c - 1] = px;
+      if (last > maxC + 1) maxC = last - 1;
+    }
+
+    const rowHeights: Record<number, number> = {};
+    for (const row of iterElements(xml, "row")) {
+      if (row.attrs.customHeight !== "1" || row.attrs.ht === undefined) continue;
+      const points = Number.parseFloat(row.attrs.ht);
+      const index = Number.parseInt(row.attrs.r ?? "", 10);
+      if (!Number.isFinite(points) || !Number.isFinite(index)) continue;
+      rowHeights[index - 1] = rowHeightToPx(points);
+      if (index > maxR + 1) maxR = index - 1;
+    }
+
     const merges: Range[] = [];
     for (const m of iterElements(xml, "mergeCell")) {
       const ref = m.attrs.ref;
@@ -205,7 +238,16 @@ export async function readXlsx(
       merges.push({ r1: a.row, c1: a.col, r2: b.row, c2: b.col });
     }
 
-    sheets.push({ name, cells, styles, merges, rows: maxR + 1, cols: maxC + 1 });
+    sheets.push({
+      name,
+      cells,
+      styles,
+      merges,
+      rows: maxR + 1,
+      cols: maxC + 1,
+      colWidths,
+      rowHeights,
+    });
     await pacer.checkpoint("parsing", parsed / totalElements, name);
   }
 
@@ -213,5 +255,16 @@ export async function readXlsx(
 
   return sheets.length > 0
     ? sheets
-    : [{ name: "Sheet1", cells: {}, styles: {}, merges: [], rows: 1, cols: 1 }];
+    : [
+        {
+          name: "Sheet1",
+          cells: {},
+          styles: {},
+          merges: [],
+          rows: 1,
+          cols: 1,
+          colWidths: {},
+          rowHeights: {},
+        },
+      ];
 }

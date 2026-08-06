@@ -16,7 +16,6 @@ import { fireEvent, render } from "@testing-library/react";
 import type { Range } from "../model/types.js";
 import { createWorkbook } from "../model/workbook.js";
 import {
-  BUFFER_ROWS,
   DEFAULT_COL_WIDTH,
   HEADER_HEIGHT,
   MIN_ROW_HEIGHT,

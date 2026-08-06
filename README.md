@@ -178,9 +178,9 @@ a million cells into one:
 - **Committing an edit copies the cell map.** `useWorkbook` clones on write, so
   an edit costs about 26 ms at 10k filled cells and about 390 ms at 1M. This is
   the write path, not the render path, and it is the next thing to fix.
-- **An active filter rescans every row on every edit,** because an edit can
-  change whether a row passes: about 97 ms at 100k rows with values in the
-  filtered column.
+- **A filter over a column of formulas rescans every row on every edit**
+  (about 60 ms at 100k). Columns of plain values are re-tested incrementally and
+  cost nothing measurable.
 
 ### Reading large files
 

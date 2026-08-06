@@ -268,3 +268,77 @@ describe("dataset/ real files", () => {
     },
   );
 });
+
+describe("row heights and column widths", () => {
+  test("a resized row and column survive a round trip", async () => {
+    const bytes = writeXlsx([
+      {
+        ...sheet("S", { "0_0": "a", "5_2": "b" }),
+        colWidths: { 0: 180, 2: 60 },
+        rowHeights: { 0: 40, 5: 80 },
+      },
+    ]);
+    const [out] = await readXlsx(bytes);
+
+    // The units are characters and points, so a pixel of rounding is expected.
+    expect(out?.colWidths[0]).toBeCloseTo(180, -1);
+    expect(out?.colWidths[2]).toBeCloseTo(60, -1);
+    expect(out?.rowHeights[0]).toBeCloseTo(40, -1);
+    expect(out?.rowHeights[5]).toBeCloseTo(80, -1);
+  });
+
+  test("untouched rows and columns carry no override", async () => {
+    // Writing a default for every row and column would pin the whole sheet to
+    // sizes the user never chose, and defeat the fast path in useRowWindow.
+    const bytes = writeXlsx([
+      { ...sheet("S", { "0_0": "a" }), colWidths: { 0: 180 } },
+    ]);
+    const [out] = await readXlsx(bytes);
+
+    expect(out?.colWidths[1]).toBeUndefined();
+    expect(Object.keys(out?.rowHeights ?? {})).toHaveLength(0);
+  });
+
+  test("a resized row with no content is still written", async () => {
+    const bytes = writeXlsx([
+      { ...sheet("S", { "0_0": "a" }), rowHeights: { 9: 55 } },
+    ]);
+    const [out] = await readXlsx(bytes);
+
+    expect(out?.rowHeights[9]).toBeCloseTo(55, -1);
+  });
+
+  test("a sheet with no sizing writes no <cols> element", async () => {
+    const bytes = writeXlsx([sheet("S", { "0_0": "a" })]);
+    const [out] = await readXlsx(bytes);
+
+    expect(Object.keys(out?.colWidths ?? {})).toHaveLength(0);
+  });
+
+  test.skipIf(DATASET_FILES.length === 0)(
+    "a real Excel file's column widths come through as plausible pixels",
+    async () => {
+      // Self-round-trip only proves the writer and reader agree with each
+      // other. Excel emits <col> in runs, mixes custom and default columns, and
+      // uses a character-based unit — none of which our own output exercises.
+      const { readFile } = await import("node:fs/promises");
+      let checked = 0;
+      for (const file of DATASET_FILES.filter((f) => f.endsWith(".xlsx"))) {
+        const bytes = new Uint8Array(
+          await readFile(join(DATASET, "excel-files", file)),
+        );
+        const sheets = await readXlsx(bytes).catch(() => []);
+        for (const s of sheets) {
+          for (const px of Object.values(s.colWidths)) {
+            // A width outside this range means the unit conversion is wrong,
+            // not that someone chose an unusual column.
+            expect(px).toBeGreaterThan(4);
+            expect(px).toBeLessThan(2000);
+            checked++;
+          }
+        }
+      }
+      expect(checked).toBeGreaterThan(0);
+    },
+  );
+});

@@ -8,6 +8,23 @@ backfilled.
 
 ## Unreleased
 
+### Added (XLSX sizing)
+
+- **Row heights and column widths survive an XLSX round trip.** `readXlsx`
+  reads `<col width>` and `<row ht>`, and `writeXlsx` emits both;
+  `XlsxSheetData` and `XlsxSheetInput` gained `colWidths` and `rowHeights`, in
+  pixels. Only entries the file marks `customWidth`/`customHeight` are read, so
+  an Excel-laid-out sheet does not import with every column pinned to a size
+  nobody chose.
+
+### Changed (filtering)
+
+- **An active filter no longer rescans the sheet on every edit.** The verdict is
+  cached and only rows whose raw content in a filtered column actually changed
+  are re-tested — about 60 ms per committed edit at 100k rows. A filtered column
+  containing a formula still rescans in full, because a formula's display can
+  change while its raw text does not; that case is detected, not assumed.
+
 ### Added (grid performance and sizing)
 
 - **Columns are virtualized.** Only the columns near the viewport exist in the

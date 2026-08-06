@@ -5,6 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import { createWorkbook } from "../model/workbook.js";
+import { Sheet } from "./index.js";
 import { Spreadsheet } from "./Spreadsheet.js";
 
 function workbookWith(cells: Record<string, string>) {
@@ -34,14 +35,14 @@ describe("rendering", () => {
   });
 
   test("shows literal cell values", () => {
-    render(<Spreadsheet initialWorkbook={workbookWith({ "0_0": "hello" })} />);
+    render(<Spreadsheet defaultWorkbook={workbookWith({ "0_0": "hello" })} />);
     expect(screen.getByText("hello")).toBeDefined();
   });
 
   test("shows the EVALUATED value of a formula, not its source", () => {
     const { container } = render(
       <Spreadsheet
-        initialWorkbook={workbookWith({
+        defaultWorkbook={workbookWith({
           "0_0": "2",
           "1_0": "3",
           "2_0": "=SUM(A1:A2)",
@@ -65,18 +66,17 @@ describe("rendering", () => {
     expect(container.querySelector(`.a1s-status`)).not.toBeNull();
   });
 
-  test("chrome can be turned off", () => {
+  test("omitting a part is composition, not a flag", () => {
+    // The shadcn contract: chrome you do not render simply is not there. There is
+    // no showToolbar prop and there must never be one.
     const { container } = render(
-      <Spreadsheet
-        showToolbar={false}
-        showFormulaBar={false}
-        showSheetTabs={false}
-        showStatusBar={false}
-      />,
+      <Sheet.Root>
+        <Sheet.Grid />
+      </Sheet.Root>,
     );
-    expect(container.querySelector(`.a1s-tab`)).toBeNull();
-    expect(container.querySelector(`.a1s-status`)).toBeNull();
-    // The grid still renders.
+    expect(container.querySelector(".a1s-tab")).toBeNull();
+    expect(container.querySelector(".a1s-status")).toBeNull();
+    expect(container.querySelector(".a1s-btn")).toBeNull();
     expect(container.querySelectorAll(".a1s-cell").length).toBeGreaterThan(0);
   });
 
@@ -111,7 +111,7 @@ describe("merges", () => {
       sheet.cells["0_0"] = "merged";
       sheet.merges.push({ r1: 0, c1: 0, r2: 1, c2: 1 });
     }
-    render(<Spreadsheet initialWorkbook={wb} />);
+    render(<Spreadsheet defaultWorkbook={wb} />);
     expect(screen.getAllByText("merged")).toHaveLength(1);
   });
 });

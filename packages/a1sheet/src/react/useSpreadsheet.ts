@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * The headless API: composes every other hook into one object.
  *
@@ -23,7 +25,10 @@ import { type UseSheetOpsResult, useSheetOps } from "./useSheetOps.js";
 import { type UseWorkbookResult, useWorkbook } from "./useWorkbook.js";
 
 export interface UseSpreadsheetOptions {
+  /** Uncontrolled starting workbook. */
   initialWorkbook?: Workbook;
+  /** Controlled workbook. Pair with `onChange`. */
+  workbook?: Workbook;
   onChange?: (wb: Workbook) => void;
   initialSelection?: Range;
 }
@@ -62,6 +67,7 @@ export function useSpreadsheet(
 ): UseSpreadsheetResult {
   const wb = useWorkbook({
     ...(opts.initialWorkbook ? { initialWorkbook: opts.initialWorkbook } : {}),
+    ...(opts.workbook ? { workbook: opts.workbook } : {}),
     ...(opts.onChange ? { onChange: opts.onChange } : {}),
   });
   const selection = useSelection(opts.initialSelection);

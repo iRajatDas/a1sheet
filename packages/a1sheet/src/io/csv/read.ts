@@ -5,6 +5,7 @@
  * skipped, so CRLF and LF inputs both parse.
  */
 import type { CellKey, RawCell } from "../../model/types.js";
+import { denormalizeCsvValue } from "./sanitize.js";
 
 /** Splits CSV text into a row-major array of raw field strings. */
 export function parseCSV(text: string): string[][] {
@@ -63,7 +64,9 @@ export function csvToCells(text: string): CsvCells {
   rows.forEach((row, r) => {
     maxCols = Math.max(maxCols, row.length);
     row.forEach((val, c) => {
-      if (val !== "") cells[`${r}_${c}`] = val;
+      // Undo the export-side injection guard so our own files round-trip exactly.
+      const clean = denormalizeCsvValue(val);
+      if (clean !== "") cells[`${r}_${c}`] = clean;
     });
   });
 

@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Sheet tab strip: switch, add, delete, and rename (double-click) sheets.
  * Ported from the sheet tab JSX in ref/Spreadsheet.jsx.
@@ -5,20 +7,11 @@
  * Renaming shares the `RenamingState` shape with the column and row headers.
  */
 import type { ReactNode } from "react";
-import type { BaseProps, RenamingState } from "./props.js";
+import { useSheetContext } from "../context.js";
 
-export interface SheetTabsProps extends BaseProps {
-  renaming: RenamingState | null;
-  setRenaming(r: RenamingState | null): void;
-}
-
-export function SheetTabs({
-  api,
-  theme,
-  prefix,
-  renaming,
-  setRenaming,
-}: SheetTabsProps): ReactNode {
+export function SheetTabs(): ReactNode {
+  const { api, theme, prefix, ui } = useSheetContext("Sheet.Tabs");
+  const { renaming, setRenaming } = ui;
   const { workbook } = api;
 
   return (

@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Aggregate stats for the current selection. Ported from
  * ref/Spreadsheet.jsx:699-714.
@@ -8,9 +10,11 @@
 import type { ReactNode } from "react";
 import { normalizeRange, toA1 } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
-import type { BaseProps } from "./props.js";
+import { useSheetContext } from "../context.js";
 
-export function StatusBar({ api, theme, prefix }: BaseProps): ReactNode {
+export function StatusBar(): ReactNode {
+  const { api, theme, prefix } = useSheetContext("Sheet.StatusBar");
+
   const ranges: Range[] = [api.selection, ...api.extraRanges];
 
   let count = 0;

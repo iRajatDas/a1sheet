@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * A single cell. Ported from `renderCell` in ref/Spreadsheet.jsx:418-465.
  *
@@ -10,26 +12,19 @@ import type { CSSProperties, ReactNode } from "react";
 import { cellKey } from "../../model/address.js";
 import { getMergeAt } from "../../model/sheet.js";
 import { ROW_HEIGHT } from "../constants.js";
-import type { BaseProps, ContextMenuState } from "./props.js";
+import { useSheetContext } from "../context.js";
 
-export interface CellProps extends BaseProps {
+export interface CellProps {
   row: number;
   col: number;
+  /** CSS grid line this cell renders on, computed by the Grid. */
   gridRow: number;
+  /** Sticky offsets for freeze panes, computed by the Grid. */
   stickyStyle: CSSProperties;
-  onContextMenu(state: ContextMenuState): void;
 }
 
-export function Cell({
-  api,
-  theme,
-  prefix,
-  row,
-  col,
-  gridRow,
-  stickyStyle,
-  onContextMenu,
-}: CellProps): ReactNode {
+export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
+  const { api, theme, prefix, ui } = useSheetContext("Sheet.Cell");
   const { sheet, selection, editing } = api;
 
   const merge = getMergeAt(sheet, row, col);
@@ -102,7 +97,7 @@ export function Cell({
       onContextMenu={(e) => {
         e.preventDefault();
         if (!selected) api.selectCell(row, col);
-        onContextMenu({ row, col, x: e.clientX, y: e.clientY });
+        ui.setContextMenu({ row, col, x: e.clientX, y: e.clientY });
       }}
       title={style.locked ? "Locked cell" : undefined}
     >

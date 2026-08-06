@@ -11,7 +11,7 @@ import { Spreadsheet } from "./Spreadsheet.js";
 function setup(cells: Record<string, string> = {}) {
   const wb = createWorkbook(["Sheet1"]);
   Object.assign((wb.sheets[0] as { cells: object }).cells, cells);
-  const utils = render(<Spreadsheet initialWorkbook={wb} />);
+  const utils = render(<Spreadsheet defaultWorkbook={wb} />);
   const { container } = utils;
 
   const cellAt = (row: number, col: number) => {

@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * The cell grid. Ported from the grid JSX in ref/Spreadsheet.jsx:568-698.
  *
@@ -30,30 +32,12 @@ import {
   ROW_HEADER_WIDTH,
   ROW_HEIGHT,
 } from "../constants.js";
+import { useSheetContext } from "../context.js";
 import { Cell } from "./Cell.js";
-import type {
-  BaseProps,
-  ColumnMenuState,
-  ContextMenuState,
-  RenamingState,
-} from "./props.js";
 
-export interface GridProps extends BaseProps {
-  renaming: RenamingState | null;
-  setRenaming(r: RenamingState | null): void;
-  onContextMenu(state: ContextMenuState): void;
-  onColumnMenu(state: ColumnMenuState): void;
-}
-
-export function Grid({
-  api,
-  theme,
-  prefix,
-  renaming,
-  setRenaming,
-  onContextMenu,
-  onColumnMenu,
-}: GridProps): ReactNode {
+export function Grid(): ReactNode {
+  const { api, theme, prefix, ui } = useSheetContext("Sheet.Grid");
+  const { renaming, setRenaming } = ui;
   const { sheet, rowWindow, fill } = api;
   const containerRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<{ col: number; startX: number; startW: number } | null>(
@@ -236,9 +220,6 @@ export function Grid({
         {cols.map((c) => (
           <Cell
             key={c}
-            api={api}
-            theme={theme}
-            prefix={prefix}
             row={absRow}
             col={c}
             gridRow={gridRow}
@@ -248,7 +229,6 @@ export function Grid({
               frozen ? absRow : undefined,
               c < frozenCols ? c : undefined,
             )}
-            onContextMenu={onContextMenu}
           />
         ))}
       </div>
@@ -352,7 +332,7 @@ export function Grid({
                     onClick={(e) => {
                       e.stopPropagation();
                       const box = (e.target as HTMLElement).getBoundingClientRect();
-                      onColumnMenu({ col: c, x: box.left, y: box.bottom });
+                      ui.setColumnMenu({ col: c, x: box.left, y: box.bottom });
                     }}
                   >
                     ▾

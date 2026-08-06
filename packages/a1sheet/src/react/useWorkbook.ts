@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Workbook state and the ONLY sanctioned mutation path.
  *
@@ -7,6 +9,7 @@
  * rather than a rule someone has to remember.
  */
 import { useCallback, useMemo, useRef, useState } from "react";
+import { EmptyWorkbookError } from "../errors.js";
 import {
   emptyHistory,
   type History,
@@ -52,39 +55,66 @@ export interface UseWorkbookResult {
 }
 
 export interface UseWorkbookOptions {
+  /** Uncontrolled starting value. Ignored when `workbook` is supplied. */
   initialWorkbook?: Workbook;
+  /**
+   * Controlled value. When present the hook never holds its own workbook state and
+   * every change is reported through `onChange` for the caller to apply.
+   */
+  workbook?: Workbook;
   onChange?: (wb: Workbook) => void;
 }
 
 export function useWorkbook(opts: UseWorkbookOptions = {}): UseWorkbookResult {
-  const [workbook, setWorkbook] = useState<Workbook>(
+  const isControlled = opts.workbook !== undefined;
+
+  const [uncontrolled, setUncontrolled] = useState<Workbook>(
     () => opts.initialWorkbook ?? createWorkbook(),
   );
   const [history, setHistory] = useState<History>(emptyHistory);
+
+  const workbook = isControlled ? (opts.workbook as Workbook) : uncontrolled;
 
   // Kept in a ref so the callbacks below stay referentially stable across
   // renders — they are passed down to every child hook and component.
   const onChange = useRef(opts.onChange);
   onChange.current = opts.onChange;
 
-  const commit = useCallback(
-    (next: Workbook, prev: Workbook, addHistory: boolean) => {
-      if (addHistory) setHistory((h) => histPush(h, prev));
-      setWorkbook(next);
-      onChange.current?.(next);
+  // Mirrors the live workbook so the updater callbacks can read it without taking
+  // it as a dependency, which would break their referential stability. Needed in
+  // controlled mode, where there is no setState updater to receive `prev`.
+  const latest = useRef(workbook);
+  latest.current = workbook;
+
+  /**
+   * The single write path. In uncontrolled mode this drives internal state; in
+   * controlled mode it only reports upward and the caller re-renders us.
+   */
+  const setWorkbook = useCallback(
+    (compute: (prev: Workbook) => Workbook) => {
+      if (isControlled) {
+        const prev = latest.current;
+        const next = compute(prev);
+        if (next !== prev) onChange.current?.(next);
+        return;
+      }
+      setUncontrolled(compute);
     },
-    [],
+    [isControlled],
   );
 
-  const updateWorkbook = useCallback((fn: WorkbookUpdater, addHistory = true) => {
-    setWorkbook((prev) => {
-      const next = fn(prev);
-      if (next === prev) return prev;
-      if (addHistory) setHistory((h) => histPush(h, prev));
-      onChange.current?.(next);
-      return next;
-    });
-  }, []);
+  const updateWorkbook = useCallback(
+    (fn: WorkbookUpdater, addHistory = true) => {
+      setWorkbook((prev) => {
+        const next = fn(prev);
+        if (next === prev) return prev;
+        if (addHistory) setHistory((h) => histPush(h, prev));
+        if (!isControlled) onChange.current?.(next);
+        return next;
+      });
+    },
+    [setWorkbook, isControlled],
+  );
 
   const updateSheet = useCallback(
     (fn: SheetUpdater, addHistory = true) => {
@@ -105,13 +135,8 @@ export function useWorkbook(opts: UseWorkbookOptions = {}): UseWorkbookResult {
   );
 
   const replaceWorkbook = useCallback(
-    (next: Workbook) => {
-      setWorkbook((prev) => {
-        commit(next, prev, true);
-        return next;
-      });
-    },
-    [commit],
+    (next: Workbook) => updateWorkbook(() => next, true),
+    [updateWorkbook],
   );
 
   const undo = useCallback(() => {
@@ -119,24 +144,24 @@ export function useWorkbook(opts: UseWorkbookOptions = {}): UseWorkbookResult {
       const r = histUndo(history, current);
       if (!r) return current;
       setHistory(r.history);
-      onChange.current?.(r.workbook);
+      if (!isControlled) onChange.current?.(r.workbook);
       return r.workbook;
     });
-  }, [history]);
+  }, [history, setWorkbook, isControlled]);
 
   const redo = useCallback(() => {
     setWorkbook((current) => {
       const r = histRedo(history, current);
       if (!r) return current;
       setHistory(r.history);
-      onChange.current?.(r.workbook);
+      if (!isControlled) onChange.current?.(r.workbook);
       return r.workbook;
     });
-  }, [history]);
+  }, [history, setWorkbook, isControlled]);
 
   const sheet = useMemo(() => {
     const s = workbook.sheets[workbook.activeSheetIndex] ?? workbook.sheets[0];
-    if (!s) throw new Error("workbook has no sheets");
+    if (!s) throw new EmptyWorkbookError();
     return s;
   }, [workbook]);
 

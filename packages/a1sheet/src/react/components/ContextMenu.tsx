@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Right-click menu: insert/delete row or column, clear contents, clear
  * formatting, lock/unlock, copy, paste. Ported from the context menu JSX in
@@ -9,19 +11,17 @@
  * a status message pointing at Ctrl+C/V.
  */
 import type { ReactNode } from "react";
-import type { BaseProps, ContextMenuState } from "./props.js";
+import { useSheetContext } from "../context.js";
 
-export interface ContextMenuProps extends BaseProps {
-  state: ContextMenuState;
-  onClose(): void;
-}
-
-export function ContextMenu({
-  api,
-  prefix,
-  state,
-  onClose,
-}: ContextMenuProps): ReactNode {
+/**
+ * Renders nothing until a right-click opens it, so the consumer can place it
+ * anywhere in the tree — or omit it to disable the menu entirely.
+ */
+export function ContextMenu(): ReactNode {
+  const { api, prefix, ui } = useSheetContext("Sheet.ContextMenu");
+  const state = ui.contextMenu;
+  const onClose = ui.closeMenus;
+  if (!state) return null;
   const { row, col } = state;
 
   function run(fn: () => void) {

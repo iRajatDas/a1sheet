@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Formatting and structure toolbar. Ported from ref/Spreadsheet.jsx:509-542.
  *
@@ -8,9 +10,14 @@
 import { type ReactNode, useRef } from "react";
 import { NUM_FMTS } from "../../format/numFmt.js";
 import type { NumFmt } from "../../model/types.js";
-import type { BaseProps } from "./props.js";
+import { useSheetContext } from "../context.js";
 
-export interface ToolbarProps extends BaseProps {
+export interface ToolbarProps {
+  /**
+   * File-I/O handlers. Absent handlers hide their buttons — these are callbacks,
+   * not `show*` flags: a consumer without file I/O simply passes none, and the
+   * XLSX writer never enters their bundle.
+   */
   onImport?(file: File): void;
   onExportCsv?(): void;
   onExportXlsx?(): void;
@@ -26,13 +33,11 @@ const NUM_FMT_LABELS: Record<NumFmt, string> = {
 };
 
 export function Toolbar({
-  api,
-  theme,
-  prefix,
   onImport,
   onExportCsv,
   onExportXlsx,
-}: ToolbarProps): ReactNode {
+}: ToolbarProps = {}): ReactNode {
+  const { api, theme, prefix } = useSheetContext("Sheet.Toolbar");
   const fileRef = useRef<HTMLInputElement>(null);
   const s = api.activeStyle;
   const btn = (on?: boolean) => `${prefix}btn${on ? ` ${prefix}on` : ""}`;

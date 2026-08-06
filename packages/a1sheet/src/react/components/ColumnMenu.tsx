@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Column header dropdown: sort ascending/descending and a checkbox value filter.
  * Ported from `ColumnMenu` in ref/Spreadsheet.jsx:715+.
@@ -8,21 +10,33 @@
  */
 import { type ReactNode, useMemo, useState } from "react";
 import { getUsedBounds } from "../../io/csv/write.js";
-import type { BaseProps, ColumnMenuState } from "./props.js";
+import { useSheetContext } from "../context.js";
 
-export interface ColumnMenuProps extends BaseProps {
-  state: ColumnMenuState;
-  onClose(): void;
+/**
+ * Renders nothing until a column header dropdown is opened.
+ *
+ * The panel is split out and keyed by column so its checkbox state resets when a
+ * different column's menu is opened. Keeping the state in this always-mounted outer
+ * component would carry one column's selections over to the next.
+ */
+export function ColumnMenu(): ReactNode {
+  const { ui } = useSheetContext("Sheet.ColumnMenu");
+  const state = ui.columnMenu;
+  if (!state) return null;
+  return (
+    <ColumnMenuPanel key={state.col} col={state.col} x={state.x} y={state.y} />
+  );
 }
 
-export function ColumnMenu({
-  api,
-  theme,
-  prefix,
-  state,
-  onClose,
-}: ColumnMenuProps): ReactNode {
-  const { col } = state;
+interface PanelProps {
+  col: number;
+  x: number;
+  y: number;
+}
+
+function ColumnMenuPanel({ col, x, y }: PanelProps): ReactNode {
+  const { api, theme, prefix, ui } = useSheetContext("Sheet.ColumnMenu");
+  const onClose = ui.closeMenus;
   const { sheet } = api;
 
   /** Distinct displayed values in the column, over the used range only. */
@@ -50,7 +64,7 @@ export function ColumnMenu({
   return (
     <div
       className={`${prefix}menu`}
-      style={{ left: state.x, top: state.y, minWidth: 200 }}
+      style={{ left: x, top: y, minWidth: 200 }}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();

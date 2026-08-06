@@ -14,25 +14,62 @@ bun add a1sheet    # npm/pnpm/yarn all fine — React is a peer dependency
 
 ## Use
 
-Two entrypoints. The root one contains no React at all, so it works in plain JS,
+Two entrypoints. The root one has no React in it at all, so it works in plain JS,
 Node, and Web Workers:
 
 ```ts
-import { readWorkbookFile, writeXlsx, createEvaluator } from "a1sheet";
+import { readWorkbookFile, writeXlsx, cellsToCSV } from "a1sheet";
 
 const { sheets } = await readWorkbookFile(file);   // .xlsx or .csv, auto-detected
 const bytes = writeXlsx(sheets);
 ```
 
-The React layer is separate:
+The React layer is **composition-first**. You assemble the primitives; the library
+never owns your layout:
+
+```tsx
+import { Sheet } from "a1sheet/react";
+
+<Sheet.Root defaultWorkbook={wb} onWorkbookChange={save}>
+  <Sheet.Toolbar />
+  <Sheet.FormulaBar />
+  <Sheet.Grid />
+  <Sheet.Tabs />
+  <Sheet.StatusBar />
+  <Sheet.ContextMenu />
+  <Sheet.ColumnMenu />
+</Sheet.Root>
+```
+
+Reorder them, drop the ones you do not want, wrap them in your own layout, or mix
+in your own components — they read the same context:
+
+```tsx
+import { Sheet, useSheet } from "a1sheet/react";
+
+function SelectionSummary() {
+  const api = useSheet();                      // same state the primitives use
+  return <footer>{api.getDisplay(api.active.row, api.active.col)}</footer>;
+}
+
+<Sheet.Root>
+  <Sheet.Grid />
+  <SelectionSummary />
+</Sheet.Root>
+```
+
+There are no `showToolbar`-style props and there never will be — a part you do not
+want is a child you do not render.
+
+If the default arrangement is fine, there is a preset:
 
 ```tsx
 import { Spreadsheet } from "a1sheet/react";
 
-<Spreadsheet height={520} onChange={(wb) => save(wb)} />
+<Spreadsheet defaultWorkbook={wb} />       // composes the primitives above
 ```
 
-Or drive your own UI from the headless hook:
+Or skip the components entirely and drive your own UI from the headless hook:
 
 ```tsx
 import { useSpreadsheet } from "a1sheet/react";
@@ -41,8 +78,24 @@ const api = useSpreadsheet();
 // api.sheet, api.selection, api.getDisplay(r, c), api.setCell(r, c, raw), …
 ```
 
-Styling is inline with a `theme` prop — no stylesheet to import, so dropping this
-into an existing app needs no build-config change.
+### Controlled or uncontrolled
+
+```tsx
+<Sheet.Root defaultWorkbook={wb} />                        // uncontrolled
+<Sheet.Root workbook={wb} onWorkbookChange={setWb} />      // controlled
+```
+
+### Imperative handle
+
+```tsx
+const ref = useRef<SheetRootHandle>(null);
+<Sheet.Root ref={ref}>…</Sheet.Root>
+ref.current?.focus();
+ref.current?.api.setCell(0, 0, "hi");
+```
+
+Styling is inline with a `theme` prop and a `classNamePrefix` — no stylesheet to
+import, so dropping this into an existing app needs no build-config change.
 
 ## Repository
 

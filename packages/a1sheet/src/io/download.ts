@@ -8,6 +8,7 @@
  */
 import type { Evaluator } from "../formula/evaluate.js";
 import type { CellKey, RawCell } from "../model/types.js";
+import { safeFilename } from "./csv/sanitize.js";
 import { cellsToCSV } from "./csv/write.js";
 import type { XlsxSheetInput } from "./xlsx/write.js";
 import { writeXlsx } from "./xlsx/write.js";
@@ -35,7 +36,7 @@ export function downloadXlsx(
     new Blob([bytes as unknown as BlobPart], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
-    filename,
+    safeFilename(filename, "spreadsheet.xlsx"),
   );
 }
 
@@ -46,6 +47,6 @@ export function downloadCsv(
 ): void {
   saveBlob(
     new Blob([cellsToCSV(cells, evaluator)], { type: "text/csv" }),
-    filename,
+    safeFilename(filename, "spreadsheet.csv"),
   );
 }

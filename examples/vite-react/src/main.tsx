@@ -1,5 +1,5 @@
 import { createWorkbook } from "a1sheet";
-import { Spreadsheet } from "a1sheet/react";
+import { Sheet } from "a1sheet/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -38,7 +38,16 @@ createRoot(root).render(
       <h1 style={{ font: "600 20px/1.3 system-ui", marginBottom: 16 }}>
         a1sheet playground
       </h1>
-      <Spreadsheet initialWorkbook={workbook} height={520} />
+      {/* Composition, not configuration: rearrange or omit any of these. */}
+      <Sheet.Root defaultWorkbook={workbook} height={520}>
+        <Sheet.Toolbar />
+        <Sheet.FormulaBar />
+        <Sheet.Grid />
+        <Sheet.Tabs />
+        <Sheet.StatusBar />
+        <Sheet.ContextMenu />
+        <Sheet.ColumnMenu />
+      </Sheet.Root>
     </div>
   </StrictMode>,
 );

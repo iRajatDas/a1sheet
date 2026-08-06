@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Name box plus formula input. Ported from ref/Spreadsheet.jsx:544-562 and
  * `handleNameBoxEnter`.
@@ -13,9 +15,10 @@
  */
 import { type ReactNode, useState } from "react";
 import { normalizeRange, parseRangeRef, toA1 } from "../../model/address.js";
-import type { BaseProps } from "./props.js";
+import { useSheetContext } from "../context.js";
 
-export function FormulaBar({ api, theme, prefix }: BaseProps): ReactNode {
+export function FormulaBar(): ReactNode {
+  const { api, theme, prefix } = useSheetContext("Sheet.FormulaBar");
   const [nameBox, setNameBox] = useState("");
   const { selection, editing } = api;
 

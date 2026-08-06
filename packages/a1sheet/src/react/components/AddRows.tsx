@@ -39,7 +39,8 @@ export function AddRows(): ReactNode {
         // off to the left as soon as the sheet is scrolled sideways.
         position: "sticky",
         left: 0,
-        width: "fit-content",
+        // width: "fit-content",
+        width: "100%",
       }}
     >
       <button

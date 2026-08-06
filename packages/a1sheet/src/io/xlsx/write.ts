@@ -15,12 +15,14 @@ import { createEvaluator } from "../../formula/evaluate.js";
 import { colToLetters } from "../../model/address.js";
 import type {
   CellKey,
+  CellValue,
   NamedRanges,
   Range,
   RawCell,
   StyleObject,
 } from "../../model/types.js";
 import { makeZip, type ZipEntry } from "../zip/zip.js";
+import { daySerialToExcelSerial } from "./dates.js";
 import { CUSTOM_NUMFMTS, NUMFMT_TO_ID, styleKey } from "./styles.js";
 import { pxToColWidth, pxToRowHeight } from "./units.js";
 import { colorToRgb, xmlEscape } from "./xml.js";
@@ -32,6 +34,12 @@ export interface XlsxSheetInput {
   styles: Record<CellKey, StyleObject>;
   merges: Range[];
   namedRanges?: NamedRanges;
+  /**
+   * Values from a previous import, for formulas this engine cannot evaluate.
+   * Passing them keeps an exported formula's `<v>` truthful instead of writing
+   * the zero an unevaluable formula would otherwise produce.
+   */
+  cachedValues?: Record<CellKey, CellValue>;
   /** Column index -> width in px. Only entries present are written. */
   colWidths?: Record<number, number>;
   /** Row index -> height in px. Only entries present are written. */
@@ -68,7 +76,19 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
   }
 
   const sheetXmls = sheets.map((sheet) => {
-    const evaluator = createEvaluator(sheet.cells, sheet.namedRanges ?? {});
+    const evaluator = createEvaluator(
+      sheet.cells,
+      sheet.namedRanges ?? {},
+      sheet.cachedValues ?? {},
+    );
+
+    /**
+     * Day serials are Unix-based in the model and 1899-12-30-based in the file.
+     * Only a date-formatted cell holds one, so only that cell is shifted — a
+     * plain number must not move.
+     */
+    const forFile = (n: number, style: StyleObject | undefined) =>
+      style?.numFmt === "date" ? daySerialToExcelSerial(n) : n;
 
     // Extent must cover styled-but-empty cells too, or formatting is lost.
     let maxR = -1;
@@ -118,10 +138,15 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
 
         if (raw?.startsWith("=")) {
           const val = evaluator.getCellDisplay(r, c);
-          const numVal = typeof val === "number" ? val : 0;
-          rowCells += `<c r="${ref}"${sAttr}><f>${xmlEscape(raw.slice(1))}</f><v>${numVal}</v></c>`;
+          const f = `<f>${xmlEscape(raw.slice(1))}</f>`;
+          // A text result needs t="str", or Excel reads the string as a number
+          // and shows 0. Only numbers may be written bare.
+          rowCells +=
+            typeof val === "number"
+              ? `<c r="${ref}"${sAttr}>${f}<v>${forFile(val, style)}</v></c>`
+              : `<c r="${ref}"${sAttr} t="str">${f}<v>${xmlEscape(String(val))}</v></c>`;
         } else if (raw && INTEGER_OR_DECIMAL.test(raw)) {
-          rowCells += `<c r="${ref}"${sAttr}><v>${raw}</v></c>`;
+          rowCells += `<c r="${ref}"${sAttr}><v>${forFile(Number(raw), style)}</v></c>`;
         } else if (raw) {
           rowCells += `<c r="${ref}"${sAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(raw)}</t></is></c>`;
         } else {

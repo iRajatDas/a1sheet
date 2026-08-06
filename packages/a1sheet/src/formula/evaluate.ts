@@ -13,7 +13,7 @@
  *   A new shape-sensitive function follows that pattern.
  */
 import { parseCellRef } from "../model/address.js";
-import type { CellKey, NamedRanges, RawCell } from "../model/types.js";
+import type { CellKey, CellValue, NamedRanges, RawCell } from "../model/types.js";
 import type { CompareOp, Node } from "./ast.js";
 import { FUNCTIONS } from "./functions/registry.js";
 import { parseFormula } from "./parse.js";
@@ -247,12 +247,30 @@ export function evalNode(node: Node, ctx: EvalContext): FormulaArg {
   }
 }
 
+/**
+ * Values a previous application computed, consulted only where this engine
+ * fails. See `Sheet.cachedValues` for the staleness contract.
+ */
+export type CachedValues = Readonly<Record<CellKey, CellValue>>;
+
 export function createEvaluator(
   cells: Record<CellKey, RawCell>,
   namedRanges: NamedRanges,
+  cachedValues: CachedValues = {},
 ): Evaluator {
   const cache = new Map<string, FormulaValue>();
   const visiting = new Set<string>();
+
+  /**
+   * Substitutes the imported value for a formula this engine could not resolve.
+   *
+   * Only on failure, and never in place of a formula we CAN evaluate: preferring
+   * the import would freeze the sheet, since an edit to a cell's inputs would
+   * recompute a result nothing ever displays.
+   */
+  function orImported(key: string, failure: FormulaValue): FormulaValue {
+    return cachedValues[key as CellKey] ?? failure;
+  }
 
   /**
    * Internal evaluation. THROWS CycleSignal on a reference cycle so the signal
@@ -297,10 +315,15 @@ export function createEvaluator(
           cache.set(key, CYCLE_ERROR);
           throw e;
         }
-        cache.set(key, "#ERROR!");
-        return "#ERROR!";
+        const failed = orImported(key, "#ERROR!");
+        cache.set(key, failed);
+        return failed;
       }
       visiting.delete(key);
+      // An error sentinel means the formula referenced something we do not have —
+      // an unimplemented function, a structured reference — which is exactly the
+      // case the import's own result covers.
+      if (isErrorValue(result)) result = orImported(key, result);
       cache.set(key, result);
       return result;
     }

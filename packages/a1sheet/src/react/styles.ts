@@ -17,7 +17,7 @@ export function buildCss(prefix: string, t: Theme): string {
   return `
 .${p}cell { border-right: 1px solid ${t.border}; border-bottom: 1px solid ${t.border};
   overflow: hidden; white-space: nowrap; display: flex; align-items: center;
-  padding: 0 6px; font-size: ${t.fontSize}; font-family: ${t.monoFontFamily};
+  padding: 0 6px; font-size: ${t.fontSize}; font-family: ${t.fontFamily};
   cursor: cell; position: relative; box-sizing: border-box; user-select: none; }
 /* Tints are painted as an overlay, never with the background property.
    selectedBg is deliberately translucent, and a background declaration REPLACES
@@ -35,9 +35,12 @@ export function buildCss(prefix: string, t: Theme): string {
 .${p}cell.${p}locked { background-image: repeating-linear-gradient(45deg,
   rgba(0,0,0,0.03) 0 4px, transparent 4px 8px); }
 /* The editor is the one place inside a cell where selecting text is the point,
-   so it opts back out of the cell's user-select: none. */
+   so it opts back out of the cell's user-select: none. It matches the cell's font
+   rather than the formula bar's, so text does not reflow the moment editing starts.
+   monoFontFamily is for formula editing, where alignment carries meaning; a sheet
+   of names and totals set in a monospace face just looks like a terminal. */
 .${p}cell input { border: none; outline: none; width: 100%; height: 100%;
-  font-size: ${t.fontSize}; font-family: ${t.monoFontFamily}; background: ${t.cellBg};
+  font-size: ${t.fontSize}; font-family: ${t.fontFamily}; background: ${t.cellBg};
   color: inherit; padding: 0; user-select: text; }
 .${p}head { background: ${t.headerBg}; border-right: 1px solid ${t.border};
   border-bottom: 1px solid ${t.headerBorder}; font-size: 12px; font-weight: 600;

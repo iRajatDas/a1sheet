@@ -57,6 +57,7 @@ export async function readWorkbookFile(
         name: name.replace(/\.[^.]+$/, "") || "Sheet1",
         cells,
         styles: {},
+        cachedValues: {},
         merges: [],
         rows,
         cols,

@@ -100,8 +100,13 @@ export function useSpreadsheet(
   const [status, setStatus] = useState("");
 
   const evaluator = useMemo(
-    () => createEvaluator(wb.sheet.cells, wb.workbook.namedRanges),
-    [wb.sheet.cells, wb.workbook.namedRanges],
+    () =>
+      createEvaluator(
+        wb.sheet.cells,
+        wb.workbook.namedRanges,
+        wb.sheet.cachedValues,
+      ),
+    [wb.sheet.cells, wb.workbook.namedRanges, wb.sheet.cachedValues],
   );
 
   const getValue = useCallback(
@@ -133,6 +138,9 @@ export function useSpreadsheet(
         if (sheet.styles[key]?.locked) return sheet;
         if (raw === "") delete sheet.cells[key];
         else sheet.cells[key] = raw;
+        // Whatever an import computed for this cell describes the formula that
+        // was here, not the one the user just typed.
+        delete sheet.cachedValues[key];
         return sheet;
       });
     },

@@ -8,7 +8,45 @@ backfilled.
 
 ## Unreleased
 
+### Fixed (XLSX import)
+
+- **Imported dates were seventy years out.** SpreadsheetML counts days from
+  1899-12-30 and this engine counts from the Unix epoch, and a serial is only a
+  number — nothing about it says which. 2024-08-16 read back as 2094-08-18: a
+  plausible date, in the wrong century, which is what kept it invisible. Import
+  and export now convert, including Excel's inherited Lotus belief that 1900 was
+  a leap year, so the offset is right either side of the day that never existed.
+  See `src/io/xlsx/dates.ts`.
+- **A formula using anything unimplemented no longer imports as `#NAME?`.** The
+  reader was taking each formula's text and discarding the value Excel had
+  already computed and stored beside it, so a workbook built on dynamic arrays,
+  `LET`, `LAMBDA`, or structured table references arrived as a grid of errors
+  with its numbers thrown away. Those values are kept now, in a new
+  `Sheet.cachedValues`, and shown whenever evaluation fails.
+
+  A displayed cached value is a snapshot: editing a cell it depends on does not
+  update it, because nothing here can recalculate a formula it could not parse.
+  Editing the formula cell itself drops the entry and the real error appears. A
+  formula the engine *can* evaluate always wins over the import, or an imported
+  sheet would be frozen.
+- **A formula whose result is text exports as text.** `writeXlsx` wrote every
+  formula's cached value as a bare number, so Excel read `"POS"` as `0`.
+
+### Added (XLSX import)
+
+- **`Sheet.cachedValues`**, `XlsxSheetData.cachedValues`, and the optional
+  `XlsxSheetInput.cachedValues`. Pass the last of these when exporting to keep an
+  unevaluable formula's `<v>` truthful.
+- **`createEvaluator` takes an optional third argument,** the cached values to
+  fall back on. Existing two-argument calls are unaffected.
+
 ### Changed (appearance)
+
+- **Cells are set in `fontFamily`, not `monoFontFamily`.** A sheet of names and
+  totals in a monospace face reads as a terminal rather than as a spreadsheet.
+  The mono font now appears only in the formula input, where column alignment
+  inside an expression carries meaning. Both theme keys are unchanged; if you
+  want the old look, set `fontFamily` to a monospace stack.
 
 - **The controls are drawn with icons instead of typographic glyphs and one
   emoji.** `↶ ↷ ⯇ ≡ ⯈ ▾ − 🔒` were resolving through the host page's font stack,

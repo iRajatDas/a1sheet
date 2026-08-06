@@ -348,6 +348,27 @@ Everything from the POC is ported, typed, and under test — 156 tests.
 `.xlsb` and `.xls` are rejected with an actionable message rather than failing
 obscurely — both are binary formats, out of scope.
 
+### What an import keeps, and what it does not
+
+Worth knowing before you point this at a real workbook. It reads values, formula
+text, merges, custom column widths and row heights, bold/italic/underline, RGB
+text and fill colours, alignment, and a number format bucketed into one of six
+kinds. Dates are converted from Excel's 1899-12-30 epoch to this engine's.
+
+It does not read borders, font family or size, text wrapping, theme colours
+(`<color theme="3"/>`, which is how Excel writes most of them), table styles,
+conditional formatting, or images — so a workbook laid out in Excel arrives
+plainer than it looked there.
+
+Formulas are kept as text and re-evaluated, and this engine implements 30
+functions against Excel's several hundred. Where evaluation fails, the cell shows
+the value Excel last computed for it, from `Sheet.cachedValues`; such a cell is
+effectively read-only, since nothing here can recalculate a formula it could not
+parse. Editing it drops the imported value and reveals the error.
+
+Each gap is listed with its extension point in
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+
 ## Limitations
 
 Intentional scope cuts, with the extension point for each:

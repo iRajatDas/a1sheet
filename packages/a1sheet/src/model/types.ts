@@ -68,6 +68,18 @@ export interface Sheet {
   name: string;
   cells: Record<CellKey, RawCell>;
   styles: Record<CellKey, StyleObject>;
+  /**
+   * Values computed by whatever wrote the file this sheet was imported from,
+   * for formula cells only. Consulted ONLY when this engine cannot evaluate the
+   * formula itself, so an imported workbook built on functions we do not
+   * implement displays its numbers instead of a grid of `#NAME?`.
+   *
+   * A displayed cached value is a snapshot, not a live result: editing a cell it
+   * depends on does not update it, because nothing here can recalculate a
+   * formula it could not parse. Editing the formula cell itself drops its entry.
+   * Empty for a sheet that was not imported.
+   */
+  cachedValues: Record<CellKey, CellValue>;
   /** Column index -> width in px. Absent means DEFAULT_COL_WIDTH. */
   colWidths: Record<number, number>;
   /** Row index -> height in px. Absent means ROW_HEIGHT. */

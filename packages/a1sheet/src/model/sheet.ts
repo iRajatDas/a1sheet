@@ -6,7 +6,7 @@
  * only place clone-on-write is coordinated with history.
  */
 import { cellKey } from "./address.js";
-import type { CellKey, RawCell, Sheet, StyleObject } from "./types.js";
+import type { CellKey, CellValue, RawCell, Sheet, StyleObject } from "./types.js";
 
 export const DEFAULT_NUM_ROWS = 200;
 export const DEFAULT_NUM_COLS = 26;
@@ -21,6 +21,7 @@ export function makeSheet(name: string): Sheet {
     name,
     cells: {},
     styles: {},
+    cachedValues: {},
     colWidths: {},
     rowHeights: {},
     merges: [],
@@ -44,6 +45,7 @@ export function cloneSheet(sheet: Sheet): Sheet {
     ...sheet,
     cells: { ...sheet.cells },
     styles: { ...sheet.styles },
+    cachedValues: { ...sheet.cachedValues },
     colWidths: { ...sheet.colWidths },
     rowHeights: { ...sheet.rowHeights },
     merges: sheet.merges.map((m) => ({ ...m })),
@@ -125,6 +127,7 @@ function shiftRows(sheet: Sheet, at: number, delta: number): Sheet {
     ...sheet,
     cells: shiftKeys(sheet.cells, "row", at, delta),
     styles: shiftKeys(sheet.styles, "row", at, delta),
+    cachedValues: shiftKeys(sheet.cachedValues, "row", at, delta),
     rowHeights: shiftIndexMap(sheet.rowHeights, at, delta),
     rowLabels: shiftIndexMap(sheet.rowLabels, at, delta),
     hiddenRows: shiftIndexSet(sheet.hiddenRows, at, delta),
@@ -136,6 +139,7 @@ function shiftCols(sheet: Sheet, at: number, delta: number): Sheet {
     ...sheet,
     cells: shiftKeys(sheet.cells, "col", at, delta),
     styles: shiftKeys(sheet.styles, "col", at, delta),
+    cachedValues: shiftKeys(sheet.cachedValues, "col", at, delta),
     colWidths: shiftIndexMap(sheet.colWidths, at, delta),
     colLabels: shiftIndexMap(sheet.colLabels, at, delta),
     filters: shiftIndexMap(sheet.filters, at, delta),
@@ -201,9 +205,12 @@ export function sortByColumn(
     return sign * a.localeCompare(b);
   });
 
-  // order[newRow] = oldRow. Rebuild both maps from it in one pass.
+  // order[newRow] = oldRow. Rebuild every cell-keyed map from it in one pass.
+  // cachedValues moves with the cells for the same reason styles do: an imported
+  // value left behind on its old row would be attributed to a different formula.
   const cells: Record<CellKey, RawCell> = {};
   const styles: Record<CellKey, StyleObject> = {};
+  const cachedValues: Record<CellKey, CellValue> = {};
   for (const [newRow, oldRow] of order.entries()) {
     for (let c = 0; c < sheet.numCols; c++) {
       const from = cellKey(oldRow, c);
@@ -212,21 +219,23 @@ export function sortByColumn(
       if (cell !== undefined) cells[to] = cell;
       const style = sheet.styles[from];
       if (style !== undefined) styles[to] = style;
+      const cached = sheet.cachedValues[from];
+      if (cached !== undefined) cachedValues[to] = cached;
     }
   }
   // Preserve anything below the sorted range untouched.
-  for (const key of Object.keys(sheet.cells) as CellKey[]) {
-    if (Number(key.slice(0, key.indexOf("_"))) > maxRow) {
-      cells[key] = sheet.cells[key] as RawCell;
+  const keepBelow = <T>(from: Record<CellKey, T>, into: Record<CellKey, T>) => {
+    for (const key of Object.keys(from) as CellKey[]) {
+      if (Number(key.slice(0, key.indexOf("_"))) > maxRow) {
+        into[key] = from[key] as T;
+      }
     }
-  }
-  for (const key of Object.keys(sheet.styles) as CellKey[]) {
-    if (Number(key.slice(0, key.indexOf("_"))) > maxRow) {
-      styles[key] = sheet.styles[key] as StyleObject;
-    }
-  }
+  };
+  keepBelow(sheet.cells, cells);
+  keepBelow(sheet.styles, styles);
+  keepBelow(sheet.cachedValues, cachedValues);
 
-  return { ...sheet, cells, styles };
+  return { ...sheet, cells, styles, cachedValues };
 }
 
 /** Reads a cell's style, or undefined when the cell has no explicit formatting. */

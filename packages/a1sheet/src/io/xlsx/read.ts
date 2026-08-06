@@ -11,13 +11,20 @@
  */
 import { MalformedFileError, UnsupportedFormatError } from "../../errors.js";
 import { lettersToCol } from "../../model/address.js";
-import type { CellKey, Range, RawCell, StyleObject } from "../../model/types.js";
+import type {
+  CellKey,
+  CellValue,
+  Range,
+  RawCell,
+  StyleObject,
+} from "../../model/types.js";
 import {
   type AsyncReadOptions,
   countOccurrences,
   createPacer,
 } from "../progress.js";
 import { listZipEntries, readZipMember } from "../zip/zip.js";
+import { excelSerialToDaySerial } from "./dates.js";
 import { parseStylesXml } from "./styles.js";
 import { colWidthToPx, rowHeightToPx } from "./units.js";
 import { findElement, findElements, iterElements, textOf } from "./xml.js";
@@ -27,6 +34,13 @@ export interface XlsxSheetData {
   name: string;
   cells: Record<CellKey, RawCell>;
   styles: Record<CellKey, StyleObject>;
+  /**
+   * The value the writing application last computed for each formula cell.
+   * Kept because this engine implements a fraction of Excel's function library:
+   * without it, every cell using something unsupported imports as `#NAME?` and a
+   * workbook built on dynamic arrays or structured references arrives unreadable.
+   */
+  cachedValues: Record<CellKey, CellValue>;
   merges: Range[];
   rows: number;
   cols: number;
@@ -42,6 +56,23 @@ function parseRef(ref: string): { row: number; col: number } | null {
   const m = ref.match(REF_RE);
   if (!m?.[1] || !m[2]) return null;
   return { col: lettersToCol(m[1].toUpperCase()), row: parseInt(m[2], 10) - 1 };
+}
+
+/**
+ * Types the `<v>` of a formula cell. Excel writes a formula's string result as
+ * `t="str"` and an error as `t="e"`, never as a shared-string index, so there is
+ * no string table to consult here.
+ */
+function cachedValue(
+  text: string,
+  type: string | undefined,
+  style: StyleObject | undefined,
+): CellValue {
+  if (type === "b") return text === "1";
+  if (type === "str" || type === "e" || type === "inlineStr") return text;
+  const n = Number.parseFloat(text);
+  if (Number.isNaN(n)) return text;
+  return style?.numFmt === "date" ? excelSerialToDaySerial(n) : n;
 }
 
 /**
@@ -153,6 +184,7 @@ export async function readXlsx(
     const name = sheetNames[i] ?? `Sheet${i + 1}`;
     const cells: Record<CellKey, RawCell> = {};
     const styles: Record<CellKey, StyleObject> = {};
+    const cachedValues: Record<CellKey, CellValue> = {};
     let maxR = 0;
     let maxC = 0;
 
@@ -177,7 +209,11 @@ export async function readXlsx(
 
       let value: string;
       if (f) {
-        value = `=${textOf(f.inner)}`;
+        // `<f>` may be empty on the non-anchor cells of a shared or array
+        // formula, where the anchor holds the expression. Those cells still
+        // carry a `<v>`, so they read as literals rather than as blank formulas.
+        const text = textOf(f.inner);
+        value = text === "" ? (v ? textOf(v.inner) : "") : `=${text}`;
       } else if (type === "s") {
         const idx = parseInt(v ? textOf(v.inner) : "0", 10);
         value = sharedStrings[idx] ?? "";
@@ -189,12 +225,26 @@ export async function readXlsx(
       }
 
       const key = `${row}_${col}` as CellKey;
-      if (value !== "") cells[key] = value;
 
       const sIdx = c.attrs.s;
-      if (sIdx) {
-        const style = xfStyles[parseInt(sIdx, 10)];
-        if (style) styles[key] = style;
+      const style = (sIdx ? xfStyles[parseInt(sIdx, 10)] : null) ?? undefined;
+      if (style) styles[key] = style;
+
+      // A date is a plain number in the file; only the format says otherwise.
+      // Rebase it here rather than at display time, so the value in the model is
+      // a day serial this engine's date functions can do arithmetic on.
+      if (style?.numFmt === "date" && !f) {
+        const serial = Number.parseFloat(value);
+        if (Number.isFinite(serial)) value = String(excelSerialToDaySerial(serial));
+      }
+
+      if (value !== "") cells[key] = value;
+
+      // Only formulas get a cached value: for a literal the raw content already
+      // is the value, and storing it twice would let the two disagree.
+      if (f && v) {
+        const text = textOf(v.inner);
+        if (text !== "") cachedValues[key] = cachedValue(text, type, style);
       }
     }
 
@@ -242,6 +292,7 @@ export async function readXlsx(
       name,
       cells,
       styles,
+      cachedValues,
       merges,
       rows: maxR + 1,
       cols: maxC + 1,
@@ -260,6 +311,7 @@ export async function readXlsx(
           name: "Sheet1",
           cells: {},
           styles: {},
+          cachedValues: {},
           merges: [],
           rows: 1,
           cols: 1,

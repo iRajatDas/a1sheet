@@ -14,8 +14,37 @@ to per-workbook so `EvalContext` can expose `getSheet(name)`.
 
 **Date serials use the Unix epoch, not Excel's 1899-12-30.** Internally
 consistent and arithmetic-friendly, but a serial number copied out of a1sheet
-will not match Excel's serial for the same date.
-→ `src/formula/values.ts` (`DAY_MS`) and `src/formula/functions/date.ts`.
+will not match Excel's serial for the same date. XLSX import and export convert
+between the two, so a file is unaffected; only a serial you read off the screen
+and paste into Excel by hand will disagree.
+→ `src/formula/values.ts` (`DAY_MS`) and `src/formula/functions/date.ts`; the
+conversion is `src/io/xlsx/dates.ts`.
+
+**A date cell shows the date and not the time.** The number format is one of six
+buckets, and `date` renders `yyyy-mm-dd`, so a value of 2024-08-16 20:00 imported
+from Excel displays as `2024-08-16`. The time is in the value, not lost — only
+unshown.
+→ `NumFmt` in `src/model/types.ts` and the `date` case of `formatValue` in
+`src/format/numFmt.ts`. Doing this properly means holding the file's format code
+rather than bucketing it.
+
+**A formula this engine cannot evaluate displays the value it was imported
+with, and that value is never recalculated.** `Sheet.cachedValues` holds what
+Excel last computed for each formula cell, and it is shown whenever evaluation
+fails — otherwise a workbook using dynamic arrays, `LET`, `LAMBDA`, or structured
+table references imports as a grid of `#NAME?`. The consequence is that such a
+cell is effectively read-only: editing a cell it depends on cannot change it,
+because nothing here can recalculate a formula it could not parse. Editing the
+formula cell itself drops its imported value, and the error appears.
+→ `orImported` in `src/formula/evaluate.ts`. Removing the caveat means
+implementing the functions, not changing the fallback.
+
+**Structured table references (`tblMatches[column]`) are not implemented,** nor
+are the table definitions in `xl/tables/*.xml` that give them meaning. A table's
+banded fills and header styling come from its table style rather than from cell
+formatting, so an imported table arrives unstyled as well as uncalculated.
+→ `src/formula/tokenize.ts` for the reference syntax; the reader would need to
+parse `xl/tables/` and resolve a name to a range.
 
 **`IF` is not lazy.** Both branches are evaluated before dispatch. No correctness
 impact (there are no side effects), but the unused branch still computes.
@@ -94,6 +123,22 @@ supported.
 section to `src/io/xlsx/styles.ts`, which currently writes a single empty
 `<border/>` placeholder.
 
+**A style is bold, italic, underline, colour, fill, alignment, and one of six
+number formats.** No font family, no font size, no vertical alignment, no text
+wrapping, no indent, no rotation. Every one of those is common in a real Excel
+file, so an imported workbook reads as a plainer version of itself even where the
+import worked.
+→ `StyleObject` in `src/model/types.ts` is the single place; each field then needs
+rendering in `Cell` and a branch in `src/io/xlsx/styles.ts` both ways.
+
+**Theme colours import as no colour at all.** Excel writes most fills and font
+colours as `<color theme="3" tint="0.4"/>` rather than as RGB, resolved against
+the palette in `xl/theme/theme1.xml`. `rgbToColor` reads only the `rgb`
+attribute, so a themed colour silently becomes the default — which is why a
+workbook using Excel's own palette imports almost monochrome.
+→ Parse `<a:clrScheme>` from `xl/theme/theme1.xml`, index it by the theme number,
+apply `tint`, and pass the resolved palette into `parseStylesXml`.
+
 **No conditional formatting.**
 → A new per-sheet `condFormats: [{range, rule, style}]`, resolved in `Cell` after
 the base style and before the inline style fields are read.
@@ -118,6 +163,13 @@ into the nearest of our six enum values rather than surviving exactly.
 → `numFmtToKey` in `src/io/xlsx/styles.ts`.
 
 **Merged-cell-specific styling is not read.** Merges themselves round-trip.
+
+**Images are not read, including in-cell ones.** A cell holding
+`=IMAGE("https://…")` is stored by Excel as an error value plus a rich-value
+record pointing at a PNG in `xl/media/`, so it imports as the `#VALUE!` that is
+literally in the file. Faithful to the bytes, not to what Excel draws.
+→ `xl/richData/` and `xl/media/` would need reading, plus a cell value kind that
+is not a string or a number.
 
 **Reads are paced, not off-thread.** `readWorkbookFile` yields to the event loop
 between chunks and honors an `AbortSignal`, so the tab stays responsive and an

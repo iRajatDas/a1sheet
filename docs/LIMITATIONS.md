@@ -27,11 +27,35 @@ impact (there are no side effects), but the unused branch still computes.
 
 ## Grid
 
-**Fixed row height** (`ROW_HEIGHT = 26`). Only column width is resizable. Both
-the sticky `top` offsets for frozen rows and the virtualization index math assume
-uniform height.
-→ `src/react/useRowWindow.ts` would need a cumulative offset table, and
-`Grid`'s `stickyStyleFor` would need to consume it.
+**Cells do not wrap,** so auto-fitting a row means returning it to the default
+height — there is no taller content for it to hug. Row heights are otherwise
+free, and the offset tables already handle whatever you set.
+→ `white-space: nowrap` on `.cell` in `src/react/styles.ts`, then `autoFitRow`
+in `Grid` needs to measure instead of reset.
+
+**Auto-fitting a column samples at most `AUTOFIT_SAMPLE_LIMIT` cells** (2,000)
+and stops. A longer value further down the column stays clipped. The cap exists
+because a double-click must not stall on a hundred thousand measurements.
+→ `autoFitCol` in `src/react/components/Grid.tsx`.
+
+**Row heights and column widths are not read from or written to XLSX.** They
+survive in the model and in memory, not through a round trip.
+→ `src/io/xlsx/read.ts` ignores `<col>` and `<row ht=…>`; `write.ts` emits
+neither.
+
+**Committing an edit copies the whole cell map.** `useWorkbook` clones on write,
+so edit cost grows with the number of filled cells — about 26 ms at 10k, about
+390 ms at 1M. Virtualization does not help: this is the write path.
+→ `cloneSheet` in `src/model/sheet.ts` and `updateSheet` in
+`src/react/useWorkbook.ts` would need structural sharing rather than a spread.
+
+**An active filter rescans every row on every edit.** An edit can change whether
+a row passes, and nothing tracks which rows an edit could have affected, so the
+scan is unconditional — about 97 ms at 100k rows with values in the filtered
+column. Rows with no value in that column are resolved once per column rather
+than once per row, so a sparse sheet is cheaper.
+→ `effectiveHiddenRows` in `src/react/useRowWindow.ts`; needs a per-row filter
+verdict cache invalidated by the cells that actually changed.
 
 **No column hiding.** Rows can be hidden; columns cannot.
 → Mirror the `visibleRows` compaction for columns, and make it interact with

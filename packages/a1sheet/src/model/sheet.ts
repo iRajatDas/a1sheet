@@ -22,6 +22,7 @@ export function makeSheet(name: string): Sheet {
     cells: {},
     styles: {},
     colWidths: {},
+    rowHeights: {},
     merges: [],
     frozenRows: 0,
     frozenCols: 0,
@@ -44,6 +45,7 @@ export function cloneSheet(sheet: Sheet): Sheet {
     cells: { ...sheet.cells },
     styles: { ...sheet.styles },
     colWidths: { ...sheet.colWidths },
+    rowHeights: { ...sheet.rowHeights },
     merges: sheet.merges.map((m) => ({ ...m })),
     hiddenRows: new Set(sheet.hiddenRows),
     colLabels: { ...sheet.colLabels },
@@ -85,40 +87,75 @@ function shiftKeys<T>(
   return next;
 }
 
-export function insertRow(sheet: Sheet, at: number): Sheet {
+/**
+ * The same shift for a map keyed by a bare row or column index — heights,
+ * widths, labels, filters. `shiftKeys` handles the two-dimensional cell maps;
+ * these are the one-dimensional ones alongside them, and they move for exactly
+ * the same reason: inserting a row above a resized row must carry the height
+ * with the row, not leave it behind on the index.
+ */
+function shiftIndexMap<T>(
+  map: Record<number, T>,
+  at: number,
+  delta: number,
+): Record<number, T> {
+  const next: Record<number, T> = {};
+  for (const key of Object.keys(map)) {
+    const index = Number(key);
+    const value = map[index] as T;
+    if (index < at) next[index] = value;
+    else if (delta < 0 && index === at) continue;
+    else next[index + delta] = value;
+  }
+  return next;
+}
+
+function shiftIndexSet(set: Set<number>, at: number, delta: number): Set<number> {
+  const next = new Set<number>();
+  for (const index of set) {
+    if (index < at) next.add(index);
+    else if (delta < 0 && index === at) continue;
+    else next.add(index + delta);
+  }
+  return next;
+}
+
+function shiftRows(sheet: Sheet, at: number, delta: number): Sheet {
   return {
     ...sheet,
-    cells: shiftKeys(sheet.cells, "row", at, 1),
-    styles: shiftKeys(sheet.styles, "row", at, 1),
-    numRows: sheet.numRows + 1,
+    cells: shiftKeys(sheet.cells, "row", at, delta),
+    styles: shiftKeys(sheet.styles, "row", at, delta),
+    rowHeights: shiftIndexMap(sheet.rowHeights, at, delta),
+    rowLabels: shiftIndexMap(sheet.rowLabels, at, delta),
+    hiddenRows: shiftIndexSet(sheet.hiddenRows, at, delta),
   };
+}
+
+function shiftCols(sheet: Sheet, at: number, delta: number): Sheet {
+  return {
+    ...sheet,
+    cells: shiftKeys(sheet.cells, "col", at, delta),
+    styles: shiftKeys(sheet.styles, "col", at, delta),
+    colWidths: shiftIndexMap(sheet.colWidths, at, delta),
+    colLabels: shiftIndexMap(sheet.colLabels, at, delta),
+    filters: shiftIndexMap(sheet.filters, at, delta),
+  };
+}
+
+export function insertRow(sheet: Sheet, at: number): Sheet {
+  return { ...shiftRows(sheet, at, 1), numRows: sheet.numRows + 1 };
 }
 
 export function deleteRow(sheet: Sheet, at: number): Sheet {
-  return {
-    ...sheet,
-    cells: shiftKeys(sheet.cells, "row", at, -1),
-    styles: shiftKeys(sheet.styles, "row", at, -1),
-    numRows: Math.max(1, sheet.numRows - 1),
-  };
+  return { ...shiftRows(sheet, at, -1), numRows: Math.max(1, sheet.numRows - 1) };
 }
 
 export function insertCol(sheet: Sheet, at: number): Sheet {
-  return {
-    ...sheet,
-    cells: shiftKeys(sheet.cells, "col", at, 1),
-    styles: shiftKeys(sheet.styles, "col", at, 1),
-    numCols: sheet.numCols + 1,
-  };
+  return { ...shiftCols(sheet, at, 1), numCols: sheet.numCols + 1 };
 }
 
 export function deleteCol(sheet: Sheet, at: number): Sheet {
-  return {
-    ...sheet,
-    cells: shiftKeys(sheet.cells, "col", at, -1),
-    styles: shiftKeys(sheet.styles, "col", at, -1),
-    numCols: Math.max(1, sheet.numCols - 1),
-  };
+  return { ...shiftCols(sheet, at, -1), numCols: Math.max(1, sheet.numCols - 1) };
 }
 
 /**

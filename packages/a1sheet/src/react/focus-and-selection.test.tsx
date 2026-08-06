@@ -11,8 +11,6 @@ import { createEvent, fireEvent, render } from "@testing-library/react";
 import { createWorkbook } from "../model/workbook.js";
 import { Spreadsheet } from "./Spreadsheet.js";
 
-const COLS = 26;
-
 function setup(
   cells: Record<string, string> = {},
   styles: Record<string, object> = {},
@@ -22,8 +20,12 @@ function setup(
   Object.assign((wb.sheets[0] as { styles: object }).styles, styles);
   const { container } = render(<Spreadsheet defaultWorkbook={wb} />);
 
+  // By address, not by position among the rendered nodes: both axes are
+  // virtualized, so the nth cell in the DOM is not row n/COLS.
   const cellAt = (row: number, col: number) =>
-    [...container.querySelectorAll(".a1s-cell")][row * COLS + col] as HTMLElement;
+    container.querySelector(
+      `.a1s-cell[data-row="${row}"][data-col="${col}"]`,
+    ) as HTMLElement;
 
   const textarea = container.querySelector("textarea") as HTMLTextAreaElement;
 

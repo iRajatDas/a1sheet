@@ -6,16 +6,24 @@
  * Non-negotiable mechanics:
  * - CSS Grid, not flexbox. Merged cells need gridColumn/gridRow spans, and sticky
  *   positioning composes cleanly inside a single scroll container.
- * - `gridTemplateColumns` is computed: ROW_HEADER_WIDTH then each column's width.
- *   `gridTemplateRows` explicitly sizes the header and the frozen-row band;
- *   `gridAutoRows` sizes everything else implicitly. That is what lets
- *   virtualization work with no spacer divs — unrendered rows simply are not grid
- *   items, and the browser still allocates track space up to the highest
- *   referenced gridRow line.
+ * - `gridTemplateColumns` names EVERY column, virtualized or not. A track
+ *   definition costs a string entry; a cell costs a DOM node. Keeping the tracks
+ *   explicit is what gives the container its true width and keeps sticky offsets
+ *   honest, while `colWindow` decides which cells exist.
+ * - `gridTemplateRows` explicitly sizes the header and the frozen-row band.
+ *   Everything below is an implicit track sized by its contents, because rows
+ *   can differ in height. Windowed rows take CONSECUTIVE grid lines and a
+ *   single spacer item ahead of them covers the rows scrolled off the top —
+ *   absolute lines would require the browser to size tracks for rows that are
+ *   not in the DOM, which it cannot do once heights vary.
+ * - The grid is therefore only as large as what is drawn. `minHeight` and
+ *   `minWidth` restore the real extent so the scrollbar describes the sheet
+ *   rather than the window into it.
  * - Freeze panes are `position: sticky` inside ONE scrolling container. A
  *   4-quadrant split with synced scrollLeft was considered and rejected in the POC.
  *   `stickyStyleFor` computes top/left/zIndex; the corner takes the highest z.
- *   This only works because row height is fixed.
+ *   Offsets come from the cumulative tables in `useRowWindow`/`useColWindow`,
+ *   so they hold whatever the row heights and column widths are.
  */
 import {
   type CSSProperties,
@@ -28,75 +36,94 @@ import {
 import { colToLetters } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
 import {
-  DEFAULT_COL_WIDTH,
+  AUTOFIT_SAMPLE_LIMIT,
   HEADER_HEIGHT,
+  MAX_AUTOFIT_COL_WIDTH,
+  MIN_COL_WIDTH,
   ROW_HEADER_WIDTH,
-  ROW_HEIGHT,
 } from "../constants.js";
 import { useSheetContext } from "../context.js";
+import { useTextMeasurer } from "../useTextMeasurer.js";
 import { Cell } from "./Cell.js";
+
+/** Left and right padding on a cell, from the stylesheet. Auto-fit must clear it. */
+const CELL_PADDING_X = 12;
 
 export function Grid(): ReactNode {
   const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Grid");
   const { renaming, setRenaming } = ui;
-  const { sheet, rowWindow, fill, bounds } = api;
+  const { sheet, rowWindow, colWindow, fill, bounds } = api;
   const containerRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<{ col: number; startX: number; startW: number } | null>(
     null,
   );
+  const resizeRowRef = useRef<{
+    row: number;
+    startY: number;
+    startH: number;
+  } | null>(null);
+  const measureText = useTextMeasurer();
 
   const frozenRows = sheet.frozenRows || 0;
   const frozenCols = sheet.frozenCols || 0;
 
-  const colWidth = useCallback(
-    (c: number) => sheet.colWidths[c] ?? DEFAULT_COL_WIDTH,
-    [sheet.colWidths],
-  );
+  const { colWidth, colOffset, colAt, windowCols } = colWindow;
 
-  const cols = useMemo(
-    () => Array.from({ length: sheet.numCols }, (_, i) => i),
-    [sheet.numCols],
-  );
+  const gridTemplateColumns = useMemo(() => {
+    const tracks: string[] = [`${ROW_HEADER_WIDTH}px`];
+    for (let c = 0; c < sheet.numCols; c++) tracks.push(`${colWidth(c)}px`);
+    return tracks.join(" ");
+  }, [sheet.numCols, colWidth]);
 
-  const colOffset = useCallback(
-    (c: number) => {
-      let x = 0;
-      for (let i = 0; i < c; i++) x += colWidth(i);
-      return x;
-    },
-    [colWidth],
-  );
-
-  const gridTemplateColumns = useMemo(
-    () => `${ROW_HEADER_WIDTH}px ${cols.map((c) => `${colWidth(c)}px`).join(" ")}`,
-    [cols, colWidth],
-  );
+  // Only the header and the frozen band are explicit. Everything below is an
+  // implicit track sized by whatever lands in it — the spacer, then the window.
+  const rowHeight = rowWindow.rowHeight;
+  const gridTemplateRows = useMemo(() => {
+    const tracks: string[] = [`${HEADER_HEIGHT}px`];
+    for (let r = 0; r < frozenRows; r++) tracks.push(`${rowHeight(r)}px`);
+    return tracks.join(" ");
+  }, [frozenRows, rowHeight]);
 
   const setViewportHeight = api.setViewportHeight;
+  const setViewportWidth = api.setViewportWidth;
   const setColWidth = api.setColWidth;
+  const setRowHeight = api.setRowHeight;
 
-  /** Measure the scroll container so virtualization knows how many rows to draw. */
+  /**
+   * Measure the scroll container so virtualization knows how much to draw.
+   *
+   * A zero measurement is discarded rather than believed. A container that is
+   * `display: none`, or that has not been laid out yet, reports 0 — and taking
+   * that at face value windows the grid down to nothing, so it stays empty even
+   * after it becomes visible if no resize follows.
+   */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    setViewportHeight(el.clientHeight);
+    const measure = (height: number, width: number) => {
+      if (height > 0) setViewportHeight(height);
+      if (width > 0) setViewportWidth(width);
+    };
+    measure(el.clientHeight, el.clientWidth);
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
-      for (const e of entries) setViewportHeight(e.contentRect.height);
+      for (const e of entries) measure(e.contentRect.height, e.contentRect.width);
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [setViewportHeight]);
+  }, [setViewportHeight, setViewportWidth]);
 
-  /** Column resize drag, tracked on window so it survives leaving the header. */
+  /** Resize drags, tracked on window so they survive leaving the header. */
   useEffect(() => {
     function onMove(e: MouseEvent) {
-      const st = resizeRef.current;
-      if (!st) return;
-      setColWidth(st.col, st.startW + (e.clientX - st.startX));
+      const col = resizeRef.current;
+      if (col) setColWidth(col.col, col.startW + (e.clientX - col.startX));
+      const row = resizeRowRef.current;
+      if (row) setRowHeight(row.row, row.startH + (e.clientY - row.startY));
     }
     function onUp() {
       resizeRef.current = null;
+      resizeRowRef.current = null;
     }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -104,7 +131,57 @@ export function Grid(): ReactNode {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [setColWidth]);
+  }, [setColWidth, setRowHeight]);
+
+  /**
+   * Auto-fit a column to the widest thing in it, as double-clicking the divider
+   * does in Excel and Sheets.
+   *
+   * Candidate rows come from `sheet.cells`, so a sparse column costs its filled
+   * cells rather than its length — and the count is capped anyway
+   * (AUTOFIT_SAMPLE_LIMIT), because a double-click must not stall. A column with
+   * more values than that is fitted to the widest of the ones measured, which
+   * can leave a later, longer value clipped.
+   */
+  const autoFitCol = useCallback(
+    (col: number) => {
+      const sample = containerRef.current?.querySelector(`.${prefix}cell`);
+      if (!sample || typeof getComputedStyle === "undefined") return;
+      const font = getComputedStyle(sample).font;
+
+      let widest = measureText(sheet.colLabels[col] ?? colToLetters(col), font);
+      let measured = 0;
+      const suffix = `_${col}`;
+      for (const key of Object.keys(sheet.cells)) {
+        if (!key.endsWith(suffix)) continue;
+        if (measured >= AUTOFIT_SAMPLE_LIMIT) break;
+        measured++;
+        const row = Number(key.slice(0, key.length - suffix.length));
+        const width = measureText(api.getDisplay(row, col), font);
+        if (width > widest) widest = width;
+      }
+
+      // Zero means the environment gave us no canvas to measure with. Leaving
+      // the column alone beats collapsing it to the minimum.
+      if (widest === 0) return;
+      api.setColWidth(
+        col,
+        Math.min(
+          MAX_AUTOFIT_COL_WIDTH,
+          Math.max(MIN_COL_WIDTH, widest + CELL_PADDING_X),
+        ),
+      );
+    },
+    [prefix, measureText, sheet.cells, sheet.colLabels, api],
+  );
+
+  /**
+   * Auto-fit a row. Cells are single-line — `white-space: nowrap` — so the
+   * height that hugs the content is the default height, whatever the content
+   * is. Dropping the override is therefore the whole operation, and it stays
+   * correct if wrapping is added later only if this is revisited then.
+   */
+  const autoFitRow = api.resetRowHeight;
 
   function stickyStyleFor(
     isHeaderRow: boolean,
@@ -118,7 +195,7 @@ export function Grid(): ReactNode {
       style.top = 0;
       z = Math.max(z, 4);
     } else if (frozenRowIdx !== undefined) {
-      style.top = HEADER_HEIGHT + frozenRowIdx * ROW_HEIGHT;
+      style.top = HEADER_HEIGHT + (rowWindow.rowTop(frozenRowIdx) ?? 0);
       z = Math.max(z, 2);
     }
     if (isRowHeaderCol) {
@@ -148,14 +225,8 @@ export function Grid(): ReactNode {
    * cannot be a plain multiply — a filtered sheet has no linear row mapping.
    */
   function rectFor(range: Range): CSSProperties | null {
-    const visualRow = (r: number) => {
-      if (r < frozenRows) return r;
-      const index = rowWindow.visibleRows.indexOf(r);
-      return index === -1 ? null : frozenRows + index;
-    };
-
-    const top = visualRow(range.r1);
-    const bottom = visualRow(range.r2);
+    const top = rowWindow.rowTop(range.r1);
+    const bottom = rowWindow.rowTop(range.r2);
     if (top === null || bottom === null) return null;
 
     const left = colOffset(range.c1);
@@ -163,9 +234,9 @@ export function Grid(): ReactNode {
 
     return {
       left: ROW_HEADER_WIDTH + left,
-      top: HEADER_HEIGHT + top * ROW_HEIGHT,
+      top: HEADER_HEIGHT + top,
       width: right - left,
-      height: (bottom - top + 1) * ROW_HEIGHT,
+      height: bottom - top + rowWindow.rowHeight(range.r2),
     };
   }
 
@@ -181,20 +252,7 @@ export function Grid(): ReactNode {
     const x = clientX - box.left + el.scrollLeft - ROW_HEADER_WIDTH;
     const y = clientY - box.top + el.scrollTop - HEADER_HEIGHT;
 
-    let col = 0;
-    let acc = 0;
-    while (col < sheet.numCols - 1 && acc + colWidth(col) <= x) {
-      acc += colWidth(col);
-      col++;
-    }
-
-    const visualIndex = Math.floor(y / ROW_HEIGHT);
-    const row =
-      visualIndex < frozenRows
-        ? visualIndex
-        : (rowWindow.visibleRows[visualIndex - frozenRows] ?? sheet.numRows - 1);
-
-    return { row: Math.max(0, row), col: Math.max(0, col) };
+    return { row: Math.max(0, rowWindow.rowAt(y)), col: Math.max(0, colAt(x)) };
   }
 
   function renderRowHeader(r: number, gridRow: number, frozenRowIdx?: number) {
@@ -204,10 +262,14 @@ export function Grid(): ReactNode {
       <div
         key="rh"
         className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
+        data-row={r}
         style={{
           gridColumn: 1,
           gridRow,
-          height: ROW_HEIGHT,
+          // The row header is the one item guaranteed to exist in every row, so
+          // its height is what pins the track down when every cell in the row
+          // is covered by a merge.
+          height: rowWindow.rowHeight(r),
           ...stickyStyleFor(false, true, frozenRowIdx, undefined),
         }}
         onMouseDown={(e) => {
@@ -241,7 +303,24 @@ export function Grid(): ReactNode {
             onBlur={() => setRenaming(null)}
           />
         ) : (
-          (sheet.rowLabels[r] ?? r + 1)
+          <>
+            {sheet.rowLabels[r] ?? r + 1}
+            <div
+              className={`${prefix}rowresize`}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                resizeRowRef.current = {
+                  row: r,
+                  startY: e.clientY,
+                  startH: rowWindow.rowHeight(r),
+                };
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                autoFitRow(r);
+              }}
+            />
+          </>
         )}
       </div>
     );
@@ -255,7 +334,7 @@ export function Grid(): ReactNode {
     return (
       <div key={`r${absRow}`} style={{ display: "contents" }}>
         {renderRowHeader(absRow, gridRow, frozen ? absRow : undefined)}
-        {cols.map((c) => (
+        {windowCols.map((c) => (
           <Cell
             key={c}
             row={absRow}
@@ -276,7 +355,11 @@ export function Grid(): ReactNode {
   return (
     <div
       ref={containerRef}
-      onScroll={(e) => api.setScrollTop((e.target as HTMLDivElement).scrollTop)}
+      onScroll={(e) => {
+        const el = e.target as HTMLDivElement;
+        api.setScrollTop(el.scrollTop);
+        api.setScrollLeft(el.scrollLeft);
+      }}
       onMouseUp={() => {
         if (fill.dragging) fill.commit(api.updateSheet);
       }}
@@ -286,8 +369,20 @@ export function Grid(): ReactNode {
         style={{
           display: "grid",
           gridTemplateColumns,
-          gridTemplateRows: `${HEADER_HEIGHT}px repeat(${frozenRows}, ${ROW_HEIGHT}px)`,
-          gridAutoRows: `${ROW_HEIGHT}px`,
+          gridTemplateRows,
+          // `min-content`, not a fixed height: each row now carries its own,
+          // and the track has to take it from the items in it.
+          gridAutoRows: "min-content",
+          // The real extent of the sheet on both axes, not of the window into
+          // it. Vertically, implicit tracks stop at the last rendered row, so
+          // the scrollbar would report a few hundred pixels for a hundred
+          // thousand rows. Horizontally the cause differs: this div is
+          // block-level, so it takes the scroller's width and the column tracks
+          // overflow it — which makes the scrollable width follow whichever
+          // cells happen to be rendered. Both tracks are fixed-size, so the
+          // surplus collects at the edges instead of stretching them.
+          minHeight: rowWindow.contentHeight,
+          minWidth: ROW_HEADER_WIDTH + colWindow.totalWidth,
           position: "relative",
         }}
       >
@@ -303,7 +398,7 @@ export function Grid(): ReactNode {
         />
 
         {/* column headers */}
-        {cols.map((c) => {
+        {windowCols.map((c) => {
           const isRenaming = renaming?.type === "col" && renaming.index === c;
           const filtered = sheet.filters[c] !== undefined;
           const inSelection = c >= bounds.c1 && c <= bounds.c2;
@@ -311,6 +406,7 @@ export function Grid(): ReactNode {
             <div
               key={`ch${c}`}
               className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
+              data-col={c}
               style={{
                 gridColumn: c + 2,
                 gridRow: 1,
@@ -389,6 +485,12 @@ export function Grid(): ReactNode {
                         startW: colWidth(c),
                       };
                     }}
+                    onDoubleClick={(e) => {
+                      // Without this the header's own double-click starts a
+                      // rename, which is not what aiming at the divider meant.
+                      e.stopPropagation();
+                      autoFitCol(c);
+                    }}
                   />
                 </>
               )}
@@ -400,6 +502,21 @@ export function Grid(): ReactNode {
         {rowWindow.frozenRowsList.map(({ absRow, gridRow }) =>
           renderRow(absRow, gridRow, true),
         )}
+
+        {/* One item standing in for every row scrolled off the top. Rows can
+            differ in height, so the window cannot be placed by grid line — an
+            absent row has no track and nothing to size it. This carries the
+            whole distance in a single track instead. */}
+        <div
+          aria-hidden="true"
+          className={`${prefix}spacer`}
+          style={{
+            gridColumn: "1 / -1",
+            gridRow: frozenRows + 2,
+            height: rowWindow.leadingSpace,
+            pointerEvents: "none",
+          }}
+        />
 
         {/* virtualized band */}
         {rowWindow.windowRows.map(({ absRow, gridRow }) =>

@@ -70,6 +70,8 @@ export interface Sheet {
   styles: Record<CellKey, StyleObject>;
   /** Column index -> width in px. Absent means DEFAULT_COL_WIDTH. */
   colWidths: Record<number, number>;
+  /** Row index -> height in px. Absent means ROW_HEIGHT. */
+  rowHeights: Record<number, number>;
   merges: Range[];
   /** Count of rows frozen from the top. 0 = none. */
   frozenRows: number;

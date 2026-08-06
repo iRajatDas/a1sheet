@@ -11,7 +11,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { cellKey } from "../../model/address.js";
 import { getMergeAt } from "../../model/sheet.js";
-import { ROW_HEIGHT } from "../constants.js";
 import { useSheetContext } from "../context.js";
 import { useCaretBinding } from "../useCaretBinding.js";
 
@@ -41,6 +40,15 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   // spans over it.
   if (merge && (merge.r1 !== row || merge.c1 !== col)) return null;
 
+  // A merge spans rows that may each be a different height, so the block is as
+  // tall as the rows it covers rather than a multiple of one of them.
+  let mergedHeight = api.rowWindow.rowHeight(row);
+  if (merge) {
+    for (let r = merge.r1 + 1; r <= merge.r2; r++) {
+      mergedHeight += api.rowWindow.rowHeight(r);
+    }
+  }
+
   const key = cellKey(row, col);
   const style = sheet.styles[key] ?? {};
   const selected = api.isSelected(row, col);
@@ -64,6 +72,11 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   return (
     <div
       className={classNames}
+      // The cell's address, in the DOM. Both axes are virtualized, so position
+      // among the rendered nodes says nothing about which cell this is — this
+      // is the stable way to find one, from a test or from consumer code.
+      data-row={row}
+      data-col={col}
       style={{
         // Sticky offsets first: everything below is the cell's own appearance and
         // must win. Spreading stickyStyle last used to repaint a frozen cell's
@@ -73,7 +86,7 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
           ? `${gridColumn} / span ${merge.c2 - merge.c1 + 1}`
           : gridColumn,
         gridRow: merge ? `${gridRow} / span ${merge.r2 - merge.r1 + 1}` : gridRow,
-        height: merge ? ROW_HEIGHT * (merge.r2 - merge.r1 + 1) : ROW_HEIGHT,
+        height: mergedHeight,
         fontWeight: style.bold ? 700 : 400,
         fontStyle: style.italic ? "italic" : "normal",
         textDecoration: style.underline ? "underline" : "none",

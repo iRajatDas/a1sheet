@@ -134,6 +134,54 @@ explainErrorValue("#CYCLE!");
 // "Circular reference: this formula depends on its own result. …"
 ```
 
+### Sizing rows and columns
+
+Drag the divider on a column header to resize the column, or the one below a row
+header to resize the row. Double-click a divider to auto-fit: a column sizes to
+its widest value, a row returns to the default height (cells are single-line, so
+that is the height that hugs their content).
+
+Sizes live on the sheet, so they are yours to set and to persist:
+
+```ts
+sheet.colWidths[2] = 180;   // px; absent means the default
+sheet.rowHeights[7] = 64;
+```
+
+Or through the API, which is what the grid itself uses:
+
+```ts
+api.setColWidth(2, 180);
+api.setRowHeight(7, 64);
+api.resetRowHeight(7);      // back to the default
+```
+
+### Performance
+
+Both axes are virtualized: only cells near the viewport exist in the DOM. Cost
+is flat in sheet size, not proportional to it. Measured under Bun with happy-dom
+— relative numbers, not browser-accurate:
+
+| sheet | cells in DOM | mount | per keystroke |
+|---|---|---|---|
+| 1k rows × 26 cols | 286 | 83 ms | 7.1 ms |
+| 100k rows × 26 cols | 286 | 30 ms | 6.6 ms |
+| 1k rows × 500 cols | 286 | 53 ms | 5.1 ms |
+| 100k rows × 500 cols | 286 | 125 ms | 11.9 ms |
+
+The scroll extent is the real one — a 100k-row sheet scrolls through
+2,600,026 px — even though only about a dozen rows exist at any moment.
+
+Two things do still scale with the sheet, and are worth knowing before you load
+a million cells into one:
+
+- **Committing an edit copies the cell map.** `useWorkbook` clones on write, so
+  an edit costs about 26 ms at 10k filled cells and about 390 ms at 1M. This is
+  the write path, not the render path, and it is the next thing to fix.
+- **An active filter rescans every row on every edit,** because an edit can
+  change whether a row passes: about 97 ms at 100k rows with values in the
+  filtered column.
+
 ### Reading large files
 
 `readWorkbookFile` (and `readXlsx`, and `csvToCells`) take an optional second
@@ -241,8 +289,9 @@ The parts worth knowing before editing:
 
 Everything from the POC is ported, typed, and under test — 156 tests.
 
-- **Grid** — CSS Grid with row virtualization, sticky freeze panes, merged cells,
-  column resize, row/column/sheet renaming, hidden rows.
+- **Grid** — CSS Grid with row and column virtualization, sticky freeze panes,
+  merged cells, row and column resize with double-click auto-fit,
+  row/column/sheet renaming, hidden rows.
 - **Editing** — type to edit, F2, Enter/Tab/Escape, arrow and Shift+arrow
   navigation, Delete to clear, drag-select, Ctrl+click multi-select.
 - **Formulas** — 30 functions, `$` anchoring, named ranges, lazy memoized

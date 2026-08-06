@@ -17,6 +17,7 @@ import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
 import type { Range, Workbook } from "../model/types.js";
 import { type UseClipboardResult, useClipboard } from "./useClipboard.js";
+import { type UseColWindowResult, useColWindow } from "./useColWindow.js";
 import { type UseEditingResult, useEditing } from "./useEditing.js";
 import { type UseFillHandleResult, useFillHandle } from "./useFillHandle.js";
 import { type UseFormulaRefsResult, useFormulaRefs } from "./useFormulaRefs.js";
@@ -47,13 +48,16 @@ export interface UseSpreadsheetResult
   /** Raw cell content as typed, formula source included. */
   getRaw(row: number, col: number): string;
   rowWindow: UseRowWindowResult;
+  colWindow: UseColWindowResult;
   clipboard: UseClipboardResult;
   fill: UseFillHandleResult;
   /** Reference picking and highlighting while a formula is being typed. */
   formulaRefs: UseFormulaRefsResult;
-  /** Wire to the scroll container's onScroll and its measured height. */
+  /** Wire to the scroll container's onScroll and its measured size. */
   setScrollTop(px: number): void;
+  setScrollLeft(px: number): void;
   setViewportHeight(px: number): void;
+  setViewportWidth(px: number): void;
   /** Writes a raw value into a cell, respecting `locked`. */
   setCell(row: number, col: number, raw: string): void;
   /** Commits the open edit, optionally moving the selection afterwards. */
@@ -81,7 +85,9 @@ export function useSpreadsheet(
   const ops = useSheetOps(wb.sheet, selection.selection, wb.updateSheet);
 
   const [scrollTop, setScrollTop] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(500);
+  const [viewportWidth, setViewportWidth] = useState(800);
   const [status, setStatus] = useState("");
 
   const evaluator = useMemo(
@@ -109,6 +115,7 @@ export function useSpreadsheet(
   );
 
   const rowWindow = useRowWindow(wb.sheet, scrollTop, viewportHeight, getDisplay);
+  const colWindow = useColWindow(wb.sheet, scrollLeft, viewportWidth);
 
   const setCell = useCallback(
     (row: number, col: number, raw: string) => {
@@ -157,11 +164,14 @@ export function useSpreadsheet(
     getValue,
     getRaw,
     rowWindow,
+    colWindow,
     clipboard,
     fill,
     formulaRefs,
     setScrollTop,
+    setScrollLeft,
     setViewportHeight,
+    setViewportWidth,
     setCell,
     commitEdit,
     isSelected,

@@ -16,7 +16,11 @@ import {
   sortByColumn,
 } from "../model/sheet.js";
 import type { Range, Sheet, StyleObject } from "../model/types.js";
+import { MIN_COL_WIDTH, MIN_ROW_HEIGHT } from "./constants.js";
 import type { SheetUpdater } from "./useWorkbook.js";
+
+/** A resize drag can go anywhere, including negative. Rounding keeps offsets integral. */
+const clampSize = (px: number, min: number) => Math.max(min, Math.round(px));
 
 export interface UseSheetOpsResult {
   /** Style of the active cell, or an empty object. Drives toolbar toggle states. */
@@ -37,6 +41,11 @@ export interface UseSheetOpsResult {
   insertColAt(col: number): void;
   deleteColAt(col: number): void;
   setColWidth(col: number, px: number): void;
+  setRowHeight(row: number, px: number): void;
+  /** Drops the override, returning the row to the default height. */
+  resetRowHeight(row: number): void;
+  /** Drops the override, returning the column to the default width. */
+  resetColWidth(col: number): void;
   setRowLabel(row: number, label: string): void;
   setColLabel(col: number, label: string): void;
   toggleRowHidden(row: number): void;
@@ -168,9 +177,37 @@ export function useSheetOps(
     setColWidth: useCallback(
       (col: number, px: number) =>
         updateSheet((s) => {
-          s.colWidths[col] = Math.max(24, Math.round(px));
+          s.colWidths[col] = clampSize(px, MIN_COL_WIDTH);
           return s;
         }, false),
+      [updateSheet],
+    ),
+    setRowHeight: useCallback(
+      (row: number, px: number) =>
+        updateSheet((s) => {
+          s.rowHeights[row] = clampSize(px, MIN_ROW_HEIGHT);
+          return s;
+        }, false),
+      [updateSheet],
+    ),
+
+    // Deleting the entry, rather than writing the default into it, is what
+    // makes a reset free: `useRowWindow` skips its offset table entirely while
+    // `rowHeights` is empty, and it can only become empty again this way.
+    resetRowHeight: useCallback(
+      (row: number) =>
+        updateSheet((s) => {
+          delete s.rowHeights[row];
+          return s;
+        }),
+      [updateSheet],
+    ),
+    resetColWidth: useCallback(
+      (col: number) =>
+        updateSheet((s) => {
+          delete s.colWidths[col];
+          return s;
+        }),
       [updateSheet],
     ),
 

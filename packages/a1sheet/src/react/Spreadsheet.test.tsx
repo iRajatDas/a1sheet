@@ -21,7 +21,7 @@ describe("rendering", () => {
     expect(cells.length).toBeGreaterThan(0);
   });
 
-  test("renders column headers A..Z and row headers", () => {
+  test("renders the column and row headers in view", () => {
     const { container } = render(<Spreadsheet />);
     // Column headers carry a trailing "▾" filter button.
     const heads = [...container.querySelectorAll(".a1s-head")].map((el) =>
@@ -29,9 +29,11 @@ describe("rendering", () => {
     );
     expect(heads).toContain("A");
     expect(heads).toContain("B");
-    expect(heads).toContain("Z");
     expect(heads).toContain("1");
     expect(heads).toContain("2");
+    // Columns are virtualized, so a column well off the right edge is absent
+    // until it is scrolled to — see "column virtualization" below.
+    expect(heads).not.toContain("Z");
   });
 
   test("shows literal cell values", () => {

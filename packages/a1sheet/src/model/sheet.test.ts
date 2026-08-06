@@ -92,6 +92,61 @@ describe("styles shift alongside cells", () => {
   });
 });
 
+describe("per-axis maps shift alongside cells", () => {
+  // These are keyed by a bare row or column index rather than by cell key, and
+  // they used to be left behind entirely: inserting a row above a resized one
+  // moved the content down and left the height on the row that used to be there.
+
+  test("insertRow carries a row's height, label, and hidden flag with it", () => {
+    const base = makeSheet("S");
+    base.rowHeights[1] = 80;
+    base.rowLabels[1] = "total";
+    base.hiddenRows.add(1);
+
+    const s = insertRow(base, 0);
+
+    expect(s.rowHeights[2]).toBe(80);
+    expect(s.rowHeights[1]).toBeUndefined();
+    expect(s.rowLabels[2]).toBe("total");
+    expect(s.hiddenRows.has(2)).toBe(true);
+    expect(s.hiddenRows.has(1)).toBe(false);
+  });
+
+  test("deleteRow drops the deleted row's height and pulls the rest up", () => {
+    const base = makeSheet("S");
+    base.rowHeights[1] = 80;
+    base.rowHeights[2] = 40;
+
+    const s = deleteRow(base, 1);
+
+    expect(s.rowHeights[1]).toBe(40);
+    expect(s.rowHeights[2]).toBeUndefined();
+  });
+
+  test("insertCol carries a column's width, label, and filter with it", () => {
+    const base = makeSheet("S");
+    base.colWidths[1] = 300;
+    base.colLabels[1] = "Amount";
+    base.filters[1] = new Set(["a"]);
+
+    const s = insertCol(base, 0);
+
+    expect(s.colWidths[2]).toBe(300);
+    expect(s.colWidths[1]).toBeUndefined();
+    expect(s.colLabels[2]).toBe("Amount");
+    expect(s.filters[2]).toEqual(new Set(["a"]));
+  });
+
+  test("rows untouched by the insert keep their heights", () => {
+    const base = makeSheet("S");
+    base.rowHeights[0] = 80;
+
+    const s = insertRow(base, 5);
+
+    expect(s.rowHeights[0]).toBe(80);
+  });
+});
+
 describe("getMergeAt", () => {
   test("finds the merge covering an interior cell", () => {
     const s = makeSheet("S");

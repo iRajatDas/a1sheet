@@ -8,6 +8,52 @@ backfilled.
 
 ## Unreleased
 
+### Added (grid performance and sizing)
+
+- **Columns are virtualized.** Only the columns near the viewport exist in the
+  DOM, as rows already did. A 500-column sheet rendered 6,000 cells and cost
+  1,351 ms to mount and 73 ms per keystroke; it now renders the same ~290 cells
+  as a 26-column sheet and mounts in ~30 ms. Column track definitions stay
+  explicit, so widths, freeze offsets, and the scroll extent are unaffected.
+- **The scrollbar describes the sheet, not the window into it.** Both extents
+  were previously bounded by whatever happened to be rendered — 338 px of a
+  2,600,000 px sheet at 100k rows, and a horizontal extent that followed the
+  window rightward. Vertically the browser stops allocating implicit tracks at
+  the last drawn row; horizontally the grid is block-level and the column tracks
+  overflow it. `minHeight`/`minWidth` fix each.
+- **Rows are resizable, and heights may vary.** `Sheet.rowHeights` mirrors
+  `colWidths`. Drag the divider below a row header to resize; double-click it to
+  return the row to the default. Virtualization places rows through a cumulative
+  offset table with a binary search, and a single spacer item stands in for the
+  rows above the window — while no row has been resized the table is skipped
+  entirely, so an unresized sheet pays nothing.
+- **Double-clicking a column divider auto-fits the column** to its widest value,
+  measured with canvas `measureText`. Capped at `AUTOFIT_SAMPLE_LIMIT` (2,000)
+  cells and `MAX_AUTOFIT_COL_WIDTH` (600 px) so a double-click cannot stall or
+  size a column off the screen.
+- `setRowHeight`, `resetRowHeight`, and `resetColWidth` on the sheet API;
+  `setScrollLeft` and `setViewportWidth` for wiring a custom scroll container.
+- Cells and headers carry `data-row`/`data-col`. With both axes virtualized,
+  position in the DOM no longer identifies a cell; this does.
+
+### Fixed (model)
+
+- **Row and column metadata now moves with an insert or delete.** `rowHeights`,
+  `rowLabels`, `hiddenRows`, `colWidths`, `colLabels`, and `filters` are keyed by
+  a bare index and were left in place while the cells around them shifted, so
+  inserting a row above a hidden one hid the wrong row and a column filter
+  applied to the wrong column.
+
+### Changed (grid performance and sizing)
+
+- The filter scan resolves an empty cell's display once per column instead of
+  once per row, which is most of the cost on a sparse sheet.
+- `rectFor` and the fill-drag hit test use binary searches over the offset
+  tables rather than `indexOf` and a running sum from column zero.
+- A zero viewport measurement is ignored rather than believed: a grid inside a
+  `display: none` container no longer windows itself down to nothing and stay
+  empty after it becomes visible.
+
 ### Added
 
 - **Reference picking while typing a formula.** Clicking a cell mid-formula

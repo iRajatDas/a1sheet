@@ -42,8 +42,13 @@ export function buildCss(prefix: string, t: Theme): string {
 /* Headers spanned by the selection, so the range is readable from the edges.
    The tint itself is the shared ::after rule above; only the text changes here. */
 .${p}head.${p}headon { color: ${t.accent}; }
-.${p}resize { position: absolute; right: 0; top: 0; width: 5px; height: 100%;
+/* Resize grabbers straddle the divider they move: half inside the header, half
+   over the neighbour, so the target is the line the user is aiming at rather
+   than the few pixels to one side of it. */
+.${p}resize { position: absolute; right: -3px; top: 0; width: 7px; height: 100%;
   cursor: col-resize; z-index: 6; }
+.${p}rowresize { position: absolute; left: 0; bottom: -3px; width: 100%; height: 7px;
+  cursor: row-resize; z-index: 6; }
 .${p}btn { border: 1px solid ${t.buttonBorder}; background: ${t.toolbarBg};
   padding: 5px 9px; border-radius: 6px; font-size: ${t.fontSize}; cursor: pointer;
   color: ${t.cellText}; line-height: 1.2; }

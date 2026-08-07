@@ -9,6 +9,13 @@ const config: StorybookConfig = {
   stories: ["../stories/**/*.mdx", "../stories/**/*.stories.tsx"],
   addons: ["@storybook/addon-docs"],
   framework: { name: "@storybook/react-vite", options: {} },
+
+  // The built Storybook is published to GitHub Pages, so its shell is a real
+  // page a crawler reads. Storybook's default title is the directory name.
+  managerHead: (head) => `${head}
+    <title>a1sheet — React spreadsheet component: demos and documentation</title>
+    <meta name="description" content="Interactive demos for a1sheet: a React spreadsheet component with Excel (XLSX) and CSV import/export, a formula engine, and a virtualized editable data grid." />
+    <link rel="canonical" href="https://irajatdas.github.io/a1sheet/storybook/" />`,
   typescript: {
     // `react-docgen`, not `react-docgen-typescript`: the latter reaches into
     // the TypeScript compiler's internals and throws against the TypeScript 7

@@ -27,12 +27,17 @@ function saveBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+export interface DownloadXlsxOptions extends WriteXlsxOptions {
+  /** Sanitized before use: no separators, no traversal. */
+  filename?: string;
+}
+
 export function downloadXlsx(
   sheets: XlsxSheetInput[],
-  options: WriteXlsxOptions = {},
-  filename = "spreadsheet.xlsx",
+  options: DownloadXlsxOptions = {},
 ): void {
-  const bytes = writeXlsx(sheets, options);
+  const { filename = "spreadsheet.xlsx", ...write } = options;
+  const bytes = writeXlsx(sheets, write);
   saveBlob(
     new Blob([bytes as unknown as BlobPart], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

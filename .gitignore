@@ -29,3 +29,6 @@ packages/a1sheet/LICENSE
 
 # storybook build output
 storybook-static/
+
+# generated Pages site
+site/dist/

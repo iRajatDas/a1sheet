@@ -52,6 +52,7 @@ export type { FormulaArg, FormulaValue } from "./formula/values.js";
 export { toNumber, toText } from "./formula/values.js";
 export { csvToCells, iterCsvRows, parseCSV } from "./io/csv/read.js";
 export { cellsToCSV, getUsedBounds } from "./io/csv/write.js";
+export type { DownloadXlsxOptions } from "./io/download.js";
 export { downloadCsv, downloadXlsx } from "./io/download.js";
 // ------------------------------------------------------------------- io
 export type { ReadResult, WorkbookFormat } from "./io/index.js";

@@ -289,3 +289,220 @@ export function protectedSheet(): Workbook {
     ],
   );
 }
+
+/**
+ * A quarter of regional numbers, as a real report would be laid out: a title,
+ * a frozen header, currency and percent formats, a total row that sums the
+ * ones above it, and a dynamic array that re-ranks the whole block.
+ *
+ * Deliberately not "Widget, Gadget, Doohickey" — this is the fixture the
+ * showcase and the landing page use, and a demo that looks like a placeholder
+ * reads as one.
+ */
+export function salesReport(): Workbook {
+  return build(
+    ["Q3", "Notes"],
+    [
+      {
+        cells: {
+          "0_0": "Q3 regional performance",
+          "2_0": "Region",
+          "2_1": "Owner",
+          "2_2": "Bookings",
+          "2_3": "Target",
+          "2_4": "Attainment",
+          "2_5": "Variance",
+          "3_0": "North America",
+          "3_1": "Priya Raman",
+          "3_2": "1284300",
+          "3_3": "1192400",
+          "3_4": "=C4/D4",
+          "3_5": "=C4-D4",
+          "4_0": "EMEA",
+          "4_1": "Tomás Herrera",
+          "4_2": "968750",
+          "4_3": "1040000",
+          "4_4": "=C5/D5",
+          "4_5": "=C5-D5",
+          "5_0": "APAC",
+          "5_1": "Wei Chen",
+          "5_2": "742100",
+          "5_3": "690000",
+          "5_4": "=C6/D6",
+          "5_5": "=C6-D6",
+          "6_0": "LATAM",
+          "6_1": "Ana Beatriz Lima",
+          "6_2": "318400",
+          "6_3": "402500",
+          "6_4": "=C7/D7",
+          "6_5": "=C7-D7",
+          "7_0": "India",
+          "7_1": "Devika Nair",
+          "7_2": "596900",
+          "7_3": "480000",
+          "7_4": "=C8/D8",
+          "7_5": "=C8-D8",
+          "8_0": "Japan",
+          "8_1": "Kenji Sato",
+          "8_2": "233050",
+          "8_3": "265000",
+          "8_4": "=C9/D9",
+          "8_5": "=C9-D9",
+          "9_0": "Total",
+          "9_2": "=SUM(C4:C9)",
+          "9_3": "=SUM(D4:D9)",
+          "9_4": "=C10/D10",
+          "9_5": "=C10-D10",
+          "11_0": "Ranked by bookings",
+          "12_0": "=SORT(A4:C9, 3, -1)",
+        },
+        styles: {
+          "0_0": {
+            bold: true,
+            fontSize: 16,
+          },
+          "2_0": {
+            bold: true,
+            bg: "#f1f5f9",
+          },
+          "2_1": {
+            bold: true,
+            bg: "#f1f5f9",
+          },
+          "2_2": {
+            bold: true,
+            bg: "#f1f5f9",
+          },
+          "2_3": {
+            bold: true,
+            bg: "#f1f5f9",
+          },
+          "2_4": {
+            bold: true,
+            bg: "#f1f5f9",
+          },
+          "2_5": {
+            bold: true,
+            bg: "#f1f5f9",
+          },
+          "3_2": {
+            numFmt: "currency",
+          },
+          "3_3": {
+            numFmt: "currency",
+          },
+          "3_4": {
+            numFmt: "percent",
+          },
+          "3_5": {
+            numFmt: "currency",
+          },
+          "4_2": {
+            numFmt: "currency",
+          },
+          "4_3": {
+            numFmt: "currency",
+          },
+          "4_4": {
+            numFmt: "percent",
+          },
+          "4_5": {
+            numFmt: "currency",
+          },
+          "5_2": {
+            numFmt: "currency",
+          },
+          "5_3": {
+            numFmt: "currency",
+          },
+          "5_4": {
+            numFmt: "percent",
+          },
+          "5_5": {
+            numFmt: "currency",
+          },
+          "6_2": {
+            numFmt: "currency",
+          },
+          "6_3": {
+            numFmt: "currency",
+          },
+          "6_4": {
+            numFmt: "percent",
+          },
+          "6_5": {
+            numFmt: "currency",
+          },
+          "7_2": {
+            numFmt: "currency",
+          },
+          "7_3": {
+            numFmt: "currency",
+          },
+          "7_4": {
+            numFmt: "percent",
+          },
+          "7_5": {
+            numFmt: "currency",
+          },
+          "8_2": {
+            numFmt: "currency",
+          },
+          "8_3": {
+            numFmt: "currency",
+          },
+          "8_4": {
+            numFmt: "percent",
+          },
+          "8_5": {
+            numFmt: "currency",
+          },
+          "9_0": {
+            bold: true,
+          },
+          "9_2": {
+            bold: true,
+            numFmt: "currency",
+          },
+          "9_3": {
+            bold: true,
+            numFmt: "currency",
+          },
+          "9_4": {
+            bold: true,
+            numFmt: "percent",
+          },
+          "9_5": {
+            bold: true,
+            numFmt: "currency",
+          },
+          "11_0": {
+            bold: true,
+          },
+        },
+        colWidths: { 0: 150, 1: 168, 2: 120, 3: 120, 4: 110, 5: 120 },
+        frozenRows: 3,
+        condFormats: [
+          {
+            range: { r1: 3, c1: 4, r2: 8, c2: 4 },
+            priority: 1,
+            rule: { type: "cellIs", operator: "lessThan", operands: ["1"] },
+            style: { color: "#b91c1c" },
+          },
+          {
+            range: { r1: 3, c1: 4, r2: 8, c2: 4 },
+            priority: 2,
+            rule: {
+              type: "cellIs",
+              operator: "greaterThanOrEqual",
+              operands: ["1"],
+            },
+            style: { color: "#15803d" },
+          },
+        ],
+        numRows: 200,
+        numCols: 12,
+      },
+    ],
+  );
+}

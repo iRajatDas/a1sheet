@@ -15,6 +15,7 @@ const WORKBOOKS = [
   ["formulas", fixtures.formulas()],
   ["layout", fixtures.layout()],
   ["filtered", fixtures.filtered()],
+  ["salesReport", fixtures.salesReport()],
 ] as const;
 
 describe("story fixtures", () => {

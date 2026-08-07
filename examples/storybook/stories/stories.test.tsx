@@ -19,6 +19,7 @@ import * as Hooks from "./Hooks.stories.js";
 import * as Preset from "./Preset.stories.js";
 import * as Recipes from "./Recipes.stories.js";
 import * as Scale from "./Scale.stories.js";
+import * as Showcase from "./Showcase.stories.js";
 import * as State from "./State.stories.js";
 import * as Theming from "./Theming.stories.js";
 
@@ -36,6 +37,7 @@ interface StoryModule {
 }
 
 const MODULES: StoryModule[] = [
+  Showcase as unknown as StoryModule,
   Preset as unknown as StoryModule,
   Composition as unknown as StoryModule,
   State as unknown as StoryModule,

@@ -158,7 +158,10 @@ export function FileMenu(): ReactNode {
               namedRanges: s.namedRanges,
               namedFormulas: s.namedFormulas,
             })),
-            { namedRanges: api.workbook.namedRanges },
+            {
+              namedRanges: api.workbook.namedRanges,
+              filename: `${api.workbook.sheets[0]?.name ?? "spreadsheet"}.xlsx`,
+            },
           )
         }
       >

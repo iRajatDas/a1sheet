@@ -1,0 +1,51 @@
+name: Pages
+
+# Publishes the landing page and the Storybook to GitHub Pages on every push to
+# main. The demo is bundled from source rather than from npm, so what the page
+# shows is the commit it was built from.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, and let a newer push win rather than queue behind an
+# older one — the site is a mirror of main, not a sequence of releases.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      # A story that throws renders as an empty box, which reads as a broken
+      # library. The suite renders every one of them, so it gates the deploy.
+      - run: bun test
+
+      - run: bun run site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

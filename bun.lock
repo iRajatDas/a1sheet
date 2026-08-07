@@ -45,7 +45,7 @@
     },
     "packages/a1sheet": {
       "name": "a1sheet",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.11.1",
         "@testing-library/react": "^16.3.2",
@@ -64,6 +64,13 @@
         "react",
         "react-dom",
       ],
+    },
+    "site": {
+      "name": "a1sheet-site",
+      "devDependencies": {
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8",
+      },
     },
   },
   "packages": {
@@ -340,6 +347,8 @@
     "a1sheet": ["a1sheet@workspace:packages/a1sheet"],
 
     "a1sheet-example-vite": ["a1sheet-example-vite@workspace:examples/vite-react"],
+
+    "a1sheet-site": ["a1sheet-site@workspace:site"],
 
     "a1sheet-storybook": ["a1sheet-storybook@workspace:examples/storybook"],
 

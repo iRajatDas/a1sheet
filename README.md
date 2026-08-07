@@ -1,10 +1,24 @@
-# a1sheet
+# a1sheet — a React spreadsheet component with Excel and CSV built in
 
-Zero-dependency Excel (XLSX) and CSV handling for the browser, plus an editable
-React spreadsheet component with a formula engine.
+[![npm](https://img.shields.io/npm/v/a1sheet.svg)](https://www.npmjs.com/package/a1sheet)
+[![npm bundle size](https://img.shields.io/bundlephobia/minzip/a1sheet)](https://bundlephobia.com/package/a1sheet)
+[![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/a1sheet?activeTab=dependencies)
+[![license](https://img.shields.io/npm/l/a1sheet.svg)](LICENSE)
+
+Read and write **Excel (.xlsx)** and **CSV** in the browser, evaluate
+**spreadsheet formulas**, and render an editable, virtualized **data grid** —
+from one package with **no runtime dependencies**.
 
 No grid library. No parsing library. No date library. `dependencies` is empty and
 a test enforces that it stays empty.
+
+```tsx
+import { Spreadsheet } from "a1sheet/react";
+
+<Spreadsheet defaultWorkbook={wb} />;
+```
+
+**[Live demo and documentation →](https://irajatdas.github.io/a1sheet/)**
 
 ## Install
 
@@ -322,6 +336,88 @@ try {
 }
 ```
 
+## Common tasks
+
+### Read an .xlsx or .csv file in the browser
+
+`readWorkbookFile` detects the format by ZIP magic first and extension second, so
+a renamed file still reads. It runs off the main thread's critical path for large
+files — see [Reading large files](#reading-large-files).
+
+```ts
+import { readWorkbookFile } from "a1sheet";
+
+const { format, sheets, namedRanges } = await readWorkbookFile(file);
+const first = sheets[0];              // cells, styles, merges, sizing, tables…
+```
+
+### Export to Excel from React
+
+```ts
+import { downloadXlsx } from "a1sheet";
+
+downloadXlsx(
+  workbook.sheets.map((s) => ({
+    name: s.name,
+    cells: s.cells,
+    styles: s.styles,
+    merges: s.merges,
+  })),
+  { namedRanges: workbook.namedRanges, filename: "report.xlsx" },
+);
+```
+
+### Export to CSV safely
+
+Values beginning with `=`, `+`, `-`, `@`, tab, or CR are neutralized on the way
+out, because a CSV opened in Excel will otherwise execute them. This is on by
+default and documented under [What an import keeps](#what-an-import-keeps-and-what-it-does-not).
+
+```ts
+import { downloadCsv } from "a1sheet";
+
+downloadCsv(sheet.cells, api.evaluator, "report.csv");
+```
+
+### Evaluate spreadsheet formulas without any UI
+
+The `"."` entrypoint never imports React, so this runs in Node and in a Web
+Worker as well as the browser.
+
+```ts
+import { createEvaluator } from "a1sheet";
+
+const cells = { "0_0": "6", "1_0": "=A1*7" };
+const ev = createEvaluator(cells, {});
+ev.getCellDisplay(1, 0);              // 42
+```
+
+### Parse CSV text into cells
+
+```ts
+import { csvToCells } from "a1sheet";
+
+const { cells, rows, cols } = await csvToCells("a,b\n1,2");
+```
+
+## Alternatives
+
+Most of this ground is covered by more than one package, and the split is usually
+file-handling *or* a grid *or* a formula engine. a1sheet is the three together,
+which is worth it when they have to agree with each other and not worth it when
+you only need one:
+
+| If you need | Consider |
+|---|---|
+| Only to parse or write spreadsheet files, no UI | `xlsx` (SheetJS), `exceljs`, `papaparse` for CSV |
+| Only a grid, with your own data layer | `react-data-grid`, `ag-grid`, `handsontable`, TanStack Table |
+| Only a formula engine | `hyperformula`, `formulajs` |
+| A spreadsheet: files, formulas, and an editable grid that agree | a1sheet |
+
+Check each one's license and bundle size against your own constraints — they
+differ, and some grids are commercially licensed. a1sheet is MIT with an empty
+`dependencies`, which is the whole reason it exists.
+
 ## Repository
 
 ```
@@ -343,8 +439,9 @@ bun run dev        # example app
 bun run storybook  # every use case, on :6006
 ```
 
-`bun run storybook` is the documentation — 12 pages and 49 interactive stories,
-aliased straight to `src` so an edit shows up without a build:
+[The published Storybook](https://irajatdas.github.io/a1sheet/storybook/) is the
+documentation, and `bun run storybook` is the same thing aliased straight to
+`src` so an edit shows up without a build:
 
 | Section | What is in it |
 |---|---|

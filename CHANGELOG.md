@@ -3,6 +3,50 @@
 Notable user-visible changes. This project follows [semver](https://semver.org)
 honestly: breaking means major.
 
+## 0.2.0
+
+### Breaking
+
+- **`downloadXlsx(sheets, options)`.** The filename moved into the options object
+  alongside `namedRanges`, rather than being a third positional argument.
+- **`writeXlsx(sheets, options)`** takes workbook-level defined names in
+  `options`; a sheet's own names travel on its entry. Additive, but the meaning
+  of `XlsxSheetInput.namedRanges` changed from "the workbook's" to "this
+  sheet's".
+- **`Sheet` gained `namedRanges` and `namedFormulas`.** Build sheets with
+  `makeSheet`, not object literals.
+- **`useRowWindow` takes one options object** instead of four positional
+  arguments. It is exported for consumers writing their own grid; the primitives
+  and `useSpreadsheet` are unaffected.
+
+### Fixed
+
+- **Arrays chain.** `=SORT(A1:A3)` now reads what `=SEQUENCE(3)` spilled into A2
+  and A3, across sheets as well as within one. The index of where arrays land
+  used to be built in a single prepass, and a formula asking about a cell
+  mid-pass got a blank — so the second array in a chain sorted `[1, "", ""]`.
+- **Sheet-scoped defined names survive an import.** A name Excel scoped to one
+  sheet was skipped outright, leaving every formula using it reading `#NAME?`
+  behind the cached value. They now live on the sheet, shadow a workbook name of
+  the same spelling, and export again with their `localSheetId`.
+
+### Performance
+
+- **Edits that touch no cell no longer copy the cell map.** Resize, freeze, hide,
+  filter, relabel and merge go through the new `patchSheet`, which replaces named
+  fields and leaves `cells` and `styles` as the same objects. Column resize fires
+  on every mousemove, so at a million filled cells that path went from a 70 ms
+  stall per frame to unmeasurable. A cell edit still copies the map — 0.4 ms at
+  10k filled cells, 70 ms at 1M — and that needs `cells` to stop being a plain
+  object, which is not a patch release.
+
+### Added
+
+- **`patchSheet`** on the headless API, for consumers writing operations that
+  touch a row/column-keyed container.
+- **A published site**: a landing page and the full Storybook at
+  <https://irajatdas.github.io/a1sheet/>, deployed from `main`.
+
 ## 0.1.0
 
 First release. Everything before it is development history, kept in git rather

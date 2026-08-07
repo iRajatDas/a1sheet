@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://irajatdas.github.io/a1sheet/sitemap.xml

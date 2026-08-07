@@ -1,0 +1,12 @@
+{
+  "name": "a1sheet-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.ts"
+  },
+  "devDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}

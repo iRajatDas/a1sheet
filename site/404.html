@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>a1sheet — React spreadsheet component with Excel (XLSX) and CSV</title>
+    <meta
+      name="description"
+      content="A React spreadsheet component that reads and writes Excel (.xlsx) and CSV in the browser, evaluates spreadsheet formulas, and renders a virtualized editable data grid. Zero runtime dependencies, MIT licensed."
+    />
+    <link rel="canonical" href="https://irajatdas.github.io/a1sheet/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="a1sheet — React spreadsheet component with Excel and CSV" />
+    <meta
+      property="og:description"
+      content="Excel (.xlsx) and CSV read/write, a formula engine, and a virtualized editable grid. One React package, zero runtime dependencies."
+    />
+    <meta property="og:url" content="https://irajatdas.github.io/a1sheet/" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230d9488'/%3E%3Cpath d='M3 5.5h10M3 8h10M3 10.5h10M6.5 3v10M10 3v10' stroke='white' stroke-width='1' opacity='.85'/%3E%3C/svg%3E"
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "a1sheet",
+        "description": "React spreadsheet component with Excel (XLSX) and CSV import/export, a formula engine, and a virtualized editable grid. Zero runtime dependencies.",
+        "programmingLanguage": "TypeScript",
+        "runtimePlatform": "React",
+        "license": "https://opensource.org/licenses/MIT",
+        "codeRepository": "https://github.com/iRajatDas/a1sheet",
+        "url": "https://irajatdas.github.io/a1sheet/"
+      }
+    </script>
+
+    <style>
+      :root {
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --accent: #0d9488;
+        --bg: #ffffff;
+        --soft: #f8fafc;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e2e8f0;
+          --muted: #94a3b8;
+          --line: #1e293b;
+          --accent: #2dd4bf;
+          --bg: #0b1220;
+          --soft: #0f172a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 62rem; margin: 0 auto; padding: 0 1.25rem 5rem; }
+      header { border-bottom: 1px solid var(--line); }
+      .bar {
+        max-width: 62rem; margin: 0 auto; padding: 0.85rem 1.25rem;
+        display: flex; align-items: center; gap: 1rem;
+      }
+      .bar strong { font-size: 0.95rem; letter-spacing: -0.01em; }
+      .bar nav { margin-left: auto; display: flex; gap: 1.1rem; font-size: 0.9rem; }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); line-height: 1.15; letter-spacing: -0.02em; margin: 3rem 0 0.75rem; }
+      h2 { font-size: 1.25rem; letter-spacing: -0.01em; margin: 3rem 0 0.75rem; }
+      h3 { font-size: 1rem; margin: 1.75rem 0 0.4rem; }
+      p { margin: 0 0 1rem; }
+      .lead { font-size: 1.1rem; color: var(--muted); max-width: 44rem; }
+      .cta { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1.5rem 0 0; }
+      .cta a {
+        border: 1px solid var(--line); border-radius: 6px; padding: 0.45rem 0.9rem;
+        color: inherit; font-size: 0.9rem;
+      }
+      .cta a.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86rem; }
+      pre {
+        background: var(--soft); border: 1px solid var(--line); border-radius: 8px;
+        padding: 0.9rem 1rem; overflow-x: auto; margin: 0 0 1rem;
+      }
+      #demo-frame {
+        border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+        height: 460px; margin: 1rem 0 0.5rem; background: var(--bg);
+      }
+      #demo { height: 100%; }
+      .placeholder { padding: 2rem; color: var(--muted); font-size: 0.9rem; }
+      .grid { display: grid; gap: 1.5rem 2.5rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+      table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+      th, td { border-bottom: 1px solid var(--line); padding: 0.5rem 0.6rem; text-align: left; vertical-align: top; }
+      th { font-weight: 600; }
+      footer { border-top: 1px solid var(--line); margin-top: 4rem; padding: 1.5rem 0; color: var(--muted); font-size: 0.85rem; }
+      .caption { color: var(--muted); font-size: 0.85rem; margin-top: 0.4rem; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="bar">
+        <strong>a1sheet</strong>
+        <nav>
+          <a href="./storybook/">Docs &amp; demos</a>
+          <a href="https://github.com/iRajatDas/a1sheet">GitHub</a>
+          <a href="https://www.npmjs.com/package/a1sheet">npm</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <h1>A React spreadsheet component with Excel and CSV built in</h1>
+      <p class="lead">
+        Read and write <strong>Excel (.xlsx)</strong> and <strong>CSV</strong> in the browser,
+        evaluate <strong>spreadsheet formulas</strong>, and render an editable, virtualized
+        <strong>data grid</strong> — from one package with <strong>no runtime dependencies</strong>.
+      </p>
+
+      <div class="cta">
+        <a class="primary" href="./storybook/">Open the demos</a>
+        <a href="https://github.com/iRajatDas/a1sheet">Source on GitHub</a>
+        <a href="https://www.npmjs.com/package/a1sheet">a1sheet on npm</a>
+      </div>
+
+      <h2>Try it</h2>
+      <p>
+        A quarter of regional numbers: currency and percent formats, a frozen header, a
+        total row, conditional formatting on attainment, and a <code>SORT</code> that
+        re-ranks the block below. Click a cell and type — the formulas recalculate as
+        you go.
+      </p>
+      <div id="demo-frame">
+        <div id="demo">
+          <div class="placeholder">
+            Loading the live spreadsheet… (it needs JavaScript; everything else on this
+            page does not.)
+          </div>
+        </div>
+      </div>
+      <p class="caption">
+        This is the library itself, built from the current commit — not a video or a screenshot.
+      </p>
+
+      <h2>Install</h2>
+      <pre><code>npm install a1sheet     # React is a peer dependency</code></pre>
+      <pre><code>import { Spreadsheet } from "a1sheet/react";
+
+&lt;Spreadsheet defaultWorkbook={wb} /&gt;;</code></pre>
+
+      <h2>What it does</h2>
+      <div class="grid">
+        <div>
+          <h3>Excel and CSV, both directions</h3>
+          <p>
+            Import keeps number formats, fonts, fills, borders, merges, freeze panes,
+            column widths, tables, conditional formats, data validation, defined names,
+            and in-cell images. Export writes them back.
+          </p>
+        </div>
+        <div>
+          <h3>A formula engine</h3>
+          <p>
+            Over 100 functions including the dynamic-array set — <code>LET</code>,
+            <code>LAMBDA</code>, <code>MAP</code>, <code>SORT</code>, <code>UNIQUE</code>,
+            <code>FILTER</code>, <code>XLOOKUP</code> — with arrays that spill, structured
+            table references, and cycle detection.
+          </p>
+        </div>
+        <div>
+          <h3>A grid that scales</h3>
+          <p>
+            Rows and columns are both virtualized over a real scroll extent. A
+            100,000-row sheet scrolls through 2,600,026 px with about a dozen rows
+            mounted.
+          </p>
+        </div>
+        <div>
+          <h3>Composition, not configuration</h3>
+          <p>
+            <code>Sheet.Root</code> holds the state; every other part is a child you
+            place, replace, or leave out. There is no <code>showToolbar</code> prop —
+            an absent toolbar is an unrendered <code>&lt;Sheet.Toolbar/&gt;</code>.
+          </p>
+        </div>
+        <div>
+          <h3>Zero runtime dependencies</h3>
+          <p>
+            No grid library, no XLSX library, no date library. The ZIP reader, the
+            DEFLATE codec, the OOXML scanner, the formula engine, and the grid are all
+            in the package, and a test fails if a dependency is ever added.
+          </p>
+        </div>
+        <div>
+          <h3>Runs without React too</h3>
+          <p>
+            The <code>a1sheet</code> entrypoint never imports React, so file handling
+            and formula evaluation work in Node and in a Web Worker.
+            <code>a1sheet/react</code> is the only place React appears.
+          </p>
+        </div>
+      </div>
+
+      <h2>Common questions</h2>
+
+      <h3>How do I read an .xlsx file in React?</h3>
+      <pre><code>import { readWorkbookFile } from "a1sheet";
+
+const { sheets, namedRanges } = await readWorkbookFile(file);</code></pre>
+
+      <h3>How do I export a spreadsheet to Excel from the browser?</h3>
+      <pre><code>import { downloadXlsx } from "a1sheet";
+
+downloadXlsx(sheets, { filename: "report.xlsx" });</code></pre>
+
+      <h3>Can I evaluate formulas without rendering anything?</h3>
+      <pre><code>import { createEvaluator } from "a1sheet";
+
+const ev = createEvaluator({ "0_0": "6", "1_0": "=A1*7" }, {});
+ev.getCellDisplay(1, 0); // 42</code></pre>
+
+      <h3>Is CSV export safe to open in Excel?</h3>
+      <p>
+        Yes. Values starting with <code>=</code>, <code>+</code>, <code>-</code>,
+        <code>@</code>, tab, or CR are neutralized on the way out, because a CSV opened
+        in a spreadsheet application will otherwise execute them. Download filenames are
+        sanitized against separators and traversal.
+      </p>
+
+      <h3>How does it compare to SheetJS, ExcelJS, or AG Grid?</h3>
+      <table>
+        <thead>
+          <tr><th>If you need</th><th>Consider</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Only to parse or write spreadsheet files, no UI</td><td>SheetJS (<code>xlsx</code>), ExcelJS, PapaParse for CSV</td></tr>
+          <tr><td>Only a grid, with your own data layer</td><td>react-data-grid, AG Grid, Handsontable, TanStack Table</td></tr>
+          <tr><td>Only a formula engine</td><td>HyperFormula, formula.js</td></tr>
+          <tr><td>Files, formulas, and an editable grid that agree with each other</td><td>a1sheet</td></tr>
+        </tbody>
+      </table>
+      <p class="caption">
+        Check each one's license and bundle size against your own constraints — they
+        differ, and some grids are commercially licensed. a1sheet is MIT with an empty
+        <code>dependencies</code>.
+      </p>
+
+      <h2>Documentation</h2>
+      <p>
+        <a href="./storybook/">The Storybook</a> is the documentation: 12 pages and 49
+        interactive stories covering composition, formulas, file I/O, theming, state,
+        and scale. Every story is executed by the test suite, so a broken demo fails CI
+        rather than failing in front of you.
+      </p>
+      <p>
+        The <a href="https://github.com/iRajatDas/a1sheet#readme">README</a> covers the
+        API, and <a href="https://github.com/iRajatDas/a1sheet/blob/main/docs/LIMITATIONS.md">LIMITATIONS.md</a>
+        lists every gap with the extension point where the work would start.
+      </p>
+    </main>
+
+    <footer>
+      <div style="max-width: 62rem; margin: 0 auto; padding: 0 1.25rem">
+        MIT licensed. <a href="https://github.com/iRajatDas/a1sheet">github.com/iRajatDas/a1sheet</a>
+      </div>
+    </footer>
+
+    <script type="module" src="./assets/demo.js"></script>
+  </body>
+</html>

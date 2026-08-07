@@ -19,6 +19,13 @@
   ],
   "license": "MIT",
   "author": "Rajat Das",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iRajatDas/a1sheet.git",
+    "directory": "packages/a1sheet"
+  },
+  "homepage": "https://github.com/iRajatDas/a1sheet#readme",
+  "bugs": "https://github.com/iRajatDas/a1sheet/issues",
   "type": "module",
   "sideEffects": false,
   "files": [

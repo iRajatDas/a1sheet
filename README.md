@@ -456,7 +456,7 @@ a theme.
 ## Limitations
 
 Every gap is an intentional scope cut, listed with the extension point where the
-work would start: [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+work would start: [`docs/LIMITATIONS.md`](https://github.com/iRajatDas/a1sheet/blob/main/docs/LIMITATIONS.md).
 
 ## License
 

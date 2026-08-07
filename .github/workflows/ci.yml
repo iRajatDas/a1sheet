@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run lint
+
+      - run: bun run typecheck
+
+      # Before the tests, not after: the architectural guards in
+      # packages/a1sheet/test assert on the built bundles and skip when dist is
+      # absent, so building first is what makes them run at all.
+      - run: bun run build
+
+      - run: bun test

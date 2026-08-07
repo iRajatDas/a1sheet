@@ -65,6 +65,11 @@ export function buildCss(prefix: string, t: Theme): string {
 .${p}head.${p}headon .${p}headmenu,
 .${p}headmenu.${p}headfiltered { visibility: visible; }
 .${p}headmenu.${p}headfiltered { color: ${t.accent}; }
+/* The copied range. Dashed, in the accent colour, over the top of the cells but
+   never in the way of a click — the copy is a thing you did, not a thing you are
+   still doing, and the next thing you do is click somewhere else to paste. */
+.${p}marquee { border: 2px dashed ${t.accent}; pointer-events: none; z-index: 7;
+  border-radius: 2px; }
 /* Resize grabbers straddle the divider they move: half inside the header, half
    over the neighbour, so the target is the line the user is aiming at rather
    than the few pixels to one side of it. */

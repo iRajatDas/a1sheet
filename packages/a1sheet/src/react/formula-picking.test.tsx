@@ -10,6 +10,12 @@
 import { describe, expect, test } from "bun:test";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createWorkbook } from "../model/workbook.js";
+import {
+  DEFAULT_COL_WIDTH,
+  HEADER_HEIGHT,
+  ROW_HEADER_WIDTH,
+  ROW_HEIGHT,
+} from "./constants.js";
 import { Spreadsheet } from "./Spreadsheet.js";
 
 function setup(cells: Record<string, string> = {}) {
@@ -40,6 +46,18 @@ function setup(cells: Record<string, string> = {}) {
     return editor() as HTMLInputElement;
   };
 
+  /**
+   * Drags the pointer over a cell, the way the grid actually hears it: one
+   * mousemove on `window`, in client coordinates. The container measures 0×0
+   * under happy-dom, so a cell's client position is its offset in the grid.
+   */
+  const dragOver = (row: number, col: number) =>
+    fireEvent.mouseMove(window, {
+      clientX: ROW_HEADER_WIDTH + col * DEFAULT_COL_WIDTH + 1,
+      clientY: HEADER_HEIGHT + row * ROW_HEIGHT + 1,
+      buttons: 1,
+    });
+
   const outlines = () =>
     [...container.querySelectorAll('[aria-hidden="true"]')].filter((el) =>
       (el as HTMLElement).style.border.startsWith("2px solid"),
@@ -53,6 +71,7 @@ function setup(cells: Record<string, string> = {}) {
     formulaBar,
     startFormula,
     outlines,
+    dragOver,
   };
 }
 
@@ -101,17 +120,17 @@ describe("clicking a cell while typing a formula", () => {
   });
 
   test("dragging grows one reference into a range", () => {
-    const { cellAt, startFormula, editor } = setup();
+    const { cellAt, startFormula, editor, dragOver } = setup();
     startFormula("=SUM(");
 
     fireEvent.mouseDown(cellAt(1, 1));
     expect(editor()?.value).toBe("=SUM(B2");
 
-    fireEvent.mouseEnter(cellAt(3, 2), { buttons: 1 });
+    dragOver(3, 2);
     expect(editor()?.value).toBe("=SUM(B2:C4");
 
     // Still one reference — a drag rewrites, it does not append.
-    fireEvent.mouseEnter(cellAt(4, 4), { buttons: 1 });
+    dragOver(4, 4);
     expect(editor()?.value).toBe("=SUM(B2:E5");
   });
 

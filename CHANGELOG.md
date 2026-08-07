@@ -8,6 +8,45 @@ backfilled.
 
 ## Unreleased
 
+### Added (selecting without a mouse, and dragging past the edge)
+
+Three things a spreadsheet can do that this one could not: cross a long sheet
+from the keyboard, build a discontiguous selection without a pointer, and drag a
+selection or a fill past the bottom of the screen.
+
+- **Auto-scroll on a drag held near an edge.** The sheet comes to you, faster the
+  further past the edge you push, and keeps extending while the pointer is still
+  — the content is moving under it, so the cell beneath it changes. Selecting a
+  thousand rows no longer means selecting a screenful and giving up.
+- **Drags are tracked on `window`.** They survive the pointer leaving the grid,
+  which is where it is for the whole of an auto-scroll. Per-cell `mouseenter`
+  also dropped cells during a fast drag.
+- **The active cell is scrolled into view** when the keyboard moves it, by the
+  minimum needed. Arrowing past the last visible row used to move the selection
+  somewhere off screen with nothing following it, which made the keyboard
+  unusable beyond the first screenful.
+- **Ctrl/Cmd+Arrow** runs to the edge of the block of data, **Ctrl+Shift+Arrow**
+  extends to it. **Ctrl+Home**, **Ctrl+End**, **Home**, **End**, **PageUp**,
+  **PageDown**, and their Shift forms.
+- **Ctrl+A**, **Ctrl+Space** (column), **Shift+Space** (row).
+- **Shift+F8 adds to the selection**, Excel's discontiguous-selection mode: the
+  range you leave behind is kept as the cursor moves on. Escape ends it.
+- **Ctrl+D and Ctrl+R fill** down and right, running the same engine as the fill
+  handle — so the leading filled cells of the selection are the source and a
+  numbered pair counts on rather than repeating. Excel's Ctrl+D always copies;
+  matching this library's own drag matters more.
+- **The copied range is outlined** in dashes until it is pasted or dismissed.
+  Nothing on screen said a copy had happened, and once the selection moved to the
+  paste target nothing said where the content was coming from.
+
+### Fixed
+
+- **Ctrl+click built a two-cell selection at most.** It banked the current range
+  and then called `selectCell`, which clears the bank — so every click discarded
+  what the one before it had added. Both are now one `startNewRange` call.
+- **The column header's label and its sort/filter button drew on top of each
+  other** in any column narrow enough for the two to want the same pixels.
+
 ### Added (dynamic arrays)
 
 The formula engine now has a value kind it did not have: an array. That is what a

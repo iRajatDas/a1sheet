@@ -1,0 +1,50 @@
+/**
+ * Scrolling the keyboard's cursor back into view.
+ *
+ * The failure modes are opposites and both are bad: not scrolling at all leaves
+ * the selection somewhere off screen, and scrolling too eagerly shoves the sheet
+ * around under a cell that was perfectly visible.
+ */
+import { describe, expect, test } from "bun:test";
+import { revealOffset } from "./reveal.js";
+
+/** A 500px viewport with a 26px header floating over the top of it. */
+const view = { viewport: 500, size: 26, lead: 26 };
+
+describe("a visible cell is left alone", () => {
+  test("in the middle of the viewport", () => {
+    expect(revealOffset({ ...view, offset: 1000, start: 1200 })).toBe(1000);
+  });
+
+  test("flush against the last visible pixel", () => {
+    // start + size + lead === offset + viewport: the last position that still
+    // clears the header. One pixel of slack here and every keystroke scrolls.
+    expect(revealOffset({ ...view, offset: 1000, start: 1448 })).toBe(1000);
+  });
+});
+
+describe("a cell out of view is brought back by the minimum", () => {
+  test("above the top: the row's own start becomes the offset", () => {
+    expect(revealOffset({ ...view, offset: 1000, start: 800 })).toBe(800);
+  });
+
+  test("below the bottom: only far enough for the row to clear", () => {
+    // 1600 + 26 + 26 - 500. Not centred — the cell arrives at the edge it was
+    // approaching, which is where a spreadsheet user expects to find it.
+    expect(revealOffset({ ...view, offset: 1000, start: 1600 })).toBe(1152);
+  });
+
+  test("a cell taller than the viewport pins its top edge", () => {
+    const tall = revealOffset({
+      offset: 0,
+      viewport: 100,
+      start: 40,
+      size: 400,
+      lead: 26,
+    });
+    // It cannot all fit; what matters is that the scroll lands somewhere the
+    // cell occupies rather than past it.
+    expect(tall).toBeGreaterThan(40);
+    expect(tall).toBeLessThan(440);
+  });
+});

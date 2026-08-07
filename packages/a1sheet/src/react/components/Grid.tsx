@@ -47,6 +47,8 @@ import {
   SCROLLBAR_SIZE,
 } from "../constants.js";
 import { useSheetContext } from "../context.js";
+import { revealOffset } from "../reveal.js";
+import { useAutoScroll } from "../useAutoScroll.js";
 import { useTextMeasurer } from "../useTextMeasurer.js";
 import { Cell } from "./Cell.js";
 import { ChevronDownIcon } from "./icons.js";
@@ -86,6 +88,22 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   } | null>(null);
   const measureText = useTextMeasurer();
   const scrollerId = useId();
+  /** Which drag is in progress, if any. Not state: no render depends on it. */
+  const dragRef = useRef<"select" | "fill" | null>(null);
+  const dragMoveRef = useRef<(clientX: number, clientY: number) => void>(() => {});
+  const dragEndRef = useRef<() => void>(() => {});
+
+  /**
+   * Hold a drag near an edge and the sheet scrolls, faster the further past it
+   * you push — the only way to select or fill past the bottom of the screen.
+   * Each frame re-runs the drag handler at the pointer's last position, because
+   * the content moved underneath it.
+   */
+  const autoScroll = useAutoScroll(containerRef, (x, y) =>
+    dragMoveRef.current(x, y),
+  );
+  const autoScrollRef = useRef(autoScroll);
+  autoScrollRef.current = autoScroll;
 
   /**
    * Move the scroll container, not the virtualization state.
@@ -165,6 +183,87 @@ export function Grid({ children }: GridProps = {}): ReactNode {
     ro.observe(el);
     return () => ro.disconnect();
   }, [setViewportHeight, setViewportWidth, setScrollTop, setScrollLeft]);
+
+  /**
+   * Selection and fill drags, tracked on window so they survive the pointer
+   * leaving the grid entirely. Mounted once: the handlers read everything they
+   * need through refs, so re-subscribing per render would only churn.
+   */
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!dragRef.current) return;
+      // A drag that started on a cell must not turn into a text selection of
+      // whatever the pointer passes over on its way.
+      e.preventDefault();
+      dragMoveRef.current(e.clientX, e.clientY);
+      autoScrollRef.current.track(e.clientX, e.clientY);
+    }
+    function onUp() {
+      if (!dragRef.current) return;
+      dragEndRef.current();
+      dragRef.current = null;
+      autoScrollRef.current.stop();
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  /**
+   * Keep the moving end of the selection on screen.
+   *
+   * Without this the keyboard is unusable past the first screenful: arrow down
+   * from the last visible row and the selection moves somewhere you cannot see,
+   * with nothing scrolling to follow it. It tracks `selection.r2`/`c2` rather
+   * than the active cell, because during a Shift+arrow extension that is the end
+   * doing the moving.
+   *
+   * Only the minimum scroll needed, and only when the cell is actually outside —
+   * a cell already in view must never be re-centred, or every keystroke would
+   * shove the sheet around.
+   */
+  const focusRow = api.selection.r2;
+  const focusCol = api.selection.c2;
+  const rowTop = rowWindow.rowTop;
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || dragRef.current) return;
+
+    // An unmeasured container — display:none, or not laid out yet — reports a
+    // zero client size, and every cell in it reads as below the fold. Believing
+    // that scrolls a sheet nobody is looking at to the bottom of the selection.
+    if (el.clientHeight === 0 || el.clientWidth === 0) return;
+
+    const top = rowTop(focusRow);
+    if (top !== null) {
+      el.scrollTop = revealOffset({
+        offset: el.scrollTop,
+        viewport: el.clientHeight,
+        start: top,
+        size: rowWindow.rowHeight(focusRow),
+        lead: HEADER_HEIGHT,
+      });
+    }
+
+    el.scrollLeft = revealOffset({
+      offset: el.scrollLeft,
+      viewport: el.clientWidth,
+      start: colOffset(focusCol),
+      size: colWidth(focusCol),
+      lead: ROW_HEADER_WIDTH,
+    });
+  }, [focusRow, focusCol, rowTop, rowWindow.rowHeight, colOffset, colWidth]);
+
+  /**
+   * A fill drag starts on the handle inside a cell, whose mousedown stops
+   * propagating before the grid can see it. The hook's own state is the signal.
+   */
+  useEffect(() => {
+    if (fill.dragging) dragRef.current = "fill";
+  }, [fill.dragging]);
 
   /** Resize drags, tracked on window so they survive leaving the header. */
   useEffect(() => {
@@ -296,9 +395,13 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   }
 
   /**
-   * Fill-drag hit testing from raw mouse coordinates. Per-cell onMouseEnter was
-   * unreliable during fast drags in the POC, so the overlay maps clientX/Y to a
-   * row and column itself.
+   * The cell under a pointer position, from raw client coordinates.
+   *
+   * Both drags run on this rather than on per-cell mouse events: those miss
+   * cells during a fast drag, and they see nothing at all once the pointer
+   * leaves the grid — which is exactly when auto-scroll has to keep working.
+   * Coordinates are clamped, so a pointer held off the left edge reads as
+   * column 0 rather than as nothing.
    */
   function hitTest(clientX: number, clientY: number) {
     const el = containerRef.current;
@@ -309,6 +412,24 @@ export function Grid({ children }: GridProps = {}): ReactNode {
 
     return { row: Math.max(0, rowWindow.rowAt(y)), col: Math.max(0, colAt(x)) };
   }
+
+  // Latest-render copies of everything the window-level drag handlers need. The
+  // listeners are mounted once and outlive any single render, so reading them
+  // through refs is what keeps a long drag from extending against a stale sheet.
+  dragMoveRef.current = (clientX: number, clientY: number) => {
+    const hit = hitTest(clientX, clientY);
+    if (!hit) return;
+    if (dragRef.current === "fill") {
+      fill.moveTo(hit.row, hit.col);
+      return;
+    }
+    // Dragging after a reference click grows that reference into a range.
+    if (api.formulaRefs.active) api.formulaRefs.extendPickTo(hit.row, hit.col);
+    else api.extendTo(hit.row, hit.col);
+  };
+  dragEndRef.current = () => {
+    if (dragRef.current === "fill") fill.commit(api.updateSheet);
+  };
 
   function renderRowHeader(r: number, gridRow: number, frozenRowIdx?: number) {
     const isRenaming = renaming?.type === "row" && renaming.index === r;
@@ -433,10 +554,21 @@ export function Grid({ children }: GridProps = {}): ReactNode {
           setScrollTop(el.scrollTop);
           setScrollLeft(el.scrollLeft);
         }}
-        onMouseUp={() => {
-          if (fill.dragging) fill.commit(api.updateSheet);
+        // A mousedown that landed on a cell begins a selection drag. The cell
+        // itself has already set the anchor by the time this bubbles up; all
+        // that is left is to say a drag is running, so the window listeners
+        // start extending. The fill handle stops propagation, so it never
+        // arrives here — that drag announces itself through `fill.dragging`.
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          const cell = (e.target as HTMLElement).closest?.("[data-row][data-col]");
+          if (cell) dragRef.current = "select";
         }}
-        style={{ overflow: "auto", position: "relative" }}
+        style={{
+          overflow: "auto",
+          position: "relative",
+          cursor: fill.dragging ? "crosshair" : undefined,
+        }}
       >
         <div
           style={{
@@ -591,6 +723,23 @@ export function Grid({ children }: GridProps = {}): ReactNode {
             renderRow(absRow, gridRow, false),
           )}
 
+          {/* What was copied, dashed, until it is pasted or dismissed. The only
+            thing on screen that says a copy happened at all — and, once the
+            selection has moved to the paste target, the only thing saying where
+            the content is coming from. */}
+          {(() => {
+            const copied = api.clipboard.copiedRange;
+            const box = copied ? rectFor(copied) : null;
+            if (!box) return null;
+            return (
+              <div
+                aria-hidden="true"
+                className={`${prefix}marquee`}
+                style={{ position: "absolute", ...box }}
+              />
+            );
+          })()}
+
           {/* Reference outlines for the formula being typed. Rendered inside the
             grid element so they scroll with it, and as siblings of the cells so
             a cell's own borders are not disturbed. */}
@@ -621,23 +770,6 @@ export function Grid({ children }: GridProps = {}): ReactNode {
             competing for a track, but inside the scroller so it sits after the
             last row and scrolls with it. */}
         {children}
-
-        {/* Fill-drag overlay: hit-tests raw mouse coordinates. */}
-        {fill.dragging && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              zIndex: 20,
-              cursor: "crosshair",
-            }}
-            onMouseMove={(e) => {
-              const hit = hitTest(e.clientX, e.clientY);
-              if (hit) fill.moveTo(hit.row, hit.col);
-            }}
-            onMouseUp={() => fill.commit(api.updateSheet)}
-          />
-        )}
       </div>
 
       <Scrollbar

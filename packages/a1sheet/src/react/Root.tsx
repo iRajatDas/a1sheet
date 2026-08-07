@@ -22,7 +22,9 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { dataEdge, lastUsedCell, lastUsedInRow } from "../model/navigate.js";
 import type { Workbook } from "../model/types.js";
+import { HEADER_HEIGHT } from "./constants.js";
 import { SheetContextProvider, useSheetUiState } from "./context.js";
 import { buildCss } from "./styles.js";
 import { resolveTheme, type Theme } from "./theme.js";
@@ -109,9 +111,89 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (api.isEditing) return;
       const { numRows, numCols } = sheet;
+      const { row: activeRow, col: activeCol } = api.active;
+
+      /** Go to an absolute cell, or extend to it when Shift is down. */
+      const goTo = (row: number, col: number) => {
+        if (e.shiftKey) api.extendTo(row, col);
+        else api.moveTo(row, col, numRows, numCols);
+      };
+
+      /**
+       * How far Page Up and Page Down travel. Measured from the row the cursor
+       * is on rather than a constant, so a sheet of tall rows pages by what fits
+       * on screen instead of overshooting by a screenful.
+       */
+      const pageRows = () =>
+        Math.max(
+          1,
+          Math.floor(
+            (api.viewportHeight - HEADER_HEIGHT) /
+              Math.max(1, api.rowWindow.rowHeight(activeRow)),
+          ),
+        );
+
+      // Ctrl/Cmd + arrow runs to the edge of the block of data, which is the
+      // only practical way to cross a long sheet from the keyboard. Handled
+      // before the plain shortcut switch because that one keys on the letter.
+      if ((e.ctrlKey || e.metaKey) && e.key.startsWith("Arrow")) {
+        const step = {
+          ArrowUp: { dRow: -1, dCol: 0 },
+          ArrowDown: { dRow: 1, dCol: 0 },
+          ArrowLeft: { dRow: 0, dCol: -1 },
+          ArrowRight: { dRow: 0, dCol: 1 },
+        }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        // Shift+Ctrl+Arrow extends, so it walks from the moving end of the
+        // selection; a plain jump walks from the active cell.
+        const from = e.shiftKey
+          ? { row: selection.r2, col: selection.c2 }
+          : { row: activeRow, col: activeCol };
+        const to = dataEdge(sheet.cells, from.row, from.col, step, {
+          numRows,
+          numCols,
+        });
+        goTo(to.row, to.col);
+        return;
+      }
 
       if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case "Home":
+            e.preventDefault();
+            goTo(0, 0);
+            return;
+          case "End": {
+            e.preventDefault();
+            const end = lastUsedCell(sheet.cells);
+            goTo(end.row, end.col);
+            return;
+          }
+          case " ":
+            // Ctrl+Space selects the column, Excel's shortcut for it.
+            e.preventDefault();
+            api.select({ r1: 0, c1: activeCol, r2: numRows - 1, c2: activeCol });
+            return;
+          default:
+            break;
+        }
         switch (e.key.toLowerCase()) {
+          case "a":
+            e.preventDefault();
+            api.select({ r1: 0, c1: 0, r2: numRows - 1, c2: numCols - 1 });
+            return;
+          case "d":
+          case "r": {
+            e.preventDefault();
+            const direction = e.key.toLowerCase() === "d" ? "down" : "right";
+            if (!api.fill.within(selection, direction, api.updateSheet)) {
+              api.setStatus(
+                `Fill ${direction} needs a filled cell to copy and room to copy it into.`,
+              );
+            }
+            return;
+          }
           case "z":
             e.preventDefault();
             api.undo();
@@ -161,6 +243,56 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
             api.extendTo(selection.r2, Math.min(numCols - 1, selection.c2 + 1));
           else api.move(0, 1, numRows, numCols);
           return;
+        case "PageDown":
+          e.preventDefault();
+          goTo(
+            Math.min(
+              numRows - 1,
+              (e.shiftKey ? selection.r2 : activeRow) + pageRows(),
+            ),
+            e.shiftKey ? selection.c2 : activeCol,
+          );
+          return;
+        case "PageUp":
+          e.preventDefault();
+          goTo(
+            Math.max(0, (e.shiftKey ? selection.r2 : activeRow) - pageRows()),
+            e.shiftKey ? selection.c2 : activeCol,
+          );
+          return;
+        case "Home":
+          e.preventDefault();
+          goTo(e.shiftKey ? selection.r2 : activeRow, 0);
+          return;
+        case "End":
+          e.preventDefault();
+          goTo(
+            e.shiftKey ? selection.r2 : activeRow,
+            lastUsedInRow(
+              sheet.cells,
+              e.shiftKey ? selection.r2 : activeRow,
+              numCols,
+            ),
+          );
+          return;
+        case " ":
+          // Shift+Space selects the row, next to Ctrl+Space for the column.
+          if (!e.shiftKey) break;
+          e.preventDefault();
+          api.select({ r1: activeRow, c1: 0, r2: activeRow, c2: numCols - 1 });
+          return;
+        case "F8":
+          // Excel's add-to-selection toggle. Without it a discontiguous
+          // selection needs Ctrl+click, and the keyboard cannot make one at all.
+          if (!e.shiftKey) break;
+          e.preventDefault();
+          api.toggleAddMode();
+          api.setStatus(
+            api.addMode
+              ? ""
+              : "Add to selection: move to the next range. Shift+F8 again, or Escape to finish.",
+          );
+          return;
         case "Tab":
           e.preventDefault();
           api.move(0, e.shiftKey ? -1 : 1, numRows, numCols);
@@ -178,7 +310,11 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
           }
           return;
         case "Escape":
+          // One key ends all three transient states: the copy outline, the
+          // extra ranges, and add-mode.
+          api.clipboard.clearCopied();
           api.clearExtraRanges();
+          api.setStatus("");
           return;
         default:
           break;

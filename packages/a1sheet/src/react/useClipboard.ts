@@ -18,7 +18,7 @@
  * Also preserved: paste aligns from the target's top-left corner with NO shape
  * validation against the source.
  */
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { shiftFormulaRefs } from "../formula/refs.js";
 import { cellKey, normalizeRange } from "../model/address.js";
 import type { Range, Sheet } from "../model/types.js";
@@ -42,6 +42,17 @@ export interface UseClipboardResult {
     updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
   ): Range;
   lastCopied(): CopiedGrid | null;
+  /**
+   * The range the last copy came from, for the dashed outline the grid draws
+   * around it. Null once the copy has been used or dismissed.
+   *
+   * State rather than a ref, unlike `lastCopied`: this one is rendered, so a
+   * copy has to re-render the grid. What it marks is the SOURCE, which is why it
+   * survives the selection moving away to wherever the paste is going.
+   */
+  copiedRange: Range | null;
+  /** Clears the outline — on paste, on Escape, or when an edit invalidates it. */
+  clearCopied(): void;
 }
 
 /** TSV: tab between columns, newline between rows — what Excel and Sheets use. */
@@ -59,6 +70,7 @@ function deserialize(text: string): string[][] {
 
 export function useClipboard(): UseClipboardResult {
   const last = useRef<CopiedGrid | null>(null);
+  const [copiedRange, setCopiedRange] = useState<Range | null>(null);
 
   const copy = useCallback((sheet: Sheet, selection: Range) => {
     const b = normalizeRange(selection);
@@ -70,6 +82,7 @@ export function useClipboard(): UseClipboardResult {
     }
     const text = serialize(grid);
     last.current = { grid, origin: { row: b.r1, col: b.c1 }, text };
+    setCopiedRange(b);
     return text;
   }, []);
 
@@ -79,6 +92,7 @@ export function useClipboard(): UseClipboardResult {
       target: { row: number; col: number },
       updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
     ) => {
+      setCopiedRange(null);
       const internal = last.current && last.current.text === text;
       const grid = internal ? (last.current as CopiedGrid).grid : deserialize(text);
       const origin = internal ? (last.current as CopiedGrid).origin : target;
@@ -119,5 +133,11 @@ export function useClipboard(): UseClipboardResult {
     [],
   );
 
-  return { copy, paste, lastCopied: useCallback(() => last.current, []) };
+  return {
+    copy,
+    paste,
+    lastCopied: useCallback(() => last.current, []),
+    copiedRange,
+    clearCopied: useCallback(() => setCopiedRange(null), []),
+  };
 }

@@ -128,8 +128,10 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
         focusRef.current?.focus();
         if (editing) api.commitEdit();
         if (e.ctrlKey || e.metaKey) {
-          api.addRange(selection);
-          api.selectCell(row, col);
+          // One call, because `addRange` then `selectCell` does not work:
+          // selectCell clears the extras, so every Ctrl+click discarded the
+          // ranges it had just banked and the selection never grew past two.
+          api.startNewRange(row, col);
         } else if (e.shiftKey) {
           api.extendTo(row, col);
         } else {
@@ -137,12 +139,9 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
           api.selectCell(row, col);
         }
       }}
-      onMouseEnter={(e) => {
-        if (e.buttons !== 1 || api.fill.dragging) return;
-        // Dragging after a reference click grows that reference into a range.
-        if (api.formulaRefs.active) api.formulaRefs.extendPickTo(row, col);
-        else api.extendTo(row, col);
-      }}
+      // No onMouseEnter: extending the selection during a drag is the Grid's
+      // job now. Per-cell events cannot see a pointer held outside the grid, so
+      // they can neither scroll the sheet nor keep extending once it does.
       onDoubleClick={() => api.startEdit(sheet, row, col)}
       onContextMenu={(e) => {
         e.preventDefault();

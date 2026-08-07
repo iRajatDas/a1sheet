@@ -106,8 +106,11 @@ band outside the virtualized mapping.
 
 ## Editing
 
-**Multi-range selection (Ctrl+click) feeds the status bar only.** Copy, fill, and
-paste all act on the primary selection.
+**A multi-range selection feeds the status bar only.** Ctrl+click and Shift+F8
+both build one, and it is drawn and summed — but copy, fill, paste, and styling
+all act on the primary range alone. Excel refuses some of those on a
+discontiguous selection and performs others; deciding which is the work here,
+not the plumbing.
 → `extraRanges` in `src/react/useSelection.ts`; `StatusBar` is its only consumer.
 
 **Paste aligns from the target's top-left corner with no shape validation**

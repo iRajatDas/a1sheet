@@ -112,6 +112,38 @@ Icons are inline SVG from [Tabler Icons](https://tabler.io/icons) (MIT), copied
 into the source rather than installed so that `dependencies` stays empty. See
 `packages/a1sheet/THIRD-PARTY-NOTICES.md`.
 
+### Keyboard
+
+Everything the mouse can do to a selection has a keyboard route, because a grid
+that needs a pointer is a grid some people cannot use.
+
+| Keys | What they do |
+| --- | --- |
+| Arrows, Shift+Arrows | Move, extend |
+| Ctrl/Cmd+Arrow | Run to the edge of the block of data |
+| Ctrl/Cmd+Shift+Arrow | Extend to that edge |
+| Home / End | Start of the row / its last filled cell |
+| Ctrl+Home / Ctrl+End | A1 / the corner of the used range |
+| PageUp / PageDown | By a screenful of rows, Shift to extend |
+| Ctrl+A | The whole sheet |
+| Ctrl+Space / Shift+Space | The column / the row |
+| Shift+F8 | Add to selection — keep this range and start another |
+| Ctrl+D / Ctrl+R | Fill down / right |
+| Escape | Drop the extra ranges, the copy outline, and add mode |
+
+**Shift+F8** is how a discontiguous selection gets made without Ctrl+click: the
+range you leave behind is kept as the cursor moves on, so Shift+F8, arrow away,
+Shift+arrow to size the next one builds the same thing a mouse would.
+
+**Ctrl+D and Ctrl+R** run the fill handle's engine rather than a plain copy. The
+leading filled lines of the selection are the source and the rest is the
+destination, so `1, 2` at the top of a selected column counts on to its end —
+the thing you would otherwise have to drag for. Excel's Ctrl+D always copies its
+top row; matching this library's own fill matters more than matching that.
+
+A drag held near an edge scrolls the sheet, faster the further past the edge you
+push, and keeps extending while you hold it there.
+
 ### Formula editing
 
 Typing a formula puts the grid into reference-picking mode, as Excel and Sheets
@@ -330,7 +362,9 @@ Everything from the POC is ported, typed, and under test.
   merged cells, row and column resize with double-click auto-fit,
   row/column/sheet renaming, hidden rows.
 - **Editing** — type to edit, F2, Enter/Tab/Escape, arrow and Shift+arrow
-  navigation, Delete to clear, drag-select, Ctrl+click multi-select.
+  navigation, Delete to clear, drag-select that auto-scrolls at the edges,
+  Ctrl+click multi-select, and a keyboard route to all of it (see
+  [Keyboard](#keyboard)).
 - **Formulas** — ~90 functions including the dynamic-array set (`LET`, `LAMBDA`,
   `MAP`, `SORT`, `UNIQUE`, `FILTER`, `HSTACK`, `XLOOKUP`), array values that
   spill, elementwise operators, structured table references, cross-sheet

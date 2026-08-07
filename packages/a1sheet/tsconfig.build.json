@@ -5,6 +5,11 @@
     "outDir": "dist",
     "noEmit": false,
     "emitDeclarationOnly": true,
+    // No .d.ts.map in the tarball: "go to definition" would land on a src/
+    // directory the package does not ship, and the maps are a quarter of the
+    // declaration output. The .js.map files stay — Bun inlines sourcesContent
+    // into those, so they debug without src either.
+    "declarationMap": false,
     "types": []
   },
   "include": ["src"],

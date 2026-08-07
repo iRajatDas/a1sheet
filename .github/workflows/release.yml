@@ -1,0 +1,52 @@
+name: Release
+
+# Publishes whatever `packages/a1sheet/package.json` says the version is, on a
+# pushed `v*` tag. Runs the same gates as CI first, because a bad publish cannot
+# be taken back — npm only allows unpublishing for 72 hours, and the
+# version number is burned either way.
+#
+# Needs an `NPM_TOKEN` repository secret (an npm automation token).
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm provenance: the OIDC token is what lets npm attest that
+      # this tarball was built by this workflow from this commit.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # npm, not bun, does the publishing — provenance is an npm CLI feature.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun test
+
+      - name: Refuse to publish a version that does not match the tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./packages/a1sheet/package.json').version")
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package version $pkg" >&2
+            exit 1
+          fi
+
+      - run: npm publish --provenance --access public
+        working-directory: packages/a1sheet
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -24,5 +24,8 @@ CONTEXT.md
 packages/a1sheet/README.md
 packages/a1sheet/LICENSE
 
+# npm pack output
+*.tgz
+
 # storybook build output
 storybook-static/

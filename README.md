@@ -12,6 +12,11 @@ a test enforces that it stays empty.
 bun add a1sheet    # npm/pnpm/yarn all fine — React is a peer dependency
 ```
 
+**ESM only.** There is no CommonJS build, and there will not be one: shipping
+both is how a package ends up with two copies of its own module state in one
+process, and the grid keeps state. Every current bundler and Node 18+ handle
+this natively. From a CommonJS file, `await import("a1sheet")` works.
+
 ## Use
 
 Two entrypoints. The root one has no React in it at all, so it works in plain JS,

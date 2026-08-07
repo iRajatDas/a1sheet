@@ -83,9 +83,11 @@ export function cloneSheet(sheet: Sheet): Sheet {
  * Rewrites `"r_c"` keys along one axis. Keys before `at` are untouched; on a
  * delete (`delta < 0`) keys exactly at `at` are dropped.
  *
- * TODO(port): this is the exact shape from the POC. Verify against
- * ref/Spreadsheet.jsx:48-58 — the original had the row/col branch inlined in a
- * template literal and it is easy to transpose.
+ * The POC built the new key in one inlined template literal
+ * (ref/Spreadsheet.jsx:48-58), where the row and column halves are trivial to
+ * transpose. Split into two branches here, and the tests use off-diagonal keys
+ * — `1_5`, `5_5` moved along one axis — so a transposition fails them instead
+ * of landing on a key that happens to be its own mirror.
  */
 function shiftKeys<T>(
   obj: Record<CellKey, T>,
@@ -102,12 +104,12 @@ function shiftKeys<T>(
     const value = obj[key] as T;
     if (v < at) {
       next[key] = value;
-    } else if (delta < 0 && v === at) {
-    } else if (axis === "row") {
-      next[`${v + delta}_${c}`] = value;
-    } else {
-      next[`${r}_${v + delta}`] = value;
+      continue;
     }
+    // The deleted line itself: its keys go nowhere.
+    if (delta < 0 && v === at) continue;
+    if (axis === "row") next[`${v + delta}_${c}`] = value;
+    else next[`${r}_${v + delta}`] = value;
   }
   return next;
 }

@@ -46,7 +46,9 @@ for.
 
 **Defined names are workbook-scoped only.** A name Excel scoped to one sheet
 (`localSheetId`) is skipped on import rather than imported as a global one,
-which would let one sheet's definition win everywhere.
+which would let one sheet's definition win everywhere. Dropping it is the safe
+half of that choice, not a free one: a formula using such a name is `#NAME?`,
+covered by the imported value until you edit the cell.
 → `parseDefinedNames` in `src/io/xlsx/read.ts`, and `NamedRanges` would need to
 be keyed by sheet as well as name.
 
@@ -57,17 +59,11 @@ results on unsorted data; scanning is slower and gives the right answer. On a
 sorted vector the two agree.
 → `findMatch` in `src/formula/functions/lookup.ts`.
 
-**`INDIRECT` is not volatile.** It builds a reference from text, but the result
-is memoized like any other formula, so a change to the text it was built from
-recalculates it while a change to a cell it *now* points at does not until
-something else invalidates the evaluator. In practice an edit rebuilds the
-evaluator, so this shows only within a single render.
-→ `compute` in `src/formula/evaluate.ts` would need a set of cells excluded from
-the cache.
-
-**No `RAND`, `RANDBETWEEN`, or `NOW`-driven recalculation.** `NOW` and `TODAY`
-exist but are evaluated once per evaluator, so they do not tick.
-→ The same volatility mechanism as `INDIRECT`.
+**Nothing recalculates on a timer.** A calculation cycle begins on an edit or on
+F9, as in Excel, so `NOW()` advances when the sheet is touched rather than as
+the clock runs. Excel behaves the same way; a sheet that wants a ticking clock
+needs an interval calling `recalculate()`.
+→ `recalculate` on `useSpreadsheet`.
 
 ## Grid
 

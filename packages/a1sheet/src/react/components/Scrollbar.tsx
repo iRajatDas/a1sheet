@@ -138,7 +138,6 @@ export function Scrollbar({
 
   return (
     // biome-ignore lint/a11y/useFocusableInteractive: role=scrollbar is not focusable; the grid it controls takes the keyboard
-    // biome-ignore lint/a11y/useKeyWithClickEvents: the same keys are handled on the grid, where focus actually lives
     <div
       role="scrollbar"
       aria-orientation={orientation}

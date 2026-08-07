@@ -16,7 +16,8 @@
     "dev": "bun run --cwd examples/vite-react dev",
     "storybook": "bun run --cwd examples/storybook dev",
     "storybook:build": "bun run --cwd examples/storybook build",
-    "site": "bun run storybook:build && bun run --cwd site build"
+    "site": "bun run storybook:build && bun run --cwd site build",
+    "site:smoke": "bun run --cwd site smoke.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.7",

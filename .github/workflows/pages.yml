@@ -26,11 +26,22 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      # Headless Chrome for site/smoke.ts — the suite can stay green while a
+      # Storybook built against an unsupported Vite ships a blank docs page.
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+      - run: echo "CHROME_PATH=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+
       # A story that throws renders as an empty box, which reads as a broken
       # library. The suite renders every one of them, so it gates the deploy.
       - run: bun test
 
+      # Builds the landing page + Storybook.
       - run: bun run site
+
+      # Boots site/dist the way Pages serves it. Catches a green suite shipping
+      # a blank Storybook (the Vite 8 peer mismatch did exactly that).
+      - run: bun run site:smoke
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

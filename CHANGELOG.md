@@ -3,6 +3,18 @@
 Notable user-visible changes. This project follows [semver](https://semver.org)
 honestly: breaking means major.
 
+## Unreleased
+
+### Fixed
+
+- **Storybook on the docs site loads again.** Vite 8 was installed under Storybook
+  even though `@storybook/builder-vite` only peers `^5 || ^6 || ^7`. The Vite 8
+  build split the docs chunk so it ran before Storybook's preview globals existed
+  (`__STORYBOOK_MODULE_CORE_EVENTS_PREVIEW_ERRORS__`), and the published docs
+  page stayed blank. Storybook now pins Vite 7; a peer-range test and a headless
+  smoke of `site/dist` gate the Pages deploy so a green suite cannot ship a dead
+  Storybook again.
+
 ## 0.2.0
 
 ### Breaking

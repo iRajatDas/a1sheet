@@ -30,7 +30,11 @@ jobs:
       # Storybook built against an unsupported Vite ships a blank docs page.
       - uses: browser-actions/setup-chrome@v2
         id: chrome
+        with:
+          # Without shared libs Chrome starts then never paints, and dump-dom hangs.
+          install-dependencies: true
       - run: echo "CHROME_PATH=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+      - run: "${{ steps.chrome.outputs.chrome-path }}" --version
 
       # A story that throws renders as an empty box, which reads as a broken
       # library. The suite renders every one of them, so it gates the deploy.

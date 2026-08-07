@@ -74,10 +74,13 @@ for (const page of PAGES) {
   const { stdout, status, error, signal } = spawnSync(
     chrome,
     [
-      "--headless=new",
+      // Classic headless: `--headless=new` hangs under dump-dom + virtual time
+      // on the GitHub Actions Chrome build we install.
+      "--headless",
       "--disable-gpu",
       "--no-sandbox",
       "--disable-dev-shm-usage",
+      "--hide-scrollbars",
       `--virtual-time-budget=${VIRTUAL_TIME_MS}`,
       "--dump-dom",
       url,

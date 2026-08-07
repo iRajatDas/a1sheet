@@ -106,7 +106,9 @@ dark theme should set `scrollbarTrack`, `scrollbarThumb`, and
 `scrollbarThumbHover` along with the rest: the grid draws its own scrollbars in
 channels beside the cells rather than letting the platform float them over the
 content, so those channels are a real surface and stay light if you leave them
-alone.
+alone. `freezeLine` is the other one worth setting: it draws the edge of a
+frozen band, and it has to read as heavier than an ordinary grid line or the
+band and the rows scrolling under it look like one surface.
 
 Icons are inline SVG from [Tabler Icons](https://tabler.io/icons) (MIT), copied
 into the source rather than installed so that `dependencies` stays empty. See

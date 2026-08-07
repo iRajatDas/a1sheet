@@ -8,6 +8,22 @@ backfilled.
 
 ## Unreleased
 
+### Fixed (the frozen band)
+
+- **The frozen row's own number was painted over** by whatever row happened to
+  scroll past it. Both are sticky row headers in the same place, and at equal
+  layers the scrolled one won by coming later in the DOM.
+- **There was no line marking the freeze.** The band and the rows sliding under
+  it are one surface with one set of grid lines, so a frozen row read as a row
+  that simply repeated. The last frozen row and column now carry a 2px edge, as
+  Sheets draws it.
+
+### Added
+
+- `theme.freezeLine` — the colour of that edge. Darker than `theme.border`
+  deliberately: it separates two surfaces that scroll independently, which a
+  line of ordinary grid weight cannot say.
+
 ### Changed (a multiple selection is now actually selected)
 
 Ctrl+click built a selection that was shaded and nothing else: every operation

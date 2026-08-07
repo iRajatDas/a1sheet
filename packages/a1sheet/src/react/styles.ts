@@ -122,7 +122,7 @@ export function buildCss(prefix: string, t: Theme): string {
   transform: translateY(-50%); display: flex; align-items: center;
   justify-content: center; width: 16px; height: 16px; padding: 0;
   border: 1px solid ${t.buttonBorder}; border-radius: 3px;
-  background: ${t.headerBg}; color: ${t.headerText}; cursor: pointer; z-index: 4; }
+  background: ${t.headerBg}; color: ${t.headerText}; cursor: pointer; z-index: 2; }
 .${p}dropdown:hover { background: ${t.toolbarBg}; }
 /* Round, and a little larger than the square it replaces: at 7px square it read
    as a rendering artefact of the corner rather than as something to grab. */

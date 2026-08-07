@@ -9,6 +9,12 @@ export interface Theme {
   accent: string;
   border: string;
   headerBorder: string;
+  /**
+   * The line marking the edge of a frozen band. Deliberately darker than
+   * `border`: it separates two surfaces that scroll independently, which a line
+   * of the same weight as an ordinary grid line cannot say.
+   */
+  freezeLine: string;
   buttonBorder: string;
   headerBg: string;
   headerText: string;
@@ -35,6 +41,7 @@ export const defaultTheme: Theme = {
   accent: "#0d9488",
   border: "#e2e8f0",
   headerBorder: "#cbd5e1",
+  freezeLine: "#9aa3af",
   buttonBorder: "#d1d5db",
   headerBg: "#f8fafc",
   headerText: "#475569",

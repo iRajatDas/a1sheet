@@ -62,6 +62,8 @@ const CELL_PADDING_X = 12;
  * its title does not leave the title ellipsed by the button beside it.
  */
 const HEADER_MENU_WIDTH = 14;
+/** Thickness of the line marking the edge of a frozen band, as Sheets draws it. */
+const FREEZE_LINE_PX = 2;
 
 export interface GridProps {
   /**
@@ -343,6 +345,26 @@ export function Grid({ children }: GridProps = {}): ReactNode {
    */
   const autoFitRow = api.resetRowHeight;
 
+  /**
+   * Sticky placement and layer for one item. See the layer note in styles.ts;
+   * these are the four that pin themselves, and they must be ordered by what
+   * scrolls underneath what.
+   *
+   * The frozen band's ROW HEADER is the subtle one. It is sticky on both axes,
+   * so it sits where an ordinary row header sits and where a frozen cell sits —
+   * and at the same layer as an ordinary row header, the scrolled rows won the
+   * tie by coming later in the DOM. That is why the frozen row's number was
+   * being painted over by whatever row happened to scroll past it.
+   */
+  const LAYER = {
+    frozenCell: 3,
+    rowHeader: 4,
+    /** The frozen band's own row header, over the ordinary ones it overlaps. */
+    frozenRowHeader: 5,
+    colHeader: 6,
+    corner: 7,
+  } as const;
+
   function stickyStyleFor(
     isHeaderRow: boolean,
     isRowHeaderCol: boolean,
@@ -351,20 +373,45 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   ): CSSProperties {
     const style: CSSProperties = {};
     let z = 0;
+    const inFrozenRow = !isHeaderRow && frozenRowIdx !== undefined;
+
     if (isHeaderRow) {
       style.top = 0;
-      z = Math.max(z, 4);
+      z = Math.max(z, LAYER.colHeader);
     } else if (frozenRowIdx !== undefined) {
       style.top = HEADER_HEIGHT + (rowWindow.rowTop(frozenRowIdx) ?? 0);
-      z = Math.max(z, 2);
+      z = Math.max(z, LAYER.frozenCell);
     }
     if (isRowHeaderCol) {
       style.left = 0;
-      z = Math.max(z, isHeaderRow ? 5 : 3);
+      z = Math.max(
+        z,
+        isHeaderRow
+          ? LAYER.corner
+          : inFrozenRow
+            ? LAYER.frozenRowHeader
+            : LAYER.rowHeader,
+      );
     } else if (frozenColIdx !== undefined) {
       style.left = ROW_HEADER_WIDTH + colOffset(frozenColIdx);
-      z = Math.max(z, isHeaderRow ? 4 : 2);
+      z = Math.max(z, isHeaderRow ? LAYER.colHeader : LAYER.frozenCell);
     }
+
+    // The line that says where the freeze is. Without it the frozen band and
+    // the rows sliding under it are the same surface with the same grid lines,
+    // and the sheet reads as if row 1 simply repeats — which is exactly how it
+    // looked. A shadow rather than a border: it costs no layout, it cannot be
+    // overridden by a cell's own borders, and it draws over the neighbour
+    // instead of pushing it.
+    const edges: string[] = [];
+    if (inFrozenRow && frozenRowIdx === frozenRows - 1) {
+      edges.push(`0 ${FREEZE_LINE_PX}px 0 0 ${theme.freezeLine}`);
+    }
+    if (frozenColIdx !== undefined && frozenColIdx === frozenCols - 1) {
+      edges.push(`${FREEZE_LINE_PX}px 0 0 0 ${theme.freezeLine}`);
+    }
+    if (edges.length > 0) style.boxShadow = edges.join(", ");
+
     if (style.top !== undefined || style.left !== undefined) {
       style.position = "sticky";
       style.zIndex = z;

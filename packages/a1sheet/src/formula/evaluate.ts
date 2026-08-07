@@ -1,5 +1,5 @@
 /**
- * Formula evaluation. Ported from ref/formulaEngine.js:226-358.
+ * Formula evaluation.
  *
  * Design notes:
  *
@@ -75,8 +75,8 @@ export function isErrorValue(v: unknown): v is string {
  * every frame in the cycle so each participating cell reports "#CYCLE!".
  *
  * Needed because `ctx.getValue` coerces through `toNumber`, which would otherwise
- * turn the sentinel into 0 — the POC's cycle detection therefore only ever caught
- * a DIRECT self-reference, and silently returned 0 for any longer cycle.
+ * turn the sentinel into 0, leaving cycle detection able to catch only a DIRECT
+ * self-reference and silently returning 0 for any longer cycle.
  */
 class CycleSignal extends Error {
   constructor() {
@@ -210,10 +210,9 @@ function compareScalars(
  * Lookup-key equality: numeric comparison when BOTH sides are numeric, text
  * comparison otherwise.
  *
- * The `both` guard is essential. ref/formulaEngine.js:277 used
- * `toNumber(a) === toNumber(b)`, and toNumber coerces non-numeric text to 0 — so
- * every pair of text keys compared equal and VLOOKUP always returned the FIRST
- * row. Text lookups were completely broken.
+ * The `both` guard is essential. Comparing with `toNumber(a) === toNumber(b)`
+ * makes every pair of text keys equal, because toNumber coerces non-numeric
+ * text to 0 — and VLOOKUP then always returns the FIRST row.
  */
 /** Names that are values rather than references. */
 const NAME_CONSTANTS: Record<string, FormulaArg> = {
@@ -377,9 +376,9 @@ function evalCall(
 
   const argVals = node.args.map((a) => evalNode(a, ctx));
 
-  // Propagate errors out of arguments instead of coercing them away. The POC fed
-  // them straight into the function, where flattenNums silently dropped them —
-  // so `=SUM(UNDEFINED_NAME)` returned 0 rather than #NAME?. A matrix argument is
+  // Propagate errors out of arguments instead of coercing them away. Fed straight
+  // into the function, an error is silently dropped by flattenNums — and
+  // `=SUM(UNDEFINED_NAME)` reads 0 rather than #NAME?. A matrix argument is
   // NOT scanned: a range holding one error value does not poison SUM in Excel.
   for (const arg of argVals) {
     if (isErrorValue(arg)) return arg;

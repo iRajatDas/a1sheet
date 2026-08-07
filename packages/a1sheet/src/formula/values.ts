@@ -13,8 +13,8 @@
  * one shows an error rather than a stringified function.
  *
  * The coercions are intentionally forgiving — non-numeric text becomes 0 rather
- * than an error — which is the behaviour the POC had and what keeps one bad cell
- * from poisoning a column of sums.
+ * than an error — which is what keeps one bad cell from poisoning a column of
+ * sums.
  */
 import type { Node } from "./ast.js";
 

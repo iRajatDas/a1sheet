@@ -1,5 +1,5 @@
 /**
- * Browser download helpers. Ported from ref/xlsxIO.js:295-303 and 449-456.
+ * Browser download helpers.
  *
  * These are the only functions in the non-React entrypoint that touch the DOM.
  * They throw a clear error outside a browser rather than failing on an undefined

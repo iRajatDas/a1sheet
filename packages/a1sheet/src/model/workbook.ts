@@ -52,7 +52,7 @@ export function renameSheet(wb: Workbook, index: number, name: string): Workbook
 
 /**
  * Defines a named range. Names are uppercased; there is no format validation
- * beyond that, matching the POC's name box behavior.
+ * beyond that.
  */
 export function defineName(wb: Workbook, name: string, range: Range): Workbook {
   return {

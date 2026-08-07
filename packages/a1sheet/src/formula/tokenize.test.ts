@@ -53,8 +53,8 @@ describe("comparison operators", () => {
   );
 
   test("<> is one token, not < followed by > (regression)", () => {
-    // ref/formulaEngine.js could only ever append "=", so "<>" lexed as two
-    // tokens and parsePrimary swallowed the ">" as a literal 0.
+    // Appending only "=" to a comparison operator lexes "<>" as two tokens, and
+    // parsePrimary swallows the ">" as a literal 0.
     const tokens = tokenize("A1<>B1");
     expect(tokens.filter((t) => t.type === "cmp")).toHaveLength(1);
     expect(tokens[1]).toEqual({ type: "cmp", value: "<>" });

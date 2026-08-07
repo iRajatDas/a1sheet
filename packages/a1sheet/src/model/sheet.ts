@@ -1,8 +1,7 @@
 /**
  * Sheet construction and structural edits.
  *
- * Ported from ref/Spreadsheet.jsx:30-62. Every function here is pure: it takes a
- * sheet and returns a new one. Nothing mutates in place — `useWorkbook` is the
+ * Every function here is pure: it takes a sheet and returns a new one. Nothing mutates in place — `useWorkbook` is the
  * only place clone-on-write is coordinated with history.
  */
 import { cellKey } from "./address.js";
@@ -83,11 +82,10 @@ export function cloneSheet(sheet: Sheet): Sheet {
  * Rewrites `"r_c"` keys along one axis. Keys before `at` are untouched; on a
  * delete (`delta < 0`) keys exactly at `at` are dropped.
  *
- * The POC built the new key in one inlined template literal
- * (ref/Spreadsheet.jsx:48-58), where the row and column halves are trivial to
- * transpose. Split into two branches here, and the tests use off-diagonal keys
- * — `1_5`, `5_5` moved along one axis — so a transposition fails them instead
- * of landing on a key that happens to be its own mirror.
+ * Built in two branches rather than one template literal, where the row and
+ * column halves are trivial to transpose. The tests use off-diagonal keys —
+ * `1_5`, `5_5` moved along one axis — so a transposition fails them instead of
+ * landing on a key that happens to be its own mirror.
  */
 function shiftKeys<T>(
   obj: Record<CellKey, T>,

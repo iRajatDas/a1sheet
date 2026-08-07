@@ -1,5 +1,5 @@
 /**
- * Relative-reference rewriting. Ported from ref/formulaEngine.js:364-381.
+ * Relative-reference rewriting.
  *
  * Operates at the TOKEN level, not the AST level: re-tokenize, shift every ref
  * token lacking the relevant `$` marker, reassemble. A range is just two

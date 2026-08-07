@@ -2,9 +2,8 @@
  * Sheet operations exposed to the UI: formatting, structure, merges, freeze,
  * column width, sort, filter.
  *
- * Every one goes through the `updateSheet` it is handed — this hook never touches
- * workbook state directly. Ported from the corresponding handlers in
- * ref/Spreadsheet.jsx.
+ * Every one goes through the `updateSheet` it is handed — this hook never
+ * touches workbook state directly.
  */
 import { useCallback, useMemo } from "react";
 import { cellKey, normalizeRange } from "../model/address.js";
@@ -175,7 +174,7 @@ export function useSheetOps(
       });
     }, [bounds, updateSheet]),
 
-    // Freezes up through the active cell, matching the POC's toolbar behavior.
+    // Freezes up through the active cell, which is what the toolbar means by it.
     freezeToSelection: useCallback(() => {
       updateSheet((s) => {
         s.frozenRows = selection.r2 + 1;

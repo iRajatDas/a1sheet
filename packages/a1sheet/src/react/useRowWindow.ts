@@ -1,6 +1,5 @@
 /**
  * Row virtualization and hidden-row compaction — a two-stage mapping.
- * Ported from ref/Spreadsheet.jsx:386-397.
  *
  * Stage 1: `effectiveHiddenRows` unions manually hidden rows with rows excluded
  *          by an active column filter. `visibleRows` is the compacted array of

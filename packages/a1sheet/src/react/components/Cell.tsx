@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * A single cell. Ported from `renderCell` in ref/Spreadsheet.jsx:418-465.
+ * A single cell.
  *
- * Appearance resolves in order: base style from `sheet.styles`, then (once
- * implemented) conditional formatting, then the inline style fields. When the cell
+ * Appearance resolves in order: base style from `sheet.styles`, then
+ * conditional formatting, then the inline style fields. When the cell
  * is being edited it renders an `<input>` that takes focus; otherwise the hidden
  * textarea in `<Spreadsheet />` holds focus for the whole grid.
  */

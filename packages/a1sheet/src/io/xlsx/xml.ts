@@ -1,10 +1,9 @@
 /**
- * XML helpers for OOXML. Escaping and colors are ported from
- * ref/xlsxIO.js:194-196; the scanner replaces the POC's use of `DOMParser`.
+ * XML helpers for OOXML: escaping, colors, and a hand-written scanner.
  *
- * Why not DOMParser: it exists only in browsers. The POC was browser-only, but
- * this package's "." entrypoint must work in Node and Web Workers too, and a
- * DOMParser dependency would also make `readXlsx` untestable outside a DOM.
+ * Why a scanner and not DOMParser: DOMParser exists only in browsers, and this
+ * package's "." entrypoint must work in Node and Web Workers too. Depending on
+ * it would also make `readXlsx` untestable outside a DOM.
  *
  * A regex scanner is sufficient here and nowhere near a general XML parser: the
  * documents are machine-generated SpreadsheetML with shallow, predictable

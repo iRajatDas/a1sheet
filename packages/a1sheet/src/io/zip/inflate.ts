@@ -1,6 +1,5 @@
 /**
  * RFC 1951 DEFLATE decoder, written by hand to keep the dependency count at zero.
- * Ported from ref/xlsxIO.js:28-119.
  *
  * Handles all three block types: stored (0), fixed Huffman (1), dynamic
  * Huffman (2). There is NO encoder — see ./deflate.ts.

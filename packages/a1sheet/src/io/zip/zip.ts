@@ -1,5 +1,5 @@
 /**
- * Minimal ZIP reader and writer. Ported from ref/xlsxIO.js:122-191.
+ * Minimal ZIP reader and writer.
  *
  * Reading is split in two — `listZipEntries` walks the central directory and
  * `readZipMember` decompresses one member — so a caller can inflate members one at

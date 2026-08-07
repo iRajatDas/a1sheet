@@ -1,5 +1,5 @@
 /**
- * Formula tokenizer. Ported from ref/formulaEngine.js:41-90.
+ * Formula tokenizer.
  *
  * Unrecognized characters are skipped rather than throwing — a malformed
  * formula in one cell must not take down evaluation for the whole sheet.
@@ -180,10 +180,9 @@ export function tokenize(src: string): Token[] {
     if (ch === "=" || ch === "<" || ch === ">") {
       let op = ch;
       let j = i + 1;
-      // BUGFIX vs ref/formulaEngine.js:80-86, which only ever appended "=" and
-      // so could not produce "<>". `A1<>B1` lexed as cmp "<" followed by cmp
-      // ">", and parsePrimary swallowed the ">" as a literal 0 — silently
-      // wrong, never an error. evalCompare already had a "<>" case waiting.
+      // ">" after "<" as well as "=", so that "<>" is one token. Appending only
+      // "=" lexes `A1<>B1` as cmp "<" then cmp ">", and parsePrimary swallows the
+      // ">" as a literal 0 — silently wrong, never an error.
       if (src[j] === "=" || (ch === "<" && src[j] === ">")) {
         op += src[j] as string;
         j++;

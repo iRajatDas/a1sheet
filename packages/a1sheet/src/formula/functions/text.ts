@@ -1,4 +1,4 @@
-/** Text functions. Ported from ref/formulaEngine.js:206-214. */
+/** Text functions. */
 import { applyFormatCode } from "../../format/formatCode.js";
 import { flatten, toNumber, toScalar, toText } from "../values.js";
 import type { FormulaFunction } from "./registry.js";

@@ -1,5 +1,5 @@
 /**
- * Fill-handle series extrapolation. Ported from ref/formulaEngine.js:384-396.
+ * Fill-handle series extrapolation.
  *
  * Rules, in order:
  *   - all-numeric and 2+ values -> continue the last observed step linearly

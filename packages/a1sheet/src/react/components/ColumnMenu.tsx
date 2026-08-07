@@ -2,7 +2,6 @@
 
 /**
  * Column header dropdown: sort ascending/descending and a checkbox value filter.
- * Ported from `ColumnMenu` in ref/Spreadsheet.jsx:715+.
  *
  * Sort physically rewrites cell keys — a data operation, undone only via history.
  * Filter never touches cells; it only feeds `effectiveHiddenRows`, so clearing a

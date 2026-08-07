@@ -1,22 +1,22 @@
 /**
  * Copy and paste — consolidated.
  *
- * The POC implemented this TWICE: once on the hidden textarea's onCopy/onPaste
- * events, and again via navigator.clipboard for the context menu. Both encoded
- * the internal-vs-external paste decision and could drift. Here it lives once,
- * with the two transports as thin callers of `copy` and `paste`.
+ * Two transports reach it: the hidden textarea's onCopy/onPaste events, and
+ * navigator.clipboard for the context menu. Both need the same
+ * internal-vs-external paste decision, so it lives here once and they are thin
+ * callers of `copy` and `paste`.
  *
- * Internal-paste detection (preserved from the POC, including its failure mode):
+ * Internal-paste detection:
  * `lastCopied` stores the copied grid, its origin, and the exact serialized text.
  * On paste the incoming clipboard text is compared against that stored text — a
  * match means internal, so relative refs get shifted; anything else is treated as
  * external and pastes values only.
  *
  * Known edge case: copying identical text from another application between an
- * internal copy and paste is misread as internal. Accepted, as in the POC.
+ * internal copy and paste is misread as internal. Accepted.
  *
- * Also preserved: paste aligns from the target's top-left corner with NO shape
- * validation against the source.
+ * Paste aligns from the target's top-left corner with NO shape validation
+ * against the source.
  */
 import { useCallback, useRef, useState } from "react";
 import { shiftFormulaRefs } from "../formula/refs.js";

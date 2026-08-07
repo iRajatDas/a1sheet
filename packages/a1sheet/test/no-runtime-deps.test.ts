@@ -1,10 +1,11 @@
 /**
- * Architectural guards. These enforce two constraints that are easy to violate
+ * Architectural guards. These enforce constraints that are easy to violate
  * accidentally and expensive to discover later:
  *
  *   1. Zero runtime dependencies.
  *   2. No React outside src/react/, so the "." entrypoint stays usable in plain
  *      JS, Node, and Workers.
+ *   3. The published React bundle declares "use client" as its first statement.
  */
 import { describe, expect, test } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
@@ -12,6 +13,7 @@ import { join } from "node:path";
 import pkg from "../package.json" with { type: "json" };
 
 const SRC = join(import.meta.dir, "..", "src");
+const DIST = join(import.meta.dir, "..", "dist");
 
 async function sourceFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
@@ -63,5 +65,34 @@ describe("exports map", () => {
   test("every subpath points at a file that the build will emit", () => {
     const exports = pkg.exports as Record<string, unknown>;
     expect(Object.keys(exports)).toEqual([".", "./react", "./package.json"]);
+  });
+});
+
+/**
+ * Only meaningful once `bun run build` has run, so these skip rather than fail
+ * on a clean checkout. Bundling buries the per-module directives mid-file, where
+ * a directive is just a string expression and does nothing — the build hoists
+ * one to the top, and that is what an RSC consumer reads.
+ */
+describe("the built bundles", () => {
+  async function built(path: string): Promise<string | null> {
+    try {
+      return await readFile(join(DIST, path), "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  test("the React entry declares 'use client' first", async () => {
+    const js = await built(join("react", "index.js"));
+    if (js === null) return;
+    expect(js.split("\n")[0]).toBe('"use client";');
+  });
+
+  test("the framework-agnostic entry does not", async () => {
+    // It has to stay importable from a server component and a Worker.
+    const js = await built("index.js");
+    if (js === null) return;
+    expect(js.split("\n")[0]).not.toBe('"use client";');
   });
 });

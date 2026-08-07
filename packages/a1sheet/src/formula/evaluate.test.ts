@@ -55,7 +55,7 @@ describe("comparisons", () => {
     expect(evalOne(formula)).toBe(expected);
   });
 
-  test("<> works end to end (was silently broken in the POC)", () => {
+  test("<> works end to end", () => {
     expect(evalOne("=A1<>A2", GRID)).toBe(1);
     expect(evalOne("=A1<>A1", GRID)).toBe(0);
   });

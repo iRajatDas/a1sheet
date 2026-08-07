@@ -321,8 +321,7 @@ try {
 packages/a1sheet/     the library
 examples/vite-react/  dev playground, aliased to src (no rebuild needed)
 examples/storybook/   every use case as a story, also aliased to src
-ref/                  the original POC — frozen, reference only, never imported
-docs/                 LIMITATIONS.md and the architecture spec
+docs/                 LIMITATIONS.md
 ```
 
 ## Development
@@ -337,8 +336,8 @@ bun run dev        # example app
 bun run storybook  # every use case, on :6006
 ```
 
-`bun run storybook` is the documentation — 12 docs pages and 49 interactive
-stories, aliased straight to `src` so an edit shows up without a build:
+`bun run storybook` is the documentation — 12 pages and 49 interactive stories,
+aliased straight to `src` so an edit shows up without a build:
 
 | Section | What is in it |
 |---|---|
@@ -359,9 +358,6 @@ whoever opened the docs.
 
 ## Architecture
 
-Full design in
-[`docs/superpowers/specs/2026-08-05-a1sheet-architecture-design.md`](docs/superpowers/specs/2026-08-05-a1sheet-architecture-design.md).
-
 The parts worth knowing before editing:
 
 - **Cell addressing is `"${row}_${col}"`,** zero-indexed. `cells` (raw text,
@@ -379,8 +375,6 @@ The parts worth knowing before editing:
 
 ## What works
 
-Everything from the POC is ported, typed, and under test.
-
 - **Grid** — CSS Grid with row and column virtualization, sticky freeze panes,
   merged cells, row and column resize with double-click auto-fit,
   row/column/sheet renaming, hidden rows.
@@ -388,7 +382,7 @@ Everything from the POC is ported, typed, and under test.
   navigation, Delete to clear, drag-select that auto-scrolls at the edges,
   Ctrl+click multi-select, and a keyboard route to all of it (see
   [Keyboard](#keyboard)).
-- **Formulas** — ~90 functions including the dynamic-array set (`LET`, `LAMBDA`,
+- **Formulas** — over 100 functions including the dynamic-array set (`LET`, `LAMBDA`,
   `MAP`, `SORT`, `UNIQUE`, `FILTER`, `HSTACK`, `XLOOKUP`), array values that
   spill, elementwise operators, structured table references, cross-sheet
   references, defined names holding a formula, `$` anchoring, lazy memoized
@@ -438,7 +432,7 @@ returning one spills into the cells beside it; `LET`, `LAMBDA`, `MAP`, `SORT`,
 `UNIQUE`, `FILTER`, `XLOOKUP` and the rest of the modern set work, as do
 structured table references, cross-sheet references, and defined names that hold
 a formula. `OFFSET` and `INDIRECT` build a reference rather than read one, so
-they work too. About 90 functions against Excel's several hundred.
+they work too. Over 100 functions against Excel's several hundred.
 
 The volatile functions — `RAND`, `RANDBETWEEN`, `TODAY`, `NOW` — depend on no
 cell, so nothing on the sheet can say when they are stale. As in Excel they are
@@ -459,13 +453,10 @@ name — its appearance is flattened onto the cells at import, so re-declaring o
 would paint it twice — and colours are written as literal RGB rather than through
 a theme.
 
-Every gap is listed with the extension point where the work would start:
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
-
 ## Limitations
 
-Intentional scope cuts, with the extension point for each:
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
+Every gap is an intentional scope cut, listed with the extension point where the
+work would start: [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 ## License
 

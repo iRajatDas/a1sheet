@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Aggregate stats for the current selection. Ported from
- * ref/Spreadsheet.jsx:699-714.
+ * Aggregate stats for the current selection.
  *
  * This is the ONLY consumer of `extraRanges` (Ctrl+click multi-select). Copy,
  * fill, and paste all ignore it and act on the primary selection.

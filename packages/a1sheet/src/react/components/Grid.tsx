@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The cell grid. Ported from the grid JSX in ref/Spreadsheet.jsx:568-698.
+ * The cell grid.
  *
  * Non-negotiable mechanics:
  * - CSS Grid, not flexbox. Merged cells need gridColumn/gridRow spans, and sticky
@@ -22,7 +22,7 @@
  * - The scrollbars are ours, in channels of their own to the right of and below
  *   the scroll container, which hides its native ones. See `Scrollbar` for why.
  * - Freeze panes are `position: sticky` inside ONE scrolling container. A
- *   4-quadrant split with synced scrollLeft was considered and rejected in the POC.
+ *   4-quadrant split with synced scrollLeft was considered and rejected.
  *   `stickyStyleFor` computes top/left/zIndex; the corner takes the highest z.
  *   Offsets come from the cumulative tables in `useRowWindow`/`useColWindow`,
  *   so they hold whatever the row heights and column widths are.

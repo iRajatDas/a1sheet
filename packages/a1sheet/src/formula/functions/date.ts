@@ -1,5 +1,5 @@
 /**
- * Date functions. Ported from ref/formulaEngine.js:216-221.
+ * Date functions.
  *
  * These speak day serials, which are Excel's day serials — see `src/serial.ts`
  * for what that means and why the 1900 leap year is a lie.

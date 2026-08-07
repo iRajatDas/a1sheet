@@ -1,5 +1,5 @@
 /**
- * Layout constants. Ported from ref/Spreadsheet.jsx:22-27.
+ * Layout constants.
  *
  * ROW_HEIGHT and DEFAULT_COL_WIDTH are defaults, not assumptions: a row or
  * column with an entry in `rowHeights`/`colWidths` overrides them, and both

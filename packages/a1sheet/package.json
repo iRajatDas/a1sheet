@@ -1,6 +1,6 @@
 {
   "name": "a1sheet",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Zero-dependency React spreadsheet component with Excel (XLSX) and CSV read/write, formulas, and an editable grid.",
   "keywords": [
     "react",
@@ -18,11 +18,13 @@
     "ooxml"
   ],
   "license": "MIT",
+  "author": "Rajat Das",
   "type": "module",
   "sideEffects": false,
   "files": [
     "dist",
     "README.md",
+    "LICENSE",
     "THIRD-PARTY-NOTICES.md"
   ],
   "exports": {

@@ -2,11 +2,10 @@
 
 /**
  * Right-click menu: insert/delete row or column, clear contents, clear
- * formatting, lock/unlock, copy, paste. Ported from the context menu JSX in
- * ref/Spreadsheet.jsx.
+ * formatting, lock/unlock, copy, paste.
  *
  * Its copy and paste items route through `api.clipboard` rather than
- * reimplementing the shift-refs decision, which is what the POC did.
+ * reimplementing the shift-refs decision.
  * `navigator.clipboard` needs permission and can reject, so failures fall back to
  * a status message pointing at Ctrl+C/V.
  */

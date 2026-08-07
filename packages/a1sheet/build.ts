@@ -7,10 +7,15 @@
  *
  * `splitting` keeps shared model/formula code in one chunk so a consumer
  * importing both entrypoints does not get two copies.
+ *
+ * It also copies the repository README and LICENSE into the package, because npm
+ * reads the ones beside package.json. Kept generated rather than checked in: two
+ * copies of the same document drift, and the stale one is the one that ships.
  */
-import { rm } from "node:fs/promises";
+import { copyFile, rm } from "node:fs/promises";
 
 const OUT = "dist";
+const COPIED = ["README.md", "LICENSE"];
 
 /**
  * Bun's transpiler picks react/jsx-dev-runtime unless NODE_ENV is production,
@@ -58,6 +63,24 @@ const tsc = Bun.spawnSync({
 });
 
 if (tsc.exitCode !== 0) process.exit(tsc.exitCode ?? 1);
+
+for (const name of COPIED) await copyFile(`../../${name}`, name);
+
+/**
+ * Hoist `"use client"` to the top of the React bundle.
+ *
+ * Every source module under `src/react` declares it, but bundling leaves those
+ * copies buried mid-file, where a directive is just a string expression and does
+ * nothing. React Server Components read only the FIRST statement of a module, so
+ * without this an App Router consumer importing `a1sheet/react` from a server
+ * component gets hooks treated as server code.
+ *
+ * Only this entry gets it. The shared chunk holds the framework-agnostic model,
+ * which the "." entry also imports and which must stay usable on a server.
+ */
+const REACT_ENTRY = `${OUT}/react/index.js`;
+const entry = await Bun.file(REACT_ENTRY).text();
+await Bun.write(REACT_ENTRY, `"use client";\n${entry}`);
 
 const bytes = result.outputs
   .filter((o) => o.path.endsWith(".js"))

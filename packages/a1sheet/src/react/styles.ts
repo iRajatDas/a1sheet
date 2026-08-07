@@ -1,6 +1,6 @@
 /**
  * The single stylesheet, emitted as a string into one `<style>` tag by
- * `<Spreadsheet />`. Ported from the `<style>` block in ref/Spreadsheet.jsx.
+ * `<Spreadsheet />`.
  *
  * Not a `.css` file on purpose: a CSS import would force consumers to have a CSS
  * loader configured, breaking the drop-in requirement. Class names are prefixed

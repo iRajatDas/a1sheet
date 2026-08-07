@@ -2,8 +2,6 @@
 
 /**
  * Sheet tab strip: switch, add, delete, and rename (double-click) sheets.
- * Ported from the sheet tab JSX in ref/Spreadsheet.jsx.
- *
  * Renaming shares the `RenamingState` shape with the column and row headers.
  */
 import type { ReactNode } from "react";

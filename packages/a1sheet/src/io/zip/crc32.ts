@@ -1,4 +1,4 @@
-/** CRC-32 for ZIP local headers. Ported from ref/xlsxIO.js:20-25. */
+/** CRC-32 for ZIP local headers. */
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);

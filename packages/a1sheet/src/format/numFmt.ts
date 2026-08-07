@@ -1,5 +1,5 @@
 /**
- * Display formatting. Ported from ref/Spreadsheet.jsx:64-78.
+ * Display formatting.
  *
  * Applied to the *evaluated* value on its way to the screen or to CSV — never to
  * the raw cell content, which stays exactly as the user typed it.

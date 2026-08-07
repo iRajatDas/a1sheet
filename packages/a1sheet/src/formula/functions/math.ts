@@ -1,4 +1,4 @@
-/** Math and statistics functions. Ported from ref/formulaEngine.js:193-200. */
+/** Math and statistics functions. */
 import { flatten, flattenNums, toNumber } from "../values.js";
 import type { FormulaFunction } from "./registry.js";
 

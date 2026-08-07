@@ -13,9 +13,16 @@ coverage/
 .env.local
 
 # large binary test corpus — keep out of the package tarball
-.dual-graph/
 dataset/
 fyi
+
+# agent session state
+.dual-graph/
+CONTEXT.md
+
+# copied from the repository root at build time, so the two cannot drift
+packages/a1sheet/README.md
+packages/a1sheet/LICENSE
 
 # storybook build output
 storybook-static/

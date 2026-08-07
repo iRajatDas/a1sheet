@@ -1,9 +1,8 @@
 /**
  * A1 <-> `{row, col}` conversion and internal cell keys.
  *
- * Ported verbatim from ref/formulaEngine.js:16-35. These are the lowest-level
- * primitives in the library; the formula tokenizer, the XLSX reader/writer, and
- * the grid all depend on them agreeing exactly.
+ * The lowest-level primitives in the library: the formula tokenizer, the XLSX
+ * reader/writer, and the grid all depend on them agreeing exactly.
  */
 import type { CellKey, CellPos, Range } from "./types.js";
 
@@ -30,8 +29,8 @@ export function lettersToCol(s: string): number {
  * "A1", "$A$1", "a1" -> `{row, col}`. Absolute markers are accepted and
  * discarded; use the tokenizer when you need the `$` flags preserved.
  *
- * Returns `{row: 0, col: 0}` for unparseable input rather than throwing —
- * matches the POC, and keeps formula evaluation from blowing up on bad refs.
+ * Returns `{row: 0, col: 0}` for unparseable input rather than throwing, which
+ * keeps formula evaluation from blowing up on a bad reference.
  */
 export function parseCellRef(ref: string): CellPos {
   const m = ref.match(/^\$?([A-Za-z]+)\$?(\d+)$/);

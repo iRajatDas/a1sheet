@@ -1,9 +1,8 @@
 /**
- * XLSX writer. Ported from ref/xlsxIO.js:207-293.
+ * XLSX writer.
  *
- * Takes one entry PER SHEET (the POC's `buildWorkbookXlsx` is plural — a common
- * misreading). Builds a style table shared across ALL sheets, deduped by
- * `styleKey`, then emits fonts, fills, and cellXfs into styles.xml.
+ * Takes one entry PER SHEET. Builds a style table shared across ALL sheets,
+ * deduped by `styleKey`, then emits fonts, fills, and cellXfs into styles.xml.
  *
  * Formula cells are written with BOTH the formula and its cached value, which is
  * what lets Excel show a value before it recalculates.

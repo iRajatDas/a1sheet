@@ -1,13 +1,12 @@
 /**
- * Fill handle drag. Ported from startFillDrag/commitFillDrag in
- * ref/Spreadsheet.jsx.
+ * Fill handle drag.
  *
- * Mechanics preserved from the POC:
+ * Mechanics:
  * - On drag start, snapshot the selection bounds.
  * - The Grid tracks the pointer on `window` and computes the hovered row/col
- *   from raw client coordinates. Per-cell onMouseEnter was tried in the POC and
- *   is unreliable during fast drags — and blind to a pointer held outside the
- *   grid, which is where it sits while the sheet auto-scrolls.
+ *   from raw client coordinates. Per-cell onMouseEnter is unreliable during a
+ *   fast drag — and blind to a pointer held outside the grid, which is where it
+ *   sits while the sheet auto-scrolls.
  * - Commit extends in whichever direction the drag went. A series extrapolates
  *   the way it is read, so filling upward or leftward reads the source in
  *   reverse — otherwise 1, 2, 3 dragged upward continues 4, 5, 6.

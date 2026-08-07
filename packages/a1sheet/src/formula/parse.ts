@@ -1,5 +1,5 @@
 /**
- * Recursive-descent parser. Ported from ref/formulaEngine.js:93-160.
+ * Recursive-descent parser.
  *
  * Precedence, loosest to tightest:
  *   parseCompare (= < > <= >= <>)

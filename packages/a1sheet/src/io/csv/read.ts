@@ -1,5 +1,5 @@
 /**
- * CSV reader. Ported from ref/xlsxIO.js:405-421 and 442-448.
+ * CSV reader.
  *
  * RFC 4180 quoting: `""` inside a quoted field is a literal quote. Bare `\r` is
  * skipped, so CRLF and LF inputs both parse.

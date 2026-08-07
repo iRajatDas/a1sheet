@@ -1,5 +1,5 @@
 /**
- * CSV writer. Ported from ref/xlsxIO.js:422-441.
+ * CSV writer.
  *
  * Writes EVALUATED display values, not raw formulas — a CSV export of `=SUM(A1:A3)`
  * contains the sum. That is the desired behavior for a data interchange format.

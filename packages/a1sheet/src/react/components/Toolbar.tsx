@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Formatting and structure toolbar. Ported from ref/Spreadsheet.jsx:509-542.
+ * Formatting and structure toolbar.
  *
  * Every button is icon-only and carries a `title` and an `aria-label` with the
  * same words, so the tooltip and the accessible name cannot drift.

@@ -1,6 +1,6 @@
 /**
- * XLSX reader. Ported from ref/xlsxIO.js:346-402, with `DOMParser` replaced by the
- * scanner in ./xml.ts so this works outside a browser.
+ * XLSX reader. Uses the scanner in ./xml.ts rather than `DOMParser`, so it
+ * works outside a browser.
  *
  * Returns EVERY sheet, in workbook order. The caller rebuilds full `Sheet` objects
  * from these (`makeSheet` plus an overlay), so imported sheets pick up default

@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Name box plus formula input. Ported from ref/Spreadsheet.jsx:544-562 and
- * `handleNameBoxEnter`.
+ * Name box plus formula input.
  *
  * Name box resolution order on Enter:
  *   1. looks like A1 or A1:B2      -> jump the selection there

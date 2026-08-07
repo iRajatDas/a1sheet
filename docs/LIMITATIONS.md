@@ -1,7 +1,7 @@
 # Limitations
 
-Every item here is an intentional scope cut inherited from the `ref/` POC, not a
-bug. Each names the extension point where the work would start.
+Every item here is an intentional scope cut, not a bug. Each names the extension
+point where the work would start.
 
 ## Formulas
 
@@ -244,34 +244,3 @@ forces a final `1`, so the bar never reverses or overshoots; it can just move
 unevenly.
 → `totalElements` in `src/io/xlsx/read.ts`, `estimatedRows` in
 `src/io/csv/read.ts`.
-
-## Fixed relative to the POC
-
-Three defects were found while porting and fixed rather than carried forward.
-Each has a regression test.
-
-**`<>` never worked.** `ref/formulaEngine.js:80-86` only ever appended `"="` when
-lexing a comparison, so it could not produce the `<>` token. `A1<>B1` lexed as
-`cmp "<"` followed by `cmp ">"`, and `parsePrimary` swallowed the `>` as a literal
-`0` — silently wrong, never an error, while `evalCompare` had a `"<>"` case waiting.
-
-**VLOOKUP and MATCH always matched the first row for text keys.**
-`ref/formulaEngine.js:277` compared with `toNumber(a) === toNumber(b)`, and
-`toNumber` coerces non-numeric text to `0` — so any two text keys compared equal.
-Numeric comparison now requires both sides to actually parse as numbers.
-
-**Cycle detection only caught direct self-reference.** `ctx.getValue` coerces
-through `toNumber`, which flattened the `#CYCLE!` sentinel to `0` one frame up, so
-`A1=A2, A2=A1` silently evaluated to `0`. Cycles now raise an internal signal that
-unwinds through every frame, and each participating cell reports `#CYCLE!`.
-
-Two further deliberate improvements:
-
-**Errors propagate through function arguments.** `=SUM(UNDEFINED_NAME)` returned
-`0` in the POC because `flattenNums` dropped the `#NAME?` string. Error sentinels
-are now checked before a function is called.
-
-**No `DOMParser`.** The POC's XLSX reader used `DOMParser`, which exists only in
-browsers. `src/io/xlsx/xml.ts` is a small scanner instead, so the framework-agnostic
-entrypoint genuinely works in Node and Web Workers — and `readXlsx` is testable
-without a DOM.

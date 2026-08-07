@@ -203,7 +203,13 @@ its widest value, a row to the tallest of its wrapped cells.
 stops the moment you drag it, because an explicit height always wins over a
 measured one. Double-clicking the row divider drops that height and hands the
 row back to its content. Narrowing a column re-wraps and re-measures, so the
-rows below it move too.
+rows below it move too. A merged cell wraps at the merge's full width and grows
+the last row it spans.
+
+Wrapped text is measured in the face your theme draws it in, so restyling the
+grid resizes its rows to match. Give `theme.fontSize` in px: the measurement
+happens during render, where a relative unit has nothing to resolve against, and
+a non-px value falls back to the default size.
 
 Sizes live on the sheet, so they are yours to set and to persist:
 

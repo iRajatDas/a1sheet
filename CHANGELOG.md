@@ -27,6 +27,21 @@ did before.
   `fontSize`). Previously the browser's `normal` applied, which the measurer
   cannot predict. Single-line cells are unaffected; the value was chosen so one
   line at the default size still fills exactly the default row height.
+- **The theme's font is what gets measured.** `theme.fontFamily` and
+  `theme.fontSize` used to be ignored when sizing a wrapped row, which measured
+  the default face and drew another. `Root` now passes its resolved theme's font
+  down, and `useSpreadsheet` takes it as `cellFont` for anyone driving the
+  headless API themselves. Give `fontSize` in px — a relative unit cannot be
+  resolved during render and falls back to the default size.
+- **A merged cell wraps at the merge's width**, not its first column's, and asks
+  only for the height its rows do not already supply between them — so a merge
+  across three columns no longer demands the height of a one-column wrap, and a
+  merge down two rows grows downwards instead of doubling.
+
+**Breaking:** `useRowWindow` takes one options object
+(`{ sheet, scrollTop, viewportHeight, getDisplay, cellFont }`) instead of four
+positional arguments. It is exported for consumers writing their own grid;
+`useSpreadsheet` and the primitives are unaffected.
 
 ### Added (volatile functions, and a way to recalculate)
 

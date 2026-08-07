@@ -67,22 +67,12 @@ needs an interval calling `recalculate()`.
 
 ## Grid
 
-**Wrapped heights are measured against the default font.** A row grows to fit
-its wrapped cells, and a cell's own `bold`, `italic`, and `fontSize` are taken
-into account — but the *theme's* `fontFamily` and `fontSize` are not. The
-measurer needs metrics during render, before there is a cell to read them off,
-so it uses the constants the default theme is built from. Override the theme
-font and a wrapped row can be a line short or a line tall.
-→ `CELL_FONT_SIZE`/`CELL_FONT_STACK` in `src/react/constants.ts`, read by
-`fontOf` in `src/react/useWrapHeights.ts`. Threading the resolved theme into
-`useSpreadsheet` would fix it, at the cost of the headless layer knowing about
-presentation.
-
-**A merged cell does not grow the rows it spans.** Wrapping measures each cell
-against its own column's width, so text in a merge wraps as if the merge were
-one cell wide and the height it asks for is too tall.
-→ `useWrapHeights` would need the merge map to widen the measurement and spread
-the height across the spanned rows.
+**A theme `fontSize` that is not in px is not measured.** Wrapped row heights are
+pixel arithmetic done during render, and `em`, `rem`, and `%` resolve against an
+ancestor that does not exist at that point — so anything other than a px value
+falls back to the default size, and a wrapped row can be a line short or a line
+tall. `fontFamily` has no such restriction.
+→ `themeCellFont` in `src/react/theme.ts`. Give `theme.fontSize` in px.
 
 **Auto-fitting a column samples at most `AUTOFIT_SAMPLE_LIMIT` cells** (2,000)
 and stops. A longer value further down the column stays clipped. The cap exists

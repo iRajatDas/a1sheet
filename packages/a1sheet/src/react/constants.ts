@@ -12,18 +12,33 @@ export const ROW_HEADER_WIDTH = 44;
 export const DEFAULT_COL_WIDTH = 92;
 
 /**
- * The cell's own text metrics, which have to be constants rather than read off
- * the DOM because wrapped row heights are computed during render, before there
- * is a cell to measure.
- *
- * `theme.fontSize` and `theme.fontFamily` default to these two, so the default
- * theme cannot drift from what the measurer assumes. A consumer who overrides
- * either gets wrapped heights computed for the default face — off by a line at
- * worst, and documented in docs/LIMITATIONS.md.
+ * The face cells render in by default. `theme.fontSize` and `theme.fontFamily`
+ * are built from these two, so the default theme cannot drift from what the
+ * wrapped-row measurer assumes.
  */
 export const CELL_FONT_SIZE = 13;
 export const CELL_FONT_STACK =
   'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+
+/**
+ * The base face wrapped text is measured in.
+ *
+ * It has to be passed down rather than read off the DOM: wrapped row heights are
+ * computed during render, before there is a cell to measure. `Root` derives it
+ * from the resolved theme (`themeCellFont`), so overriding the theme font
+ * changes what the measurer assumes along with what the browser draws. A cell's
+ * own `fontSize`, `fontFamily`, `bold`, and `italic` are layered over it.
+ */
+export interface CellFont {
+  readonly family: string;
+  /** In px. Wrapped heights are pixel arithmetic; a relative unit has no meaning here. */
+  readonly size: number;
+}
+
+export const DEFAULT_CELL_FONT: CellFont = {
+  family: CELL_FONT_STACK,
+  size: CELL_FONT_SIZE,
+};
 
 /**
  * Line box as a multiple of the font size. Unitless in CSS on purpose: a cell

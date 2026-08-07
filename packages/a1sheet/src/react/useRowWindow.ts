@@ -27,7 +27,12 @@
  */
 import { useCallback, useMemo } from "react";
 import type { Sheet } from "../model/types.js";
-import { BUFFER_ROWS, HEADER_HEIGHT, ROW_HEIGHT } from "./constants.js";
+import {
+  BUFFER_ROWS,
+  type CellFont,
+  HEADER_HEIGHT,
+  ROW_HEIGHT,
+} from "./constants.js";
 import { useFilterHidden } from "./useFilterHidden.js";
 import { useTextMeasurer } from "./useTextMeasurer.js";
 import { useWrapHeights } from "./useWrapHeights.js";
@@ -71,17 +76,27 @@ export interface UseRowWindowResult {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/**
- * A row is filter-hidden when any filtered column's allowed-value set does not
- * contain that row's displayed value for the column. `getDisplay` is passed in
- * rather than the evaluator so this hook stays independent of formula concerns.
- */
-export function useRowWindow(
-  sheet: Sheet,
-  scrollTop: number,
-  viewportHeight: number,
-  getDisplay: (row: number, col: number) => string,
-): UseRowWindowResult {
+export interface RowWindowInput {
+  sheet: Sheet;
+  scrollTop: number;
+  viewportHeight: number;
+  /**
+   * A row is filter-hidden when any filtered column's allowed-value set does not
+   * contain that row's displayed value for the column. Passed in rather than the
+   * evaluator so this hook stays independent of formula concerns.
+   */
+  getDisplay(row: number, col: number): string;
+  /** The face cells are drawn in, which is what wrapped text is measured against. */
+  cellFont: CellFont;
+}
+
+export function useRowWindow({
+  sheet,
+  scrollTop,
+  viewportHeight,
+  getDisplay,
+  cellFont,
+}: RowWindowInput): UseRowWindowResult {
   const frozenRows = sheet.frozenRows || 0;
 
   // Filter exclusions are cached and incrementally maintained — see the hook.
@@ -107,7 +122,12 @@ export function useRowWindow(
   // What each row's wrapped cells need. An empty map when nothing wraps, and the
   // same empty map every render, so the offset tables below stay memoized.
   const measureText = useTextMeasurer();
-  const wrapHeights = useWrapHeights(sheet, getDisplay, measureText);
+  const wrapHeights = useWrapHeights({
+    sheet,
+    getDisplay,
+    measure: measureText,
+    base: cellFont,
+  });
 
   const rowHeight = useCallback(
     (row: number) => sheet.rowHeights[row] ?? wrapHeights.get(row) ?? ROW_HEIGHT,

@@ -27,7 +27,7 @@ import type { Workbook } from "../model/types.js";
 import { HEADER_HEIGHT } from "./constants.js";
 import { SheetContextProvider, useSheetUiState } from "./context.js";
 import { buildCss } from "./styles.js";
-import { resolveTheme, type Theme } from "./theme.js";
+import { resolveTheme, type Theme, themeCellFont } from "./theme.js";
 import { type UseSpreadsheetResult, useSpreadsheet } from "./useSpreadsheet.js";
 
 /**
@@ -75,13 +75,17 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
   },
   forwardedRef,
 ) {
+  const theme = resolveTheme(themeOverride);
+
+  // Resolved before the hook, not after: wrapped rows are sized by measuring
+  // text in this face, and the measurement happens during the same render.
   const api = useSpreadsheet({
     ...(defaultWorkbook ? { initialWorkbook: defaultWorkbook } : {}),
     ...(workbook ? { workbook } : {}),
     ...(onWorkbookChange ? { onChange: onWorkbookChange } : {}),
+    cellFont: themeCellFont(theme),
   });
 
-  const theme = resolveTheme(themeOverride);
   const prefix = classNamePrefix;
   const ui = useSheetUiState();
   const focusRef = useRef<HTMLTextAreaElement | null>(null);

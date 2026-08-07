@@ -62,10 +62,12 @@ export { SheetTabs } from "./components/SheetTabs.js";
 export { StatusBar } from "./components/StatusBar.js";
 export type { ToolbarProps } from "./components/Toolbar.js";
 export { Toolbar } from "./components/Toolbar.js";
+export type { CellFont } from "./constants.js";
 export {
   ADD_ROWS_DEFAULT,
   ADD_ROWS_MAX,
   BUFFER_ROWS,
+  DEFAULT_CELL_FONT,
   DEFAULT_COL_WIDTH,
   HEADER_HEIGHT,
   ROW_HEADER_WIDTH,
@@ -87,7 +89,7 @@ export { Spreadsheet } from "./Spreadsheet.js";
 export { buildCss } from "./styles.js";
 export type { Theme } from "./theme.js";
 // Theming.
-export { defaultTheme, resolveTheme } from "./theme.js";
+export { defaultTheme, resolveTheme, themeCellFont } from "./theme.js";
 // View types.
 export type {
   AsChildProps,

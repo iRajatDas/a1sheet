@@ -24,6 +24,7 @@ import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
 import type { Range, StyleObject, Workbook } from "../model/types.js";
 import { listLiterals } from "../model/validation.js";
+import { type CellFont, DEFAULT_CELL_FONT } from "./constants.js";
 import { type UseClipboardResult, useClipboard } from "./useClipboard.js";
 import { type UseColWindowResult, useColWindow } from "./useColWindow.js";
 import { type UseEditingResult, useEditing } from "./useEditing.js";
@@ -41,6 +42,14 @@ export interface UseSpreadsheetOptions {
   workbook?: Workbook;
   onChange?: (wb: Workbook) => void;
   initialSelection?: Range;
+  /**
+   * The face cells are drawn in. Wrapped text is measured against it to work out
+   * how tall a row has to be, and that has to happen during render, before any
+   * cell exists to read metrics off — hence a value in rather than a lookup.
+   *
+   * `Root` passes its resolved theme's font. Defaults to the default theme's.
+   */
+  cellFont?: CellFont;
 }
 
 export interface UseSpreadsheetResult
@@ -306,7 +315,22 @@ export function useSpreadsheet(
     [wb.sheet.condFormats, evaluator],
   );
 
-  const rowWindow = useRowWindow(wb.sheet, scrollTop, viewportHeight, getDisplay);
+  // Held by value, not by reference: a caller passing an object literal every
+  // render would otherwise throw away every wrapped-cell measurement each time.
+  const fontFamily = opts.cellFont?.family ?? DEFAULT_CELL_FONT.family;
+  const fontSize = opts.cellFont?.size ?? DEFAULT_CELL_FONT.size;
+  const cellFont = useMemo<CellFont>(
+    () => ({ family: fontFamily, size: fontSize }),
+    [fontFamily, fontSize],
+  );
+
+  const rowWindow = useRowWindow({
+    sheet: wb.sheet,
+    scrollTop,
+    viewportHeight,
+    getDisplay,
+    cellFont,
+  });
   const colWindow = useColWindow(wb.sheet, scrollLeft, viewportWidth);
 
   const setCell = useCallback(

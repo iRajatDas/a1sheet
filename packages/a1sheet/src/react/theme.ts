@@ -5,7 +5,12 @@
  * than a `.css` file — that is what keeps the drop-in requirement true (no CSS
  * loader needed in the consuming app). This object is the restyling surface.
  */
-import { CELL_FONT_SIZE, CELL_FONT_STACK } from "./constants.js";
+import {
+  CELL_FONT_SIZE,
+  CELL_FONT_STACK,
+  type CellFont,
+  DEFAULT_CELL_FONT,
+} from "./constants.js";
 
 export interface Theme {
   accent: string;
@@ -55,8 +60,6 @@ export const defaultTheme: Theme = {
   scrollbarTrack: "#f1f3f4",
   scrollbarThumb: "#c4c7c5",
   scrollbarThumbHover: "#9aa0a6",
-  // From constants.ts, because the wrapped-row measurer assumes these two and
-  // has no cell to read them off during render.
   fontFamily: CELL_FONT_STACK,
   monoFontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
   fontSize: `${CELL_FONT_SIZE}px`,
@@ -64,4 +67,23 @@ export const defaultTheme: Theme = {
 
 export function resolveTheme(partial?: Partial<Theme>): Theme {
   return partial ? { ...defaultTheme, ...partial } : defaultTheme;
+}
+
+const PX_SIZE = /^\s*(\d+(?:\.\d+)?)px\s*$/;
+
+/**
+ * The face this theme draws cells in, as the wrapped-row measurer needs it.
+ *
+ * Only a px `fontSize` can be honoured: `em`, `rem`, and `%` resolve against an
+ * ancestor that does not exist yet at measuring time, so those fall back to the
+ * default size — a wrapped row can then be a line off. Give `fontSize` in px and
+ * the measurement matches what the browser draws.
+ */
+export function themeCellFont(theme: Theme): CellFont {
+  const match = PX_SIZE.exec(theme.fontSize);
+  const size = match ? Number(match[1]) : DEFAULT_CELL_FONT.size;
+  return {
+    family: theme.fontFamily || DEFAULT_CELL_FONT.family,
+    size: size > 0 ? size : DEFAULT_CELL_FONT.size,
+  };
 }

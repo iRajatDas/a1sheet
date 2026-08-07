@@ -12,6 +12,38 @@ export const ROW_HEADER_WIDTH = 44;
 export const DEFAULT_COL_WIDTH = 92;
 
 /**
+ * The cell's own text metrics, which have to be constants rather than read off
+ * the DOM because wrapped row heights are computed during render, before there
+ * is a cell to measure.
+ *
+ * `theme.fontSize` and `theme.fontFamily` default to these two, so the default
+ * theme cannot drift from what the measurer assumes. A consumer who overrides
+ * either gets wrapped heights computed for the default face — off by a line at
+ * worst, and documented in docs/LIMITATIONS.md.
+ */
+export const CELL_FONT_SIZE = 13;
+export const CELL_FONT_STACK =
+  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+
+/**
+ * Line box as a multiple of the font size. Unitless in CSS on purpose: a cell
+ * with a larger `fontSize` then gets a proportionally taller line without the
+ * measurement and the rendering having to agree on a pixel value separately.
+ */
+export const CELL_LINE_RATIO = 1.3;
+
+/** Total horizontal padding inside a cell — the width wrapping cannot use. */
+export const CELL_PADDING_X = 12;
+
+/**
+ * Space above and below the text. Chosen so one line at the default size fills
+ * exactly ROW_HEIGHT: 13 × 1.3 rounds to 17, and 17 + 9 is 26. A wrapped row is
+ * therefore the default height plus one line box per extra line, which is what
+ * makes growth look like Sheets rather than like a jump.
+ */
+export const CELL_PADDING_Y = 9;
+
+/**
  * Floors for a resize drag. Small enough to be useful for a spacer row or
  * column, large enough that the grabber for the next resize is still catchable
  * — a track dragged to zero cannot be dragged back.

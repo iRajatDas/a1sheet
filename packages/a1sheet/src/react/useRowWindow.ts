@@ -13,11 +13,13 @@
  *          single spacer item ahead of the window supplies the missing distance
  *          in one go — `leadingSpace` — and the rows below follow in order.
  *
- * Heights come from `sheet.rowHeights`, defaulting to ROW_HEIGHT. While that
- * map is empty every offset is `index * ROW_HEIGHT`, and the hook skips
- * building an offset table at all; a hundred-thousand-row sheet should not pay
- * for a feature it is not using. Once any row is resized the table appears and
- * lookups become a binary search.
+ * Heights come from `sheet.rowHeights`, then from what a wrapped cell in the row
+ * needs (`useWrapHeights`), then from ROW_HEIGHT. An explicit height wins over a
+ * measured one, so dragging a row stops it growing with its content — as in
+ * Excel and Sheets. While BOTH are empty every offset is `index * ROW_HEIGHT`,
+ * and the hook skips building an offset table at all; a hundred-thousand-row
+ * sheet should not pay for a feature it is not using. Once any row is resized or
+ * wraps, the table appears and lookups become a binary search.
  *
  * Frozen rows are a SEPARATE always-rendered band and are assumed never hidden.
  * Adding column hiding, or allowing frozen rows to be filtered out, means
@@ -27,6 +29,8 @@ import { useCallback, useMemo } from "react";
 import type { Sheet } from "../model/types.js";
 import { BUFFER_ROWS, HEADER_HEIGHT, ROW_HEIGHT } from "./constants.js";
 import { useFilterHidden } from "./useFilterHidden.js";
+import { useTextMeasurer } from "./useTextMeasurer.js";
+import { useWrapHeights } from "./useWrapHeights.js";
 
 /** An absolute row index paired with the CSS grid line it renders on. */
 export interface WindowRow {
@@ -45,7 +49,10 @@ export interface UseRowWindowResult {
   frozenRowsList: WindowRow[];
   /** Index into `visibleRows` where `windowRows` begins. */
   startVisual: number;
-  /** Height of one row, falling back to the default. */
+  /**
+   * Height of one row: its explicit height, else what its wrapped content needs,
+   * else the default.
+   */
   rowHeight(row: number): number;
   /**
    * Distance from below the column header to the top of a row, hidden rows
@@ -97,15 +104,24 @@ export function useRowWindow(
     return out;
   }, [frozenRows, sheet.numRows, effectiveHiddenRows]);
 
+  // What each row's wrapped cells need. An empty map when nothing wraps, and the
+  // same empty map every render, so the offset tables below stay memoized.
+  const measureText = useTextMeasurer();
+  const wrapHeights = useWrapHeights(sheet, getDisplay, measureText);
+
   const rowHeight = useCallback(
-    (row: number) => sheet.rowHeights[row] ?? ROW_HEIGHT,
-    [sheet.rowHeights],
+    (row: number) => sheet.rowHeights[row] ?? wrapHeights.get(row) ?? ROW_HEIGHT,
+    [sheet.rowHeights, wrapHeights],
   );
 
-  /** True while no row has been resized, which is the overwhelmingly common case. */
+  /**
+   * True while every row is the default height — no row resized and none grown
+   * by wrapping. The overwhelmingly common case, and the one that skips the
+   * offset tables entirely.
+   */
   const uniform = useMemo(
-    () => Object.keys(sheet.rowHeights).length === 0,
-    [sheet.rowHeights],
+    () => Object.keys(sheet.rowHeights).length === 0 && wrapHeights.size === 0,
+    [sheet.rowHeights, wrapHeights],
   );
 
   /** Prefix sums down the frozen band. Small by definition, so always built. */
@@ -113,11 +129,11 @@ export function useRowWindow(
     const out: number[] = [0];
     let y = 0;
     for (let r = 0; r < frozenRows; r++) {
-      y += sheet.rowHeights[r] ?? ROW_HEIGHT;
+      y += rowHeight(r);
       out.push(y);
     }
     return out;
-  }, [frozenRows, sheet.rowHeights]);
+  }, [frozenRows, rowHeight]);
   const frozenHeight = frozenOffsets[frozenRows] ?? 0;
 
   /**
@@ -130,11 +146,11 @@ export function useRowWindow(
     const out: number[] = [0];
     let y = 0;
     for (const r of visibleRows) {
-      y += sheet.rowHeights[r] ?? ROW_HEIGHT;
+      y += rowHeight(r);
       out.push(y);
     }
     return out;
-  }, [uniform, visibleRows, sheet.rowHeights]);
+  }, [uniform, visibleRows, rowHeight]);
 
   /** Top of the nth visible row, relative to the start of the scrollable band. */
   const bandTopAt = useCallback(

@@ -40,6 +40,7 @@ import { colToLetters, normalizeRange } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
 import {
   AUTOFIT_SAMPLE_LIMIT,
+  CELL_PADDING_X,
   HEADER_HEIGHT,
   MAX_AUTOFIT_COL_WIDTH,
   MIN_COL_WIDTH,
@@ -54,8 +55,6 @@ import { Cell } from "./Cell.js";
 import { ChevronDownIcon } from "./icons.js";
 import { Scrollbar } from "./Scrollbar.js";
 
-/** Left and right padding on a cell, from the stylesheet. Auto-fit must clear it. */
-const CELL_PADDING_X = 12;
 /**
  * The room the sort/filter button holds in a column header: a 12px icon plus its
  * 2px margin. Auto-fit adds it to the header's own width, so fitting a column to
@@ -338,10 +337,11 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   );
 
   /**
-   * Auto-fit a row. Cells are single-line — `white-space: nowrap` — so the
-   * height that hugs the content is the default height, whatever the content
-   * is. Dropping the override is therefore the whole operation, and it stays
-   * correct if wrapping is added later only if this is revisited then.
+   * Auto-fit a row, which is still just dropping its explicit height — but for
+   * a different reason than it used to be. `rowHeight` falls back to what the
+   * row's wrapped cells need, so removing the override IS the measurement; an
+   * unwrapped row hugs its single line at the default height, and a wrapped one
+   * springs to however many lines it takes.
    */
   const autoFitRow = api.resetRowHeight;
 

@@ -8,6 +8,26 @@ backfilled.
 
 ## Unreleased
 
+### Fixed (a wrapped cell now grows its row)
+
+`wrap` made text run onto more lines and the row kept the height it had, so
+every line but the first was clipped — the style did the visible half of its job
+and none of the useful half. A row now grows to fit its wrapped cells, as in
+Excel and Sheets, and stops growing the moment you drag it: an explicit height
+wins over a measured one. Auto-fitting a row (double-click its divider) drops
+that height and hands the row back to its content, which is what it always
+claimed to do.
+
+Re-measuring is incremental — keyed on the text, the column width, and the font
+— so an edit costs three comparisons per wrapped cell and measures only what
+moved. A sheet with nothing wrapped allocates nothing and takes the same path it
+did before.
+
+- **Cells declare `line-height: 1.3`** (unitless, so it scales with a cell's own
+  `fontSize`). Previously the browser's `normal` applied, which the measurer
+  cannot predict. Single-line cells are unaffected; the value was chosen so one
+  line at the default size still fills exactly the default row height.
+
 ### Added (volatile functions, and a way to recalculate)
 
 - `RAND()` and `RANDBETWEEN(bottom, top)`.

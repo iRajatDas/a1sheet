@@ -197,8 +197,13 @@ explainErrorValue("#CYCLE!");
 
 Drag the divider on a column header to resize the column, or the one below a row
 header to resize the row. Double-click a divider to auto-fit: a column sizes to
-its widest value, a row returns to the default height — a wrapped cell does not
-yet grow its row, so there is no taller content for a row to hug.
+its widest value, a row to the tallest of its wrapped cells.
+
+**A row grows to fit wrapped text on its own**, as in Excel and Sheets — and
+stops the moment you drag it, because an explicit height always wins over a
+measured one. Double-clicking the row divider drops that height and hands the
+row back to its content. Narrowing a column re-wraps and re-measures, so the
+rows below it move too.
 
 Sizes live on the sheet, so they are yours to set and to persist:
 

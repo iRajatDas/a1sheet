@@ -5,6 +5,8 @@
  * than a `.css` file — that is what keeps the drop-in requirement true (no CSS
  * loader needed in the consuming app). This object is the restyling surface.
  */
+import { CELL_FONT_SIZE, CELL_FONT_STACK } from "./constants.js";
+
 export interface Theme {
   accent: string;
   border: string;
@@ -53,10 +55,11 @@ export const defaultTheme: Theme = {
   scrollbarTrack: "#f1f3f4",
   scrollbarThumb: "#c4c7c5",
   scrollbarThumbHover: "#9aa0a6",
-  fontFamily:
-    'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  // From constants.ts, because the wrapped-row measurer assumes these two and
+  // has no cell to read them off during render.
+  fontFamily: CELL_FONT_STACK,
   monoFontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-  fontSize: "13px",
+  fontSize: `${CELL_FONT_SIZE}px`,
 };
 
 export function resolveTheme(partial?: Partial<Theme>): Theme {

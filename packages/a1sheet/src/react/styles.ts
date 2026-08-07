@@ -6,7 +6,7 @@
  * loader configured, breaking the drop-in requirement. Class names are prefixed
  * so they cannot collide with the host app.
  */
-import { SCROLLBAR_SIZE } from "./constants.js";
+import { CELL_LINE_RATIO, SCROLLBAR_SIZE } from "./constants.js";
 import type { Theme } from "./theme.js";
 
 /** Transparent border around the thumb, leaving a 6px bar in a 14px channel. */
@@ -32,6 +32,10 @@ export function buildCss(prefix: string, t: Theme): string {
   return `
 .${p}cell { border-right: 1px solid ${t.border}; border-bottom: 1px solid ${t.border};
   overflow: hidden; white-space: nowrap; display: flex; align-items: center;
+  /* Unitless, so a cell with its own font-size gets a proportionally taller
+     line — and so the wrapped-height measurer can predict the line box from the
+     font size alone rather than guessing at what "normal" resolves to. */
+  line-height: ${CELL_LINE_RATIO};
   padding: 0 6px; font-size: ${t.fontSize}; font-family: ${t.fontFamily};
   cursor: cell; position: relative; box-sizing: border-box; user-select: none; }
 /* Tints are painted as an overlay, never with the background property.

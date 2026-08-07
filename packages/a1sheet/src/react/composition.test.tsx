@@ -12,7 +12,7 @@ import { MissingProviderError } from "../errors.js";
 import type { Workbook } from "../model/types.js";
 import { createWorkbook } from "../model/workbook.js";
 import { ADD_ROWS_DEFAULT, HEADER_HEIGHT, ROW_HEIGHT } from "./constants.js";
-import { Root, Sheet, type SheetRootHandle, Slot, useSheet } from "./index.js";
+import { Root, Sheet, type SheetRootHandle, Slot, useSheet, Part, darkTheme } from "./index.js";
 
 function workbookWith(cells: Record<string, string>) {
   const wb = createWorkbook(["Sheet1"]);
@@ -292,6 +292,118 @@ describe("file I/O is a primitive, not a preset privilege", () => {
     );
 
     expect(screen.getByText("Save to my server")).toBeDefined();
+  });
+});
+
+describe("theme custom properties", () => {
+  test("root exposes --a1s-accent for host-app styling", () => {
+    const { container } = render(
+      <Sheet.Root theme={{ accent: "#ff00ff" }}>
+        <Sheet.Grid />
+      </Sheet.Root>,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.getPropertyValue("--a1s-accent")).toBe("#ff00ff");
+  });
+
+  test("dark themes set color-scheme so native controls match", () => {
+    const { container } = render(
+      <Sheet.Root theme={darkTheme}>
+        <Sheet.Toolbar>
+          <Sheet.Toolbar.TextColor />
+          <Sheet.Toolbar.FillColor />
+        </Sheet.Toolbar>
+      </Sheet.Root>,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.colorScheme).toBe("dark");
+    expect(container.querySelector(".a1s-colorwell")).not.toBeNull();
+  });
+});
+
+describe("primitive className passthrough", () => {
+  test("Toolbar merges className onto its root", () => {
+    const { container } = render(
+      <Sheet.Root>
+        <Sheet.Toolbar className="my-toolbar" />
+      </Sheet.Root>,
+    );
+    expect(container.querySelector(".my-toolbar")).not.toBeNull();
+  });
+
+  test("Grid merges className onto the frame", () => {
+    const { container } = render(
+      <Sheet.Root>
+        <Sheet.Grid className="my-grid" scrollerClassName="my-scroller" />
+      </Sheet.Root>,
+    );
+    expect(container.querySelector(".my-grid")).not.toBeNull();
+    expect(container.querySelector(".my-scroller")).not.toBeNull();
+  });
+});
+
+describe("cell content slot", () => {
+  test("renderCellContent replaces the default display", () => {
+    const wb = workbookWith({ "0_0": "hello" });
+    const { container } = render(
+      <Sheet.Root defaultWorkbook={wb}>
+        <Sheet.Grid
+          renderCellContent={({ display }) => (
+            <strong data-testid="custom">{display}</strong>
+          )}
+        />
+      </Sheet.Root>,
+    );
+    expect(container.querySelector("[data-testid='custom']")?.textContent).toBe(
+      "hello",
+    );
+  });
+
+  test("components.CellContent applies when Grid has no override", () => {
+    const wb = workbookWith({ "0_0": "there" });
+    const { container } = render(
+      <Sheet.Root
+        defaultWorkbook={wb}
+        components={{
+          CellContent: ({ display }) => (
+            <em data-testid="root-slot">{display}</em>
+          ),
+        }}
+      >
+        <Sheet.Grid />
+      </Sheet.Root>,
+    );
+    expect(container.querySelector("[data-testid='root-slot']")?.textContent).toBe(
+      "there",
+    );
+  });
+
+  test("Grid.renderCellContent wins over components.CellContent", () => {
+    const wb = workbookWith({ "0_0": "x" });
+    const { container } = render(
+      <Sheet.Root
+        defaultWorkbook={wb}
+        components={{
+          CellContent: () => <span data-testid="root">root</span>,
+        }}
+      >
+        <Sheet.Grid
+          renderCellContent={() => <span data-testid="grid">grid</span>}
+        />
+      </Sheet.Root>,
+    );
+    expect(container.querySelector("[data-testid='grid']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='root']")).toBeNull();
+  });
+});
+
+describe("Part primitive", () => {
+  test("renders the default element when asChild is false", () => {
+    const { container } = render(<Part className="part">Hi</Part>);
+    const el = container.firstElementChild as HTMLElement;
+    expect(el.tagName).toBe("DIV");
+    expect(el.className).toBe("part");
+    expect(el.textContent).toBe("Hi");
   });
 });
 

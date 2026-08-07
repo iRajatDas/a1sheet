@@ -6,14 +6,7 @@
  * It composes the primitives in the default arrangement and takes no layout props:
  * no `showToolbar`, no `showStatusBar`. If you want a different arrangement, compose
  * the primitives yourself — that is the supported path, and this component is the
- * shortest possible example of it. Everything below is a child you could move,
- * drop, or replace:
- *
- *   <Sheet.Root defaultWorkbook={wb}>
- *     <Sheet.Toolbar />
- *     <Sheet.Grid />
- *     <MyFooter />
- *   </Sheet.Root>
+ * shortest possible example of it.
  */
 import { forwardRef } from "react";
 import { AddRows } from "./components/AddRows.js";
@@ -34,7 +27,10 @@ export const Spreadsheet = forwardRef<SheetRootHandle, SpreadsheetProps>(
     return (
       <Root {...props} ref={ref}>
         <Toolbar>
+          <Toolbar.Default />
+          <Toolbar.Separator />
           <FileMenu />
+          <Toolbar.Status />
         </Toolbar>
         <FormulaBar />
         <Grid>

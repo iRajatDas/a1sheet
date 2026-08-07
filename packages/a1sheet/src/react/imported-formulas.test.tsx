@@ -134,9 +134,8 @@ describe("the stylesheet", () => {
     const css = buildCss("a1s-", theme);
 
     const cellRule = css.slice(css.indexOf(".a1s-cell {"));
-    expect(cellRule.slice(0, cellRule.indexOf("}"))).toContain(
-      "font-family: BodyFace",
-    );
-    expect(css).not.toContain("font-family: MonoFace");
+    const cellBlock = cellRule.slice(0, cellRule.indexOf("}"));
+    expect(cellBlock).toContain("font-family: BodyFace");
+    expect(cellBlock).not.toContain("MonoFace");
   });
 });

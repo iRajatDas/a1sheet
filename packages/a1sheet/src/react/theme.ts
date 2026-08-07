@@ -4,7 +4,12 @@
  * The component ships its CSS as a string injected into one `<style>` tag rather
  * than a `.css` file — that is what keeps the drop-in requirement true (no CSS
  * loader needed in the consuming app). This object is the restyling surface.
+ *
+ * Each resolved theme also maps to `--a1s-*` custom properties on the root so a
+ * host app (Tailwind and other utility CSS stacks) can reference the same tokens without reaching
+ * into the JS object.
  */
+import type { CSSProperties } from "react";
 import {
   CELL_FONT_SIZE,
   CELL_FONT_STACK,
@@ -44,7 +49,8 @@ export interface Theme {
   fontSize: string;
 }
 
-export const defaultTheme: Theme = {
+/** Alias for the built-in palette. */
+export const lightTheme: Theme = {
   accent: "#0d9488",
   border: "#e2e8f0",
   headerBorder: "#cbd5e1",
@@ -65,8 +71,72 @@ export const defaultTheme: Theme = {
   fontSize: `${CELL_FONT_SIZE}px`,
 };
 
+/** @deprecated Use `lightTheme`. Kept for existing imports. */
+export const defaultTheme: Theme = lightTheme;
+
+/**
+ * Dark palette as a partial — pass to `theme` on Root or merge with
+ * `resolveTheme`. There is no dark-mode boolean; a theme is values.
+ */
+export const darkTheme: Partial<Theme> = {
+  accent: "#2dd4bf",
+  border: "#1e293b",
+  headerBorder: "#334155",
+  freezeLine: "#64748b",
+  buttonBorder: "#334155",
+  headerBg: "#0f172a",
+  headerText: "#94a3b8",
+  cellBg: "#0b1220",
+  cellText: "#e2e8f0",
+  selectedBg: "rgba(45, 212, 191, 0.16)",
+  toolbarBg: "#0f172a",
+  scrollbarTrack: "#0f172a",
+  scrollbarThumb: "#334155",
+  scrollbarThumbHover: "#475569",
+};
+
 export function resolveTheme(partial?: Partial<Theme>): Theme {
-  return partial ? { ...defaultTheme, ...partial } : defaultTheme;
+  return partial ? { ...lightTheme, ...partial } : lightTheme;
+}
+
+/** Whether native controls (color wells, selects) should use dark chrome. */
+export function themeColorScheme(theme: Theme): "light" | "dark" {
+  const hex = theme.cellBg.trim();
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return "light";
+  const n = Number.parseInt(match[1]!, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.45 ? "dark" : "light";
+}
+
+/** CSS custom properties for the resolved theme, for inline style on the root. */
+export function themeCssVars(theme: Theme): CSSProperties {
+  const vars: Record<string, string> = {
+    "--a1s-accent": theme.accent,
+    "--a1s-border": theme.border,
+    "--a1s-header-border": theme.headerBorder,
+    "--a1s-freeze-line": theme.freezeLine,
+    "--a1s-button-border": theme.buttonBorder,
+    "--a1s-header-bg": theme.headerBg,
+    "--a1s-header-text": theme.headerText,
+    "--a1s-cell-bg": theme.cellBg,
+    "--a1s-cell-text": theme.cellText,
+    "--a1s-selected-bg": theme.selectedBg,
+    "--a1s-toolbar-bg": theme.toolbarBg,
+    "--a1s-scrollbar-track": theme.scrollbarTrack,
+    "--a1s-scrollbar-thumb": theme.scrollbarThumb,
+    "--a1s-scrollbar-thumb-hover": theme.scrollbarThumbHover,
+    "--a1s-font-family": theme.fontFamily,
+    "--a1s-mono-font-family": theme.monoFontFamily,
+    "--a1s-font-size": theme.fontSize,
+  };
+  theme.refColors.forEach((color, index) => {
+    vars[`--a1s-ref-color-${index}`] = color;
+  });
+  return vars as CSSProperties;
 }
 
 const PX_SIZE = /^\s*(\d+(?:\.\d+)?)px\s*$/;

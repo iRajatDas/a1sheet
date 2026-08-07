@@ -27,9 +27,39 @@ const SCROLLBAR_THUMB_INSET = 4;
  * resize grabber at 6 inside a header is scoped to that header and does not
  * compete with anything here.
  */
+/** Custom properties mirrored on `.${prefix}root` for host-app styling. */
+function themeVarBlock(prefix: string, t: Theme): string {
+  const p = prefix;
+  const refVars = t.refColors
+    .map((color, i) => `  --a1s-ref-color-${i}: ${color};`)
+    .join("\n");
+  return `
+.${p}root {
+  --a1s-accent: ${t.accent};
+  --a1s-border: ${t.border};
+  --a1s-header-border: ${t.headerBorder};
+  --a1s-freeze-line: ${t.freezeLine};
+  --a1s-button-border: ${t.buttonBorder};
+  --a1s-header-bg: ${t.headerBg};
+  --a1s-header-text: ${t.headerText};
+  --a1s-cell-bg: ${t.cellBg};
+  --a1s-cell-text: ${t.cellText};
+  --a1s-selected-bg: ${t.selectedBg};
+  --a1s-toolbar-bg: ${t.toolbarBg};
+  --a1s-scrollbar-track: ${t.scrollbarTrack};
+  --a1s-scrollbar-thumb: ${t.scrollbarThumb};
+  --a1s-scrollbar-thumb-hover: ${t.scrollbarThumbHover};
+  --a1s-font-family: ${t.fontFamily};
+  --a1s-mono-font-family: ${t.monoFontFamily};
+  --a1s-font-size: ${t.fontSize};
+${refVars}
+}`;
+}
+
 export function buildCss(prefix: string, t: Theme): string {
   const p = prefix;
   return `
+${themeVarBlock(p, t)}
 .${p}cell { border-right: 1px solid ${t.border}; border-bottom: 1px solid ${t.border};
   overflow: hidden; white-space: nowrap; display: flex; align-items: center;
   /* Unitless, so a cell with its own font-size gets a proportionally taller
@@ -120,6 +150,16 @@ export function buildCss(prefix: string, t: Theme): string {
 /* Square, so a row of icon buttons reads as a row rather than as a ragged
    set of differently-proportioned boxes. */
 .${p}iconbtn { padding: 6px; }
+/* Native color wells — without this, WebKit paints a white frame around the swatch
+   on dark themes regardless of the toolbar background. */
+.${p}colorwell { width: 28px; height: 28px; padding: 0; margin: 0;
+  border: 1px solid ${t.buttonBorder}; border-radius: 6px; background: ${t.toolbarBg};
+  cursor: pointer; flex-shrink: 0; box-sizing: border-box; }
+.${p}colorwell::-webkit-color-swatch-wrapper { padding: 3px; }
+.${p}colorwell::-webkit-color-swatch { border: 1px solid ${t.buttonBorder};
+  border-radius: 4px; }
+.${p}colorwell::-moz-color-swatch { border: 1px solid ${t.buttonBorder};
+  border-radius: 4px; }
 /* The dropdown affordance on a cell with a data-validation list. Sits at the
    right edge, inside the cell, and never over the fill handle's corner. */
 .${p}dropdown { position: absolute; right: 1px; top: 50%;
@@ -148,6 +188,7 @@ export function buildCss(prefix: string, t: Theme): string {
 .${p}sep { display: inline-block; width: 1px; height: 20px; background: ${t.border}; }
 .${p}input { font-size: ${t.fontSize}; padding: 4px 8px; border: 1px solid ${t.buttonBorder};
   border-radius: 6px; background: ${t.cellBg}; color: ${t.cellText}; }
+select.${p}btn { background: ${t.toolbarBg}; color: ${t.cellText}; }
 
 /* The native scrollbars are hidden and replaced. See Scrollbar.tsx for why:
    in short, they are overlay bars on macOS and mobile, so they sit on top of
@@ -180,5 +221,11 @@ export function buildCss(prefix: string, t: Theme): string {
 .${p}sbar-vertical .${p}sbthumb { width: 100%; }
 .${p}sbar-horizontal .${p}sbthumb { height: 100%; }
 .${p}sbthumb:hover, .${p}sbthumb.${p}on { background: ${t.scrollbarThumbHover}; }
+@media (pointer: coarse) {
+  .${p}fillhandle { width: 14px; height: 14px; right: -6px; bottom: -6px; }
+  .${p}resize { width: 14px; right: -6px; }
+  .${p}rowresize { height: 14px; bottom: -6px; }
+  .${p}headmenu { visibility: visible; }
+}
 `.trim();
 }

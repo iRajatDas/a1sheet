@@ -89,7 +89,7 @@ is wrong even if it passes tests.
 
 ## 0. The rule that overrides the rest
 
-**Compose, do not configure.** shadcn/ui is the target pattern — the consumer
+**Compose, do not configure.** Radix-style headless composition is the target pattern — the consumer
 assembles primitives and owns the layout; the library never does.
 
 ```tsx

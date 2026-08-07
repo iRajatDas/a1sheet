@@ -28,6 +28,8 @@ import {
 } from "../../model/sheet.js";
 import type { Sheet as SheetModel } from "../../model/types.js";
 import { useSheetContext } from "../context.js";
+import { mergeClass } from "../primitives/mergeClass.js";
+import type { PrimitiveProps } from "../primitives/types.js";
 import { ExportIcon, ImportIcon } from "./icons.js";
 
 const PERCENT = 100;
@@ -36,7 +38,9 @@ function percent(ratio: number): string {
   return `${Math.round(ratio * PERCENT)}%`;
 }
 
-export function FileMenu(): ReactNode {
+export interface FileMenuProps extends PrimitiveProps {}
+
+export function FileMenu({ className, style }: FileMenuProps = {}): ReactNode {
   const { api, prefix } = useSheetContext("Sheet.FileMenu");
   const { sheet } = api;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -107,7 +111,10 @@ export function FileMenu(): ReactNode {
   );
 
   return (
-    <>
+    <span
+      className={mergeClass(`${prefix}filemenu`, className)}
+      style={{ display: "contents", ...style }}
+    >
       <button
         type="button"
         className={`${prefix}btn`}
@@ -168,6 +175,6 @@ export function FileMenu(): ReactNode {
         <ExportIcon />
         Export XLSX
       </button>
-    </>
+    </span>
   );
 }

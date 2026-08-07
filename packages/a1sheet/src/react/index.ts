@@ -50,15 +50,22 @@ export const Sheet = {
 } as const;
 
 export { AddRows } from "./components/AddRows.js";
+export type { AddRowsProps } from "./components/AddRows.js";
 export type { CellProps } from "./components/Cell.js";
 export { Cell } from "./components/Cell.js";
+export type { ColumnMenuProps } from "./components/ColumnMenu.js";
 export { ColumnMenu } from "./components/ColumnMenu.js";
+export type { ContextMenuProps } from "./components/ContextMenu.js";
 export { ContextMenu } from "./components/ContextMenu.js";
+export type { FileMenuProps } from "./components/FileMenu.js";
 export { FileMenu } from "./components/FileMenu.js";
+export type { FormulaBarProps } from "./components/FormulaBar.js";
 export { FormulaBar } from "./components/FormulaBar.js";
 export type { GridProps } from "./components/Grid.js";
 export { Grid } from "./components/Grid.js";
+export type { SheetTabsProps } from "./components/SheetTabs.js";
 export { SheetTabs } from "./components/SheetTabs.js";
+export type { StatusBarProps } from "./components/StatusBar.js";
 export { StatusBar } from "./components/StatusBar.js";
 export type { ToolbarProps } from "./components/Toolbar.js";
 export { Toolbar } from "./components/Toolbar.js";
@@ -79,6 +86,14 @@ export { useSheet, useSheetContext } from "./context.js";
 export type { SheetRootHandle, SheetRootProps } from "./Root.js";
 // Also exported individually, for named imports and tree-shaking clarity.
 export { Root } from "./Root.js";
+export type { PartProps } from "./primitives/Part.js";
+export { Part } from "./primitives/Part.js";
+export { mergeClass } from "./primitives/mergeClass.js";
+export type {
+  CellContentProps,
+  PrimitiveProps,
+  SheetComponents,
+} from "./primitives/types.js";
 export type { SlotProps } from "./Slot.js";
 
 // asChild plumbing, for consumers building polymorphic wrappers.
@@ -89,7 +104,14 @@ export { Spreadsheet } from "./Spreadsheet.js";
 export { buildCss } from "./styles.js";
 export type { Theme } from "./theme.js";
 // Theming.
-export { defaultTheme, resolveTheme, themeCellFont } from "./theme.js";
+export {
+  darkTheme,
+  defaultTheme,
+  lightTheme,
+  resolveTheme,
+  themeCellFont,
+  themeCssVars,
+} from "./theme.js";
 // View types.
 export type {
   AsChildProps,

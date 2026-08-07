@@ -22,6 +22,7 @@ import { imageUrlIn } from "../formula/imageCall.js";
 import { tableIndex } from "../formula/tableRefs.js";
 import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
+import { rejectCellValue } from "../model/cellValidation.js";
 import type { Range, StyleObject, Workbook } from "../model/types.js";
 import { listLiterals } from "../model/validation.js";
 import { type CellFont, DEFAULT_CELL_FONT } from "./constants.js";
@@ -173,6 +174,15 @@ export function useSpreadsheet(
       wb.updateSheet(fn, addHistory);
     },
     [wb.updateSheet, clearCopied, beginCalculation],
+  );
+
+  const patchSheet = useCallback<UseWorkbookResult["patchSheet"]>(
+    (fn, addHistory) => {
+      clearCopied();
+      beginCalculation();
+      wb.patchSheet(fn, addHistory);
+    },
+    [wb.patchSheet, clearCopied, beginCalculation],
   );
 
   /**
@@ -340,27 +350,30 @@ export function useSpreadsheet(
 
   const setCell = useCallback(
     (row: number, col: number, raw: string) => {
-      updateSheet((sheet) => {
+      const rejection = rejectCellValue(wb.sheet, row, col, raw, evaluator);
+      if (rejection) {
+        setStatus(rejection.message);
+        return;
+      }
+      patchSheet((sheet) => {
         const key = cellKey(row, col);
-        if (sheet.styles[key]?.locked) return sheet;
-        if (raw === "") delete sheet.cells[key];
-        else sheet.cells[key] = raw;
-        // Whatever an import computed for this cell describes the formula that
-        // was here, not the one the user just typed.
-        delete sheet.cachedValues[key];
+        if (sheet.styles[key]?.locked) return null;
+        const cells = { ...sheet.cells };
+        if (raw === "") delete cells[key];
+        else cells[key] = raw;
 
-        // Typing an IMAGE() call draws the image, and replacing that formula
-        // removes it — otherwise the picture would outlive the formula that
-        // asked for it. An imported cell keeps its embedded copy until edited,
-        // since the URL is all a typed formula can offer.
+        const cachedValues = { ...sheet.cachedValues };
+        delete cachedValues[key];
+
+        const images = { ...sheet.images };
         const url = imageUrlIn(raw);
-        if (url) sheet.images[key] = { src: url, alt: url };
-        else delete sheet.images[key];
+        if (url) images[key] = { src: url, alt: url };
+        else delete images[key];
 
-        return sheet;
+        return { cells, cachedValues, images };
       });
     },
-    [updateSheet],
+    [patchSheet, wb.sheet, evaluator, setStatus],
   );
 
   const commitEdit = useCallback(

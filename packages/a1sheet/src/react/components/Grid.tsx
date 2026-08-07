@@ -47,7 +47,9 @@ import {
   ROW_HEADER_WIDTH,
   SCROLLBAR_SIZE,
 } from "../constants.js";
-import { useSheetContext } from "../context.js";
+import { useSheetContext, GridRenderProvider } from "../context.js";
+import { mergeClass } from "../primitives/mergeClass.js";
+import type { CellContentProps, PrimitiveProps } from "../primitives/types.js";
 import { revealOffset } from "../reveal.js";
 import { useAutoScroll } from "../useAutoScroll.js";
 import { useTextMeasurer } from "../useTextMeasurer.js";
@@ -64,7 +66,7 @@ const HEADER_MENU_WIDTH = 14;
 /** Thickness of the line marking the edge of a frozen band, as Sheets draws it. */
 const FREEZE_LINE_PX = 2;
 
-export interface GridProps {
+export interface GridProps extends PrimitiveProps {
   /**
    * Rendered inside the scroll container, after the last row. Put anything that
    * belongs at the end of the sheet here — `<Sheet.AddRows />`, a totals
@@ -72,9 +74,25 @@ export interface GridProps {
    * below it.
    */
   children?: ReactNode;
+  /**
+   * Replaces the default cell display for this grid. Wins over
+   * `<Sheet.Root components={{ CellContent }}>`. Editing, selection, and merges
+   * stay in `Cell`.
+   */
+  renderCellContent?: (props: CellContentProps) => ReactNode;
+  /** Applied to the scroll container inside the frame. */
+  scrollerClassName?: string;
+  scrollerStyle?: CSSProperties;
 }
 
-export function Grid({ children }: GridProps = {}): ReactNode {
+export function Grid({
+  children,
+  className,
+  style,
+  renderCellContent,
+  scrollerClassName,
+  scrollerStyle,
+}: GridProps = {}): ReactNode {
   const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Grid");
   const { renaming, setRenaming } = ui;
   const { sheet, rowWindow, colWindow, fill, bounds } = api;
@@ -619,27 +637,41 @@ export function Grid({ children }: GridProps = {}): ReactNode {
     );
   }
 
+  const gridRender = useMemo(
+    () => (renderCellContent ? { renderCellContent } : {}),
+    [renderCellContent],
+  );
+
   return (
+    <GridRenderProvider value={gridRender}>
     <div
       // Four areas: the sheet, a channel per axis, and the corner between them.
       // The bars are siblings of the scroll container rather than inside it, so
       // they can never be scrolled away from or drawn over the cells.
-      className={`${prefix}frame`}
+      className={mergeClass(`${prefix}frame`, className)}
       style={{
         flex: 1,
         minHeight: 0,
         display: "grid",
         gridTemplateColumns: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
         gridTemplateRows: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
+        ...style,
       }}
     >
       <div
         ref={containerRef}
         id={scrollerId}
-        // Named so it can be found. Scrolling the sheet from outside means
-        // moving this element — setting `api.setScrollTop` alone only tells
-        // virtualization where to draw, and the container would stay put.
-        className={`${prefix}scroller`}
+        role="grid"
+        aria-rowcount={sheet.numRows}
+        aria-colcount={sheet.numCols}
+        aria-label={sheet.name}
+        className={mergeClass(`${prefix}scroller`, scrollerClassName)}
+        style={{
+          overflow: "auto",
+          position: "relative",
+          cursor: fill.dragging ? "crosshair" : undefined,
+          ...scrollerStyle,
+        }}
         onScroll={(e) => {
           const el = e.target as HTMLDivElement;
           setScrollTop(el.scrollTop);
@@ -654,11 +686,6 @@ export function Grid({ children }: GridProps = {}): ReactNode {
           if (e.button !== 0) return;
           const cell = (e.target as HTMLElement).closest?.("[data-row][data-col]");
           if (cell) dragRef.current = "select";
-        }}
-        style={{
-          overflow: "auto",
-          position: "relative",
-          cursor: fill.dragging ? "crosshair" : undefined,
         }}
       >
         <div
@@ -908,5 +935,6 @@ export function Grid({ children }: GridProps = {}): ReactNode {
       />
       <div className={`${prefix}sbcorner`} />
     </div>
+    </GridRenderProvider>
   );
 }

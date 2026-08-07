@@ -8,11 +8,11 @@
  * is being edited it renders an `<input>` that takes focus; otherwise the hidden
  * textarea in `<Spreadsheet />` holds focus for the whole grid.
  */
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useRef } from "react";
 import { cellKey } from "../../model/address.js";
 import { getMergeAt } from "../../model/sheet.js";
 import { cellCss } from "../cellStyle.js";
-import { useSheetContext } from "../context.js";
+import { useGridRender, useSheetContext } from "../context.js";
 import { useCaretBinding } from "../useCaretBinding.js";
 import { CondIcon } from "./CondIcon.js";
 import { ChevronDownIcon } from "./icons.js";
@@ -29,7 +29,9 @@ export interface CellProps {
 const PERCENT = 100;
 
 export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
-  const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Cell");
+  const { api, theme, prefix, ui, focusRef, components } =
+    useSheetContext("Sheet.Cell");
+  const { renderCellContent: gridRenderCell } = useGridRender();
   const { sheet, selection, editing } = api;
 
   // Every hook runs before the merge bail-out below — a covered cell returns
@@ -77,6 +79,10 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   const showFillHandle =
     selected && !editing && row === bounds.r2 && col === bounds.c2;
 
+  const renderCellContent = gridRenderCell ?? components.CellContent;
+
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const classNames = [
     `${prefix}cell`,
     selected ? `${prefix}selected` : "",
@@ -89,6 +95,9 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   return (
     <div
       className={classNames}
+      role="gridcell"
+      aria-selected={selected}
+      aria-readonly={style.locked ?? false}
       // The cell's address, in the DOM. Both axes are virtualized, so position
       // among the rendered nodes says nothing about which cell this is — this
       // is the stable way to find one, from a test or from consumer code.
@@ -150,6 +159,21 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
         e.preventDefault();
         if (!selected) api.selectCell(row, col);
         ui.setContextMenu({ row, col, x: e.clientX, y: e.clientY });
+      }}
+      onTouchStart={(e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        if (!touch) return;
+        longPressRef.current = setTimeout(() => {
+          if (!selected) api.selectCell(row, col);
+          ui.setContextMenu({ row, col, x: touch.clientX, y: touch.clientY });
+        }, 500);
+      }}
+      onTouchEnd={() => {
+        if (longPressRef.current) clearTimeout(longPressRef.current);
+      }}
+      onTouchMove={() => {
+        if (longPressRef.current) clearTimeout(longPressRef.current);
       }}
       title={style.locked ? "Locked cell" : undefined}
     >
@@ -224,7 +248,20 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
           // Excel allows both, and a <select> would take that away.
           {...(choices ? { list: listId } : {})}
         />
-      ) : image ? null : (
+      ) : image ? null : renderCellContent ? (
+        renderCellContent({
+          row,
+          col,
+          display: api.getDisplay(row, col),
+          raw: api.getRaw(row, col),
+          value: api.getValue(row, col),
+          style,
+          isEditing,
+          isSelected: selected,
+          isActive: active,
+          isLocked: !!style.locked,
+        })
+      ) : (
         api.getDisplay(row, col)
       )}
 

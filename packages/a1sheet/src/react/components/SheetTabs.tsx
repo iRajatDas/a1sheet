@@ -6,15 +6,20 @@
  */
 import type { ReactNode } from "react";
 import { useSheetContext } from "../context.js";
+import { mergeClass } from "../primitives/mergeClass.js";
+import type { PrimitiveProps } from "../primitives/types.js";
 import { PlusIcon, TrashIcon } from "./icons.js";
 
-export function SheetTabs(): ReactNode {
+export interface SheetTabsProps extends PrimitiveProps {}
+
+export function SheetTabs({ className, style }: SheetTabsProps = {}): ReactNode {
   const { api, theme, prefix, ui } = useSheetContext("Sheet.Tabs");
   const { renaming, setRenaming } = ui;
   const { workbook } = api;
 
   return (
     <div
+      className={mergeClass(`${prefix}tabs`, className)}
       style={{
         display: "flex",
         alignItems: "flex-end",
@@ -22,6 +27,7 @@ export function SheetTabs(): ReactNode {
         padding: "4px 8px 0",
         borderTop: `1px solid ${theme.border}`,
         background: theme.headerBg,
+        ...style,
       }}
     >
       {workbook.sheets.map((s, i) => {

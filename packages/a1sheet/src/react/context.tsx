@@ -20,6 +20,8 @@ import {
   useState,
 } from "react";
 import { MissingProviderError } from "../errors.js";
+import type { SheetComponents } from "./primitives/types.js";
+import type { CellContentProps } from "./primitives/types.js";
 import type { Theme } from "./theme.js";
 import type { ColumnMenuState, ContextMenuState, RenamingState } from "./types.js";
 import type { UseSpreadsheetResult } from "./useSpreadsheet.js";
@@ -41,11 +43,36 @@ export interface SheetContextValue {
   /** Class-name prefix for the injected CSS, e.g. "a1s-". */
   prefix: string;
   ui: SheetUiState;
+  /** Optional render overrides from `<Sheet.Root components={…}>`. */
+  components: SheetComponents;
   /**
    * The hidden textarea that owns keyboard focus for the grid. Primitives call
    * `.focus()` on it after an interaction that should return focus to the sheet.
    */
   focusRef: RefObject<HTMLTextAreaElement | null>;
+}
+
+/** Per-grid overrides; `Grid.renderCellContent` wins over `components.CellContent`. */
+export interface GridRenderOverrides {
+  renderCellContent?: (props: CellContentProps) => ReactNode;
+}
+
+const GridRenderContext = createContext<GridRenderOverrides>({});
+
+export function GridRenderProvider({
+  value,
+  children,
+}: {
+  value: GridRenderOverrides;
+  children: ReactNode;
+}) {
+  return (
+    <GridRenderContext.Provider value={value}>{children}</GridRenderContext.Provider>
+  );
+}
+
+export function useGridRender(): GridRenderOverrides {
+  return useContext(GridRenderContext);
 }
 
 const SheetContext = createContext<SheetContextValue | null>(null);

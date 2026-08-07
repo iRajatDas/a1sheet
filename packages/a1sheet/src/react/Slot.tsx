@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * `asChild` support, in the Radix/shadcn sense: instead of rendering its own
+ * `asChild` support, in the Radix sense: instead of rendering its own
  * element, a primitive merges its props onto the single child element it is given.
  *
  * That is what lets a consumer swap the underlying element or drop in their own

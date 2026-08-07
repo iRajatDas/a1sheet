@@ -11,8 +11,12 @@ import { explainErrorValue } from "../../formula/errorText.js";
 import { normalizeRange, toA1 } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
 import { useSheetContext } from "../context.js";
+import { mergeClass } from "../primitives/mergeClass.js";
+import type { PrimitiveProps } from "../primitives/types.js";
 
-export function StatusBar(): ReactNode {
+export interface StatusBarProps extends PrimitiveProps {}
+
+export function StatusBar({ className, style }: StatusBarProps = {}): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.StatusBar");
 
   // A sentinel in a cell says something is wrong without saying what. Explain
@@ -57,7 +61,7 @@ export function StatusBar(): ReactNode {
 
   return (
     <div
-      className={`${prefix}status`}
+      className={mergeClass(`${prefix}status`, className)}
       style={{
         display: "flex",
         gap: 16,
@@ -67,9 +71,10 @@ export function StatusBar(): ReactNode {
         background: theme.headerBg,
         fontSize: 12,
         color: theme.headerText,
+        ...style,
       }}
     >
-      <span>{rangeLabel}</span>
+      <span aria-live="polite">{rangeLabel}</span>
       {error && (
         <span role="status" style={{ color: theme.refColors[1] }}>
           {error}

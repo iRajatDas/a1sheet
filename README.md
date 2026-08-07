@@ -133,6 +133,38 @@ Icons are inline SVG from [Tabler Icons](https://tabler.io/icons) (MIT), copied
 into the source rather than installed so that `dependencies` stays empty. See
 `packages/a1sheet/THIRD-PARTY-NOTICES.md`.
 
+### Integrating with Tailwind
+
+The root element exposes `--a1s-accent`, `--a1s-border`, `--a1s-cell-bg`, and
+the rest of the theme as CSS custom properties, so host styles can reference
+them directly:
+
+```tsx
+import { Sheet, darkTheme } from "a1sheet/react";
+
+<Sheet.Root theme={darkTheme} className="rounded-xl border shadow-sm">
+  <Sheet.Toolbar className="border-b border-[var(--a1s-border)]">
+    <Sheet.Toolbar.Undo />
+    <Sheet.Toolbar.Bold />
+    <Sheet.Toolbar.Separator />
+    <Sheet.FileMenu />
+  </Sheet.Toolbar>
+  <Sheet.Grid
+    className="flex-1 min-h-0"
+    renderCellContent={({ display }) => <span className="font-medium">{display}</span>}
+  />
+</Sheet.Root>
+```
+
+Every chrome primitive accepts `className` and `style`. Toolbar and context-menu
+controls are atoms you compose — there are no `show*` props. Use `asChild` on
+`Sheet.Toolbar.IconButton` (or any atom built on it) to slot in your own button
+component.
+
+See **Composition → Showcase → Full application shell** in Storybook for a
+complete example: Q3 report data, composed toolbar atoms, `renderCellContent`,
+`useSheet()` sidebar, file I/O, and a separate **25,000-row** virtualization story.
+
 ### Keyboard
 
 Everything the mouse can do to a selection has a keyboard route, because a grid

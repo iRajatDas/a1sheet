@@ -14,8 +14,12 @@
 import { type ReactNode, useState } from "react";
 import { ADD_ROWS_DEFAULT, ADD_ROWS_MAX } from "../constants.js";
 import { useSheetContext } from "../context.js";
+import { mergeClass } from "../primitives/mergeClass.js";
+import type { PrimitiveProps } from "../primitives/types.js";
 
-export function AddRows(): ReactNode {
+export interface AddRowsProps extends PrimitiveProps {}
+
+export function AddRows({ className, style }: AddRowsProps = {}): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.AddRows");
   const [value, setValue] = useState(String(ADD_ROWS_DEFAULT));
 
@@ -26,6 +30,7 @@ export function AddRows(): ReactNode {
 
   return (
     <div
+      className={mergeClass(`${prefix}addrows`, className)}
       style={{
         display: "flex",
         alignItems: "center",
@@ -39,8 +44,8 @@ export function AddRows(): ReactNode {
         // off to the left as soon as the sheet is scrolled sideways.
         position: "sticky",
         left: 0,
-        // width: "fit-content",
         width: "100%",
+        ...style,
       }}
     >
       <button

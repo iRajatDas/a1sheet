@@ -27,7 +27,9 @@ import type { Workbook } from "../model/types.js";
 import { HEADER_HEIGHT } from "./constants.js";
 import { SheetContextProvider, useSheetUiState } from "./context.js";
 import { buildCss } from "./styles.js";
-import { resolveTheme, type Theme, themeCellFont } from "./theme.js";
+import { resolveTheme, type Theme, themeCellFont, themeColorScheme, themeCssVars } from "./theme.js";
+import type { SheetComponents } from "./primitives/types.js";
+import { mergeClass } from "./primitives/mergeClass.js";
 import { type UseSpreadsheetResult, useSpreadsheet } from "./useSpreadsheet.js";
 
 /**
@@ -50,6 +52,8 @@ export interface SheetRootProps {
   height?: string | number;
   className?: string;
   style?: React.CSSProperties;
+  /** Injectable renderers for cell content and future slots. */
+  components?: SheetComponents;
   children?: ReactNode;
 }
 
@@ -71,6 +75,7 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
     height = 600,
     className,
     style,
+    components,
     children,
   },
   forwardedRef,
@@ -348,15 +353,17 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
   );
 
   const contextValue = useMemo(
-    () => ({ api, theme, prefix, ui, focusRef }),
-    [api, theme, prefix, ui],
+    () => ({ api, theme, prefix, ui, focusRef, components: components ?? {} }),
+    [api, theme, prefix, ui, components],
   );
 
   return (
     <SheetContextProvider {...contextValue}>
       <div
-        className={[`${prefix}root`, className].filter(Boolean).join(" ")}
+        className={mergeClass(`${prefix}root`, className)}
         style={{
+          ...themeCssVars(theme),
+          colorScheme: themeColorScheme(theme),
           fontFamily: theme.fontFamily,
           fontSize: theme.fontSize,
           color: theme.cellText,
@@ -412,6 +419,11 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
                 text,
                 { row: selection.r2, col: selection.c2 },
                 api.updateSheet,
+                {
+                  evaluator: api.evaluator,
+                  onReject: api.setStatus,
+                  selection: api.selection,
+                },
               ),
             );
           }}

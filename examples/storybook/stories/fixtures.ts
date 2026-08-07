@@ -200,24 +200,8 @@ export function filtered(): Workbook {
   return wb;
 }
 
-/** A dark palette, as a partial Theme. There is no dark-mode boolean. */
-export const DARK = {
-  accent: "#2dd4bf",
-  border: "#1e293b",
-  headerBorder: "#334155",
-  buttonBorder: "#334155",
-  headerBg: "#0f172a",
-  headerText: "#94a3b8",
-  cellBg: "#0b1220",
-  cellText: "#e2e8f0",
-  selectedBg: "rgba(45,212,191,0.16)",
-  toolbarBg: "#0f172a",
-  // The scrollbar gutter is a real surface, so a dark theme has to colour it
-  // too — left at the default it is a light stripe down the right-hand edge.
-  scrollbarTrack: "#0f172a",
-  scrollbarThumb: "#334155",
-  scrollbarThumbHover: "#475569",
-} as const;
+/** @deprecated Import `darkTheme` from `a1sheet/react` instead. */
+export { darkTheme as DARK } from "a1sheet/react";
 
 /** Numbers in every supported format, for the formatting story. */
 export function formats(): Workbook {
@@ -363,27 +347,21 @@ export function salesReport(): Workbook {
           },
           "2_0": {
             bold: true,
-            bg: "#f1f5f9",
           },
           "2_1": {
             bold: true,
-            bg: "#f1f5f9",
           },
           "2_2": {
             bold: true,
-            bg: "#f1f5f9",
           },
           "2_3": {
             bold: true,
-            bg: "#f1f5f9",
           },
           "2_4": {
             bold: true,
-            bg: "#f1f5f9",
           },
           "2_5": {
             bold: true,
-            bg: "#f1f5f9",
           },
           "3_2": {
             numFmt: "currency",

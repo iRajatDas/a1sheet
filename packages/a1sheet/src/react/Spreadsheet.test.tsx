@@ -70,7 +70,7 @@ describe("rendering", () => {
   });
 
   test("omitting a part is composition, not a flag", () => {
-    // The shadcn contract: chrome you do not render simply is not there. There is
+    // The composition contract: chrome you do not render simply is not there. There is
     // no showToolbar prop and there must never be one.
     const { container } = render(
       <Sheet.Root>

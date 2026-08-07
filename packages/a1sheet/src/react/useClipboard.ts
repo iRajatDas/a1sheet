@@ -21,6 +21,8 @@
 import { useCallback, useRef, useState } from "react";
 import { shiftFormulaRefs } from "../formula/refs.js";
 import { cellKey, normalizeRange } from "../model/address.js";
+import { rejectCellValue } from "../model/cellValidation.js";
+import type { Evaluator } from "../formula/evaluate.js";
 import type { Range, Sheet } from "../model/types.js";
 import type { SheetUpdater } from "./useWorkbook.js";
 
@@ -48,6 +50,11 @@ export interface UseClipboardResult {
     text: string,
     target: { row: number; col: number },
     updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
+    options?: {
+      evaluator?: Evaluator;
+      onReject?: (message: string) => void;
+      selection?: Range;
+    },
   ): Range;
   lastCopied(): CopiedGrid | null;
   /**
@@ -165,6 +172,11 @@ export function useClipboard(): UseClipboardResult {
       text: string,
       target: { row: number; col: number },
       updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
+      options?: {
+        evaluator?: Evaluator;
+        onReject?: (message: string) => void;
+        selection?: Range;
+      },
     ) => {
       setCopiedRanges([]);
       const internal = last.current && last.current.text === text;
@@ -172,6 +184,22 @@ export function useClipboard(): UseClipboardResult {
       const origin = internal ? (last.current as CopiedGrid).origin : target;
       const dRow = target.row - origin.row;
       const dCol = target.col - origin.col;
+
+      if (options?.selection) {
+        const sel = normalizeRange(options.selection);
+        const selRows = sel.r2 - sel.r1 + 1;
+        const selCols = sel.c2 - sel.c1 + 1;
+        const pasteRows = grid.length;
+        const pasteCols = Math.max(...grid.map((r) => r.length), 1);
+        if (
+          (selRows > 1 || selCols > 1) &&
+          (selRows !== pasteRows || selCols !== pasteCols)
+        ) {
+          options.onReject?.(
+            "Paste shape does not match the selection — only the top-left cell is used.",
+          );
+        }
+      }
 
       updateSheet((s) => {
         grid.forEach((row, ri) => {
@@ -181,6 +209,13 @@ export function useClipboard(): UseClipboardResult {
             if (r >= s.numRows || c >= s.numCols) return;
             const key = cellKey(r, c);
             if (s.styles[key]?.locked) return;
+            if (options?.evaluator) {
+              const rejection = rejectCellValue(s, r, c, raw, options.evaluator);
+              if (rejection) {
+                options.onReject?.(rejection.message);
+                return;
+              }
+            }
             if (raw === "") {
               delete s.cells[key];
               return;

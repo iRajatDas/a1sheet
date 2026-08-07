@@ -5,6 +5,37 @@ honestly: breaking means major.
 
 ## Unreleased
 
+### Added
+
+- **Composable toolbar atoms** — `Sheet.Toolbar.Undo`, `.Bold`, `.Merge`, and the
+  rest, each with optional `asChild` via `Sheet.Toolbar.IconButton`. The shell
+  renders the default set when given no children; `<Spreadsheet />` composes the
+  full preset explicitly.
+- **`Sheet.ContextMenu.*` items** — copy, paste, insert/delete, and a generic
+  `.Item` / `.Separator` for custom entries. Keyboard navigation with arrow keys
+  inside an open menu.
+- **`Sheet.Toolbar.Overflow`** — collapses secondary controls behind a menu on
+  narrow viewports.
+- **`className` / `style` on every chrome primitive**, plus `--a1s-*` CSS custom
+  properties on the root for Tailwind-compatible theming.
+- **`darkTheme` / `lightTheme` presets** exported from `a1sheet/react`.
+- **`renderCellContent` and `components.CellContent`** — custom cell display
+  without replacing selection or editing.
+- **`Part` and `mergeClass`** exported for consumers building their own primitives.
+- **Data-validation enforcement** for list, numeric, and text-length rules on
+  edit and paste; paste shape mismatch warns when the selection does not match
+  the clipboard block.
+- **Touch** — larger resize/fill handles on coarse pointers; long-press opens the
+  context menu.
+- **Accessibility** — `role="grid"` / `gridcell`, toolbar `role="toolbar"`, live
+  status region on the status bar.
+
+### Changed
+
+- **Cell edits use `patchSheet`** — shallow-copy only `cells`, `cachedValues`, and
+  `images` instead of cloning the whole sheet. Full persistent cell maps remain
+  future work for million-cell sheets.
+
 ### Fixed
 
 - **Storybook on the docs site loads again.** Vite 8 was installed under Storybook

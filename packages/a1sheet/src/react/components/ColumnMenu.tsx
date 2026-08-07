@@ -8,8 +8,13 @@
  * filter always restores the original row order and content.
  */
 import { type ReactNode, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { getUsedBounds } from "../../io/csv/write.js";
 import { useSheetContext } from "../context.js";
+import { mergeClass } from "../primitives/mergeClass.js";
+import type { PrimitiveProps } from "../primitives/types.js";
+
+export interface ColumnMenuProps extends PrimitiveProps {}
 
 /**
  * Renders nothing until a column header dropdown is opened.
@@ -18,12 +23,19 @@ import { useSheetContext } from "../context.js";
  * different column's menu is opened. Keeping the state in this always-mounted outer
  * component would carry one column's selections over to the next.
  */
-export function ColumnMenu(): ReactNode {
+export function ColumnMenu({ className, style }: ColumnMenuProps = {}): ReactNode {
   const { ui } = useSheetContext("Sheet.ColumnMenu");
   const state = ui.columnMenu;
   if (!state) return null;
   return (
-    <ColumnMenuPanel key={state.col} col={state.col} x={state.x} y={state.y} />
+    <ColumnMenuPanel
+      key={state.col}
+      col={state.col}
+      x={state.x}
+      y={state.y}
+      className={className}
+      style={style}
+    />
   );
 }
 
@@ -31,9 +43,17 @@ interface PanelProps {
   col: number;
   x: number;
   y: number;
+  className?: string;
+  style?: CSSProperties;
 }
 
-function ColumnMenuPanel({ col, x, y }: PanelProps): ReactNode {
+function ColumnMenuPanel({
+  col,
+  x,
+  y,
+  className,
+  style,
+}: PanelProps): ReactNode {
   const { api, theme, prefix, ui } = useSheetContext("Sheet.ColumnMenu");
   const onClose = ui.closeMenus;
   const { sheet } = api;
@@ -62,8 +82,8 @@ function ColumnMenuPanel({ col, x, y }: PanelProps): ReactNode {
 
   return (
     <div
-      className={`${prefix}menu`}
-      style={{ left: x, top: y, minWidth: 200 }}
+      className={mergeClass(`${prefix}menu`, className)}
+      style={{ left: x, top: y, minWidth: 200, ...style }}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();

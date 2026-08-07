@@ -15,6 +15,7 @@
 import type { BinaryOp, CompareOp, Node, Token } from "./ast.js";
 
 const ZERO: Node = { type: "num", value: 0 };
+const PERCENT = 100;
 
 export function parseFormula(tokens: Token[]): Node {
   let pos = 0;
@@ -22,15 +23,28 @@ export function parseFormula(tokens: Token[]): Node {
   const next = (): Token | undefined => tokens[pos++];
 
   function parseCompare(): Node {
-    let node = parseExpr();
+    let node = parseConcat();
     for (let t = peek(); t?.type === "cmp"; t = peek()) {
       next();
       node = {
         type: "cmp",
         op: t.value as CompareOp,
         left: node,
-        right: parseExpr(),
+        right: parseConcat(),
       };
+    }
+    return node;
+  }
+
+  /**
+   * `&` binds looser than arithmetic and tighter than comparison, which is why it
+   * sits between them rather than alongside `+`.
+   */
+  function parseConcat(): Node {
+    let node = parseExpr();
+    for (let t = peek(); t?.type === "&"; t = peek()) {
+      next();
+      node = { type: "bin", op: "&", left: node, right: parseExpr() };
     }
     return node;
   }
@@ -62,10 +76,25 @@ export function parseFormula(tokens: Token[]): Node {
   }
 
   function parsePower(): Node {
-    const node = parsePrimary();
+    let node = parsePostfix();
     if (peek()?.type === "^") {
       next();
-      return { type: "bin", op: "^" as BinaryOp, left: node, right: parseUnary() };
+      node = { type: "bin", op: "^" as BinaryOp, left: node, right: parseUnary() };
+    }
+    return node;
+  }
+
+  /** `50%` is a postfix operator, not a stray token to skip. */
+  function parsePostfix(): Node {
+    let node = parsePrimary();
+    while (peek()?.type === "%") {
+      next();
+      node = {
+        type: "bin",
+        op: "/" as BinaryOp,
+        left: node,
+        right: { type: "num", value: PERCENT },
+      };
     }
     return node;
   }
@@ -82,7 +111,12 @@ export function parseFormula(tokens: Token[]): Node {
         next();
         const t2 = next();
         if (t?.type === "ref" && t2?.type === "ref") {
-          return { type: "range", from: t.value, to: t2.value };
+          return {
+            type: "range",
+            from: t.value,
+            to: t2.value,
+            ...(t.sheet ? { sheet: t.sheet } : {}),
+          };
         }
       }
       pos = save;
@@ -104,16 +138,28 @@ export function parseFormula(tokens: Token[]): Node {
       return { type: "str", value: t.value };
     }
 
+    if (t.type === "arr") {
+      next();
+      return { type: "arr", rows: t.rows };
+    }
+
+    if (t.type === "tableRef") {
+      next();
+      return { type: "tableRef", table: t.table, spec: t.spec };
+    }
+
     if (t.type === "ref") {
       next();
+      const sheet = t.sheet ? { sheet: t.sheet } : {};
       if (peek()?.type === ":") {
         next();
         const t2 = next();
-        if (t2?.type === "ref")
-          return { type: "range", from: t.value, to: t2.value };
-        return { type: "ref", value: t.value };
+        if (t2?.type === "ref") {
+          return { type: "range", from: t.value, to: t2.value, ...sheet };
+        }
+        return { type: "ref", value: t.value, ...sheet };
       }
-      return { type: "ref", value: t.value };
+      return { type: "ref", value: t.value, ...sheet };
     }
 
     if (t.type === "name") {

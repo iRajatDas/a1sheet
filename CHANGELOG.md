@@ -8,6 +8,95 @@ backfilled.
 
 ## Unreleased
 
+### Added (dynamic arrays)
+
+The formula engine now has a value kind it did not have: an array. That is what a
+modern Excel workbook is made of, and without it such a file was not partly
+readable — it was a grid of `#NAME?` with its numbers thrown away.
+
+- **Arrays are values.** A range evaluates to a matrix, always two-dimensional
+  because Excel has no one-dimensional array. Collapsing a column to a flat list
+  is what made `TRANSPOSE`, `HSTACK`, and `INDEX(t, 0, 2)` impossible to express.
+- **Every operator broadcasts.** `(teams = team) * played` over two columns is a
+  column of products; it used to take the top-left of each side and return one
+  number where the formula meant many — an answer, and the wrong one. A 1x1
+  stretches to anything, a row stretches down, a column stretches across, and a
+  mismatch pads with `#N/A`.
+- **Formulas spill.** An array formula fills the cells below and beside its
+  anchor. A cell already holding content blocks it and the anchor reports
+  `#SPILL!` rather than overwriting. `Sheet.spillRanges` carries the region an
+  imported array formula declares — Excel writes a dynamic array's result into
+  the sheet as ordinary values so other readers can see it, and without knowing
+  the region a formula's own output looks like an obstruction to its spill.
+- **`LET` and `LAMBDA`,** with the functions that consume a lambda: `MAP`,
+  `MAKEARRAY`, `BYROW`, `BYCOL`, `REDUCE`, `SCAN`. A lambda closes over the scope
+  it was defined in, so one returned from a `LET` still sees that `LET`'s
+  bindings.
+- **The array library**: `SEQUENCE`, `UNIQUE`, `SORT`, `SORTBY`, `FILTER`,
+  `HSTACK`, `VSTACK`, `TRANSPOSE`, `CHOOSECOLS`, `CHOOSEROWS`, `TAKE`, `DROP`,
+  `TOROW`, `TOCOL`, `ROWS`, `COLUMNS`, `SUMPRODUCT`, `TEXTSPLIT`.
+- **The rest of the modern set**: `XLOOKUP`, `XMATCH`, `LOOKUP`, `HLOOKUP`,
+  `IFS`, `SWITCH`, `IFERROR`, `IFNA`, `TEXTJOIN`, `TEXT`, `SUBSTITUTE`,
+  `REPLACE`, `FIND`, `SEARCH`, `REPT`, `VALUE`, `CHAR`, `CODE`, `PROPER`,
+  `COUNTIF`, `SUMIF`, `AVERAGEIF`, `COUNTBLANK`, `ISBLANK`, `ISERROR`, `ISNA`,
+  `ISNUMBER`, `ISTEXT`, `ISLOGICAL`, `NA`, `MEDIAN`, `STDEV`, `PRODUCT`, `MOD`,
+  `POWER`, `SQRT`, `SIGN`, `INT`, `TRUNC`, `CEILING`, `FLOOR`, `EXP`, `LN`,
+  `LOG10`, `PI`, `XOR`. About 30 functions became about 90.
+- **Array literals** (`{1,2;3,4}`), the `&` concatenation operator, and the `%`
+  postfix operator, none of which the tokenizer previously recognized.
+
+### Added (references)
+
+- **Structured references** — `tblMatches[home_goal]`,
+  `tbl[[#This Row],[a]:[b]]`, `tbl[@col]`, `tbl[#Headers]`, `tbl[#All]`.
+  `Sheet.tables` carries the definitions the reader already had; a table's
+  styling was being applied while its formulas were not.
+- **Cross-sheet references** — `Sheet2!A1` and `'My Sheet'!A1:B9`. Unquoted, a
+  name with a space used to lex as two names and a ref, which made such a formula
+  silently wrong rather than merely refused.
+- **Defined names that hold a formula.** `Workbook.namedFormulas`, alongside
+  `namedRanges` — a modern workbook names a computed table this way, and
+  `<definedNames>` was not read at all.
+- **`Evaluator.getCellValue` and `evaluateArray`** return an array result whole
+  rather than collapsed to its top-left.
+
+### Changed (formula engine, breaking)
+
+- **`VLOOKUP` and `MATCH` approximate by default,** as Excel does — the fourth
+  argument of `VLOOKUP` and the third of `MATCH` default to "or the next
+  smaller". Previously both matched exactly. A well-known footgun, and adopted
+  anyway: an imported formula has to compute what Excel computes. Pass `FALSE` or
+  `0` for the old behaviour.
+- **A numeric cell evaluates to a number.** `=A1` on a cell reading "0.75" gave
+  the STRING "0.75"; anything non-numeric gave 0. The displayed text is
+  unchanged — "1.50" still shows as "1.50".
+- **`AND`, `OR`, `NOT`, and `XOR` return booleans,** not 1 and 0. The grid renders
+  a boolean as TRUE/FALSE, which is what Excel shows.
+- **Errors propagate through operators.** `IF(COUNTBLANK(bad)=0, 1, 0)` used to
+  compare `#NAME?` against 0, find them unequal, and return 0 — a guard turning an
+  error into a plausible answer.
+- **`IF`, `IFS`, `SWITCH`, `IFERROR`, and `IFNA` are lazy.** The branch not taken
+  is not evaluated, so a guard against division by zero now actually guards.
+- **`createEvaluator`'s third argument is an options object.** It briefly
+  accepted either that or a bare cached-value map, told apart by its keys; that
+  cleverness silently mistook `{ tables }` for cached values. Pass
+  `{ cachedValues }`.
+- **`FormulaValue` no longer includes arrays**; `FormulaArg` is
+  `FormulaValue | Matrix | LambdaValue`. A custom function receives matrices, not
+  flat lists.
+- **`SHAPE_SENSITIVE` is gone.** VLOOKUP, INDEX, and MATCH needed the raw range
+  AST node to recover a table's 2D shape; a range is a matrix now, so they are
+  ordinary functions — and work on a computed table, which the special case could
+  not.
+
+### Fixed
+
+- **A flaky test that raced the clock.** "A large read hands the thread back"
+  scheduled a timer and read a big CSV, so it proved something only while the
+  machine was slow enough for the read to overrun a frame. It is now driven by an
+  injected clock and asserts on ordering, since the yielder uses a MessageChannel
+  which the event loop runs ahead of a `setTimeout(0)` anyway.
+
 ### Added (XLSX import fidelity)
 
 An imported workbook used to read as a plainer version of itself. None of the

@@ -16,6 +16,7 @@ import { condStyleFor } from "../../format/condFormat.js";
 import { formatValue } from "../../format/numFmt.js";
 import { createEvaluator } from "../../formula/evaluate.js";
 import { imageUrlIn } from "../../formula/imageCall.js";
+import { tableIndex } from "../../formula/tableRefs.js";
 import type { CellKey } from "../../model/types.js";
 import { daySerialToExcelSerial, excelSerialToDaySerial } from "./dates.js";
 import { readXlsx } from "./read.js";
@@ -89,7 +90,11 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
   test("a formula we cannot evaluate shows Excel's value, not #NAME?", async () => {
     const [data] = await readXlsx(bytes);
     if (!data) throw new Error("no sheets");
-    const evaluator = createEvaluator(data.cells, {}, data.cachedValues);
+    const evaluator = createEvaluator(
+      data.cells,
+      {},
+      { cachedValues: data.cachedValues },
+    );
 
     // Data!E2 is IF(COUNTBLANK(tblMatches[[#This Row],...])=0,1,0). Structured
     // references are not implemented, so evaluation fails and the import answers.
@@ -101,7 +106,11 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     const sheets = await readXlsx(bytes);
     const exampleA = sheets[1];
     if (!exampleA) throw new Error("no second sheet");
-    const evaluator = createEvaluator(exampleA.cells, {}, exampleA.cachedValues);
+    const evaluator = createEvaluator(
+      exampleA.cells,
+      {},
+      { cachedValues: exampleA.cachedValues },
+    );
 
     // Example A!C4 is "=OverallTable", a defined name wrapping LET and LAMBDA.
     expect(exampleA.cells["3_2" as CellKey]).toBe("=OverallTable");
@@ -135,7 +144,11 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     const sheets = await readXlsx(bytes);
     const exampleA = sheets[1];
     if (!exampleA) throw new Error("no second sheet");
-    const evaluator = createEvaluator(exampleA.cells, {}, exampleA.cachedValues);
+    const evaluator = createEvaluator(
+      exampleA.cells,
+      {},
+      { cachedValues: exampleA.cachedValues },
+    );
 
     const style = condStyleFor(
       { condFormats: exampleA.condFormats, evaluator },
@@ -163,7 +176,11 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     const sheets = await readXlsx(bytes);
     const exampleA = sheets[1];
     if (!exampleA) throw new Error("no second sheet");
-    const evaluator = createEvaluator(exampleA.cells, {}, exampleA.cachedValues);
+    const evaluator = createEvaluator(
+      exampleA.cells,
+      {},
+      { cachedValues: exampleA.cachedValues },
+    );
 
     // Column L of the league table, formatted "\+0;\-0;0". Bucketed as an
     // integer it rendered 45 and dropped the plus.
@@ -176,7 +193,11 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
   test("a date column shows its time as well as its date", async () => {
     const [data] = await readXlsx(bytes);
     if (!data) throw new Error("no sheets");
-    const evaluator = createEvaluator(data.cells, {}, data.cachedValues);
+    const evaluator = createEvaluator(
+      data.cells,
+      {},
+      { cachedValues: data.cachedValues },
+    );
 
     // numFmtId 22, whose code the file never states.
     expect(
@@ -198,7 +219,11 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     );
     // …and the formula still evaluates to something meaningful, so a cell whose
     // image cannot be drawn shows where it came from.
-    const evaluator = createEvaluator(data.cells, {}, data.cachedValues);
+    const evaluator = createEvaluator(
+      data.cells,
+      {},
+      { cachedValues: data.cachedValues },
+    );
     expect(evaluator.getCellDisplay(1, 9)).toContain("Arsenal_FC");
   });
 
@@ -207,6 +232,44 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     // than the format. Left in place they guarantee #NAME? even where we have
     // the function.
     expect(imageUrlIn('=IMAGE("x.png")')).toBe("x.png");
+  });
+
+  test("a dynamic-array workbook recalculates instead of only displaying", async () => {
+    // The whole league table is one formula: a workbook-level defined name
+    // wrapping LET, LAMBDA, MAP, SORT, UNIQUE, VSTACK, HSTACK, XLOOKUP,
+    // SEQUENCE, and CHOOSECOLS, reading a table on another sheet through
+    // structured references, and spilling over 21 rows.
+    //
+    // Evaluated with NO cached values, so nothing here can come from what Excel
+    // stored — this is the engine computing the table from the match results.
+    const result = await readXlsx(bytes);
+    const exampleA = result[1];
+    if (!exampleA) throw new Error("no second sheet");
+
+    const evaluator = createEvaluator(exampleA.cells, result.namedRanges ?? {}, {
+      tables: tableIndex(
+        result.flatMap((s) => s.tables.map((t) => ({ ...t, sheet: s.name }))),
+      ),
+      ...(result.namedFormulas ? { namedFormulas: result.namedFormulas } : {}),
+      spillRanges: exampleA.spillRanges,
+      sheets: result.map((s) => ({ name: s.name, cells: s.cells })),
+    });
+
+    // The anchor, C4, holds `=OverallTable`.
+    expect(evaluator.getCellDisplay(3, 2)).toBe("POS");
+    // …and the rest of the table is its spill, not stored values.
+    expect(evaluator.getCellDisplay(4, 4)).toBe("Liverpool");
+    expect(evaluator.getCellDisplay(4, 12)).toBe(84);
+    expect(evaluator.getCellDisplay(5, 4)).toBe("Arsenal");
+  });
+
+  test("an array formula's own output does not block its spill", async () => {
+    // Excel writes a dynamic array's result into the sheet as ordinary values so
+    // other readers can see it. Without the `<f t="array" ref>` region those
+    // cells look like content in the way, and every such formula reports #SPILL!
+    // against its own output.
+    const result = await readXlsx(bytes);
+    expect(Object.keys(result[1]?.spillRanges ?? {}).length).toBeGreaterThan(0);
   });
 
   test("dates survive the trip back out to a file", async () => {
@@ -233,9 +296,15 @@ describe("a cached value is a fallback, never an override", () => {
   test("a formula this engine can evaluate wins over the import", () => {
     // Otherwise an imported sheet would be frozen: edits would recompute a
     // result that nothing ever displays.
-    const evaluator = createEvaluator(cells, {}, {
-      "1_0": 999,
-    } as Record<CellKey, number>);
+    const evaluator = createEvaluator(
+      cells,
+      {},
+      {
+        cachedValues: {
+          "1_0": 999,
+        } as Record<CellKey, number>,
+      },
+    );
     expect(evaluator.getCellDisplay(1, 0)).toBe(2);
   });
 
@@ -243,7 +312,7 @@ describe("a cached value is a fallback, never an override", () => {
     const evaluator = createEvaluator(
       { "0_0": "=NOSUCHFUNC(1)" } as Record<CellKey, string>,
       {},
-      { "0_0": 42 } as Record<CellKey, number>,
+      { cachedValues: { "0_0": 42 } as Record<CellKey, number> },
     );
     expect(evaluator.getCellDisplay(0, 0)).toBe(42);
   });

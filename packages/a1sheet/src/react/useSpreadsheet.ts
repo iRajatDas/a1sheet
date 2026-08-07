@@ -15,6 +15,7 @@ import { condStyleFor as condStyleFor_ } from "../format/condFormat.js";
 import { formatValue } from "../format/numFmt.js";
 import { createEvaluator, type Evaluator } from "../formula/evaluate.js";
 import { imageUrlIn } from "../formula/imageCall.js";
+import { tableIndex } from "../formula/tableRefs.js";
 import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
 import type { Range, StyleObject, Workbook } from "../model/types.js";
@@ -106,14 +107,47 @@ export function useSpreadsheet(
   const [viewportWidth, setViewportWidth] = useState(800);
   const [status, setStatus] = useState("");
 
+  const sheets = wb.workbook.sheets;
+
+  /**
+   * Tables are indexed across the WHOLE workbook, not per sheet. A defined name
+   * is workbook-level and may be used on any sheet while the table it reads sits
+   * on another, so each definition carries the sheet its cells are on.
+   */
+  const tables = useMemo(
+    () =>
+      tableIndex(
+        sheets.flatMap((s) => s.tables.map((t) => ({ ...t, sheet: s.name }))),
+      ),
+    [sheets],
+  );
+
+  /** Cells of every sheet, so a qualified reference can reach them. */
+  const sheetCells = useMemo(
+    () => sheets.map((s) => ({ name: s.name, cells: s.cells })),
+    [sheets],
+  );
+
   const evaluator = useMemo(
     () =>
-      createEvaluator(
-        wb.sheet.cells,
-        wb.workbook.namedRanges,
-        wb.sheet.cachedValues,
-      ),
-    [wb.sheet.cells, wb.workbook.namedRanges, wb.sheet.cachedValues],
+      createEvaluator(wb.sheet.cells, wb.workbook.namedRanges, {
+        cachedValues: wb.sheet.cachedValues,
+        tables,
+        sheets: sheetCells,
+        spillRanges: wb.sheet.spillRanges,
+        ...(wb.workbook.namedFormulas
+          ? { namedFormulas: wb.workbook.namedFormulas }
+          : {}),
+      }),
+    [
+      wb.sheet.cells,
+      wb.workbook.namedRanges,
+      wb.workbook.namedFormulas,
+      wb.sheet.cachedValues,
+      wb.sheet.spillRanges,
+      tables,
+      sheetCells,
+    ],
   );
 
   const getValue = useCallback(

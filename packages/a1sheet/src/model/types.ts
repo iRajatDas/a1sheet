@@ -195,6 +195,23 @@ export interface CondFormat {
   stopIfTrue?: boolean;
 }
 
+/**
+ * A named table over a range, as `Format as Table` creates.
+ *
+ * Present so structured references (`tblMatches[home_goal]`) can resolve. The
+ * table's *appearance* is flattened onto cell styles at import; this is the part
+ * formulas need, which cannot be flattened because a reference names a column
+ * rather than a coordinate.
+ */
+export interface SheetTable {
+  name: string;
+  /** The whole table, header row included when it has one. */
+  range: Range;
+  /** Column names, left to right. */
+  columns: readonly string[];
+  headerRow: boolean;
+}
+
 export interface Sheet {
   id: string;
   name: string;
@@ -224,6 +241,17 @@ export interface Sheet {
    * what it is.
    */
   images: Record<CellKey, CellImage>;
+  /** Named tables on this sheet, for structured references. */
+  tables: readonly SheetTable[];
+  /**
+   * Where an array formula declares that its result goes, keyed by the anchor.
+   *
+   * Excel writes a dynamic array's output into the sheet as ordinary values so
+   * that other readers can see it, and marks the anchor `<f t="array" ref="…">`.
+   * Without knowing the region, the anchor's own output looks like content
+   * standing in the way of its spill.
+   */
+  spillRanges: Record<CellKey, Range>;
   /** Column index -> width in px. Absent means DEFAULT_COL_WIDTH. */
   colWidths: Record<number, number>;
   /** Row index -> height in px. Absent means ROW_HEIGHT. */
@@ -259,6 +287,14 @@ export interface Workbook {
   sheets: Sheet[];
   activeSheetIndex: number;
   namedRanges: NamedRanges;
+  /**
+   * Defined names whose value is a formula rather than a range — how a modern
+   * workbook names a computed table. Values are formula bodies, without the `=`.
+   *
+   * Separate from `namedRanges` because the two are used differently: a range is
+   * a location the UI can jump to, and a formula is only ever evaluated.
+   */
+  namedFormulas?: Readonly<Record<string, string>>;
 }
 
 /** A cell's computed value. Formula errors surface as `"#CYCLE!"`-style strings. */

@@ -4,6 +4,8 @@
  * Dispatch is by ZIP magic first and file extension second, so a .xlsx that has
  * been renamed still reads correctly.
  */
+
+import type { Range } from "../model/types.js";
 import { csvToCells } from "./csv/read.js";
 import type { AsyncReadOptions } from "./progress.js";
 import type { XlsxSheetData } from "./xlsx/read.js";
@@ -15,6 +17,13 @@ export type WorkbookFormat = "xlsx" | "csv";
 export interface ReadResult {
   format: WorkbookFormat;
   sheets: XlsxSheetData[];
+  /** Defined names that resolve to a range. Empty for a CSV. */
+  namedRanges: Record<string, Range>;
+  /**
+   * Defined names that hold a formula rather than a range. Empty for a CSV.
+   * Bodies, without the leading `=`.
+   */
+  namedFormulas: Record<string, string>;
 }
 
 /**
@@ -45,13 +54,22 @@ export async function readWorkbookFile(
   // xl/workbook.xml vs xl/workbookBin.bin and throws a clear "unsupported format"
   // error for the latter.
   if (isZip(bytes)) {
-    return { format: "xlsx", sheets: await readXlsx(bytes, options) };
+    const sheets = await readXlsx(bytes, options);
+    return {
+      format: "xlsx",
+      sheets,
+      namedRanges: sheets.namedRanges ?? {},
+      namedFormulas: sheets.namedFormulas ?? {},
+    };
   }
 
   const text = new TextDecoder().decode(bytes);
   const { cells, rows, cols } = await csvToCells(text, options);
   return {
     format: "csv",
+    // A CSV has no names of any kind.
+    namedRanges: {},
+    namedFormulas: {},
     sheets: [
       {
         name: name.replace(/\.[^.]+$/, "") || "Sheet1",
@@ -60,6 +78,8 @@ export async function readWorkbookFile(
         cachedValues: {},
         condFormats: [],
         images: {},
+        tables: [],
+        spillRanges: {},
         merges: [],
         rows,
         cols,

@@ -22,6 +22,7 @@ import type {
   CondFormat,
   Range,
   RawCell,
+  SheetTable,
   StyleObject,
 } from "../../model/types.js";
 import {
@@ -44,6 +45,24 @@ import {
 import { colWidthToPx, rowHeightToPx } from "./units.js";
 import { findElement, findElements, iterElements, textOf } from "./xml.js";
 
+/**
+ * Everything the reader learns that is not tied to one sheet.
+ *
+ * `readXlsx` has always returned the sheet list, and enough code destructures it
+ * as an array that changing the shape is not worth it — so these ride along as
+ * properties ON the array. `readWorkbookFile` unpacks them into real fields, and
+ * that is the entry point to prefer.
+ */
+export interface XlsxWorkbookData {
+  /** Defined names whose value is a range on one of the sheets. */
+  namedRanges: Record<string, Range>;
+  /**
+   * Defined names whose value is a formula rather than a range — how a modern
+   * workbook names a computed table. Bodies, without the leading `=`.
+   */
+  namedFormulas: Record<string, string>;
+}
+
 /** One sheet as it comes out of the file, before becoming a full `Sheet`. */
 export interface XlsxSheetData {
   name: string;
@@ -60,6 +79,10 @@ export interface XlsxSheetData {
   condFormats: CondFormat[];
   /** In-cell images, resolved to a data URI or a source URL. */
   images: Record<CellKey, CellImage>;
+  /** Named tables, for structured references. */
+  tables: SheetTable[];
+  /** Declared output regions of array formulas, keyed by the anchor cell. */
+  spillRanges: Record<CellKey, Range>;
   merges: Range[];
   rows: number;
   cols: number;
@@ -71,6 +94,67 @@ export interface XlsxSheetData {
 
 const REF_RE = /^([A-Za-z]+)(\d+)$/;
 
+/** `A1:B9` as a Range, for an array formula's declared output region. */
+function parseRangeRef(ref: string): Range | null {
+  const [from, to] = ref.split(":");
+  if (!from) return null;
+  const a = parseRef(from);
+  if (!a) return null;
+  const b = to ? parseRef(to) : a;
+  if (!b) return null;
+  return { r1: a.row, c1: a.col, r2: b.row, c2: b.col };
+}
+
+/** `Sheet1!$A$1:$B$9` or `$A$1:$B$9` — a defined name that is just a range. */
+const NAME_AS_RANGE =
+  /^(?:'((?:[^']|'')*)'|([A-Za-z_][A-Za-z0-9_. ]*))?!?\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/;
+
+/**
+ * Splits `<definedNames>` into the ones that name a range and the ones that name
+ * a formula.
+ *
+ * Both live in the same element and are told apart only by whether the value
+ * parses as a reference. Names scoped to one sheet (`localSheetId`) are skipped:
+ * this model has no per-sheet name scoping, and importing a local name as a
+ * global one would let one sheet's definition win for the whole workbook.
+ */
+function parseDefinedNames(xml: string | undefined): XlsxWorkbookData {
+  const namedRanges: Record<string, Range> = {};
+  const namedFormulas: Record<string, string> = {};
+  if (!xml) return { namedRanges, namedFormulas };
+
+  const block = findElement(xml, "definedNames");
+  if (!block) return { namedRanges, namedFormulas };
+
+  for (const el of findElements(block.inner, "definedName")) {
+    const name = el.attrs.name;
+    if (!name || el.attrs.localSheetId !== undefined) continue;
+    // Excel's own built-in names, like _xlnm.Print_Area.
+    if (name.startsWith("_xlnm.")) continue;
+
+    const body = normalizeFormula(textOf(el.inner).trim());
+    if (body === "" || body.includes("#REF!")) continue;
+
+    const asRange = body.match(NAME_AS_RANGE);
+    if (asRange) {
+      const from = parseRef(`${asRange[3]}${asRange[4]}`);
+      const to = asRange[5] ? parseRef(`${asRange[5]}${asRange[6]}`) : from;
+      if (from && to) {
+        namedRanges[name.toUpperCase()] = {
+          r1: from.row,
+          c1: from.col,
+          r2: to.row,
+          c2: to.col,
+        };
+        continue;
+      }
+    }
+    namedFormulas[name.toUpperCase()] = body;
+  }
+
+  return { namedRanges, namedFormulas };
+}
+
 function parseRef(ref: string): { row: number; col: number } | null {
   const m = ref.match(REF_RE);
   if (!m?.[1] || !m[2]) return null;
@@ -81,11 +165,11 @@ function parseRef(ref: string): { row: number; col: number } | null {
  * Strips the prefixes Excel puts on functions that postdate the file format.
  *
  * `_xlfn.` marks a function newer than the OOXML spec and `_xlws.` a
- * worksheet-scoped one, so `SORT` is written `_xlfn._xlws.SORT`. They are noise
- * to any other reader, and leaving them on guarantees `#NAME?` even for the
- * functions this engine does implement.
+ * worksheet-scoped one, so `SORT` is written `_xlfn._xlws.SORT`. `_xlpm.` marks a
+ * LET or LAMBDA parameter name. All three are noise to any other reader, and
+ * leaving them on guarantees `#NAME?` even for the functions we do implement.
  */
-const MODERN_FN_PREFIX = /\b_xl(?:fn|ws)\./g;
+const MODERN_FN_PREFIX = /\b_xl(?:fn|ws|pm)\./g;
 
 function normalizeFormula(text: string): string {
   return text.replace(MODERN_FN_PREFIX, "");
@@ -145,7 +229,7 @@ const ELEMENTS_PER_CHECKPOINT = 4096;
 export async function readXlsx(
   file: File | Blob | Uint8Array,
   options: AsyncReadOptions = {},
-): Promise<XlsxSheetData[]> {
+): Promise<XlsxSheetData[] & Partial<XlsxWorkbookData>> {
   const bytes =
     file instanceof Uint8Array
       ? file
@@ -221,6 +305,7 @@ export async function readXlsx(
   const sheetNames = wbXml
     ? findElements(wbXml, "sheet").map((s, i) => s.attrs.name || `Sheet${i + 1}`)
     : [];
+  const workbookData = parseDefinedNames(wbXml);
 
   /**
    * A sheet reaches its tables through its own relationship part, not by
@@ -262,6 +347,7 @@ export async function readXlsx(
     const styles: Record<CellKey, StyleObject> = {};
     const cachedValues: Record<CellKey, CellValue> = {};
     const images: Record<CellKey, CellImage> = {};
+    const spillRanges: Record<CellKey, Range> = {};
     let maxR = 0;
     let maxC = 0;
 
@@ -303,6 +389,14 @@ export async function readXlsx(
       }
 
       const key = `${row}_${col}` as CellKey;
+
+      // An array formula states where its result goes. Excel writes that result
+      // into the sheet as plain values as well, so without the declared region
+      // the formula's own output looks like cells standing in the way of it.
+      if (f?.attrs.t === "array" && f.attrs.ref) {
+        const declared = parseRangeRef(f.attrs.ref);
+        if (declared) spillRanges[key] = declared;
+      }
 
       // `vm` is the cell's link into the rich-value chain that ends at a picture.
       const vm = Number.parseInt(c.attrs.vm ?? "", 10);
@@ -365,6 +459,12 @@ export async function readXlsx(
     // table styling to sit underneath rather than over.
     const tables = tablesForSheet(sheetFiles[i] as string);
     applyTableStyles({ tables, dxfs, palette, styles });
+    const sheetTables: SheetTable[] = tables.map((t) => ({
+      name: t.name,
+      range: t.range,
+      columns: t.columns,
+      headerRow: t.headerRow,
+    }));
     for (const table of tables) {
       if (table.range.r2 > maxR) maxR = table.range.r2;
       if (table.range.c2 > maxC) maxC = table.range.c2;
@@ -391,6 +491,8 @@ export async function readXlsx(
       cachedValues,
       condFormats,
       images,
+      tables: sheetTables,
+      spillRanges,
       merges,
       rows: maxR + 1,
       cols: maxC + 1,
@@ -400,6 +502,7 @@ export async function readXlsx(
     await pacer.checkpoint("parsing", parsed / totalElements, name);
   }
 
+  Object.assign(sheets, workbookData);
   pacer.finish(`${sheets.length} sheets`);
 
   return sheets.length > 0
@@ -412,6 +515,8 @@ export async function readXlsx(
           cachedValues: {},
           condFormats: [],
           images: {},
+          tables: [],
+          spillRanges: {},
           merges: [],
           rows: 1,
           cols: 1,

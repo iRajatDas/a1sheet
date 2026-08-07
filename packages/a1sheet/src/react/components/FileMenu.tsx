@@ -56,12 +56,15 @@ export function FileMenu(): ReactNode {
       importRef.current = controller;
 
       try {
-        const { sheets } = await readWorkbookFile(file, {
-          signal: controller.signal,
-          onProgress: ({ ratio, detail }) => {
-            setStatus(`Importing ${file.name} — ${percent(ratio)} (${detail})`);
+        const { sheets, namedRanges, namedFormulas } = await readWorkbookFile(
+          file,
+          {
+            signal: controller.signal,
+            onProgress: ({ ratio, detail }) => {
+              setStatus(`Importing ${file.name} — ${percent(ratio)} (${detail})`);
+            },
           },
-        });
+        );
         const rebuilt: SheetModel[] = sheets.map((s) => ({
           ...makeSheet(s.name),
           cells: s.cells,
@@ -69,6 +72,8 @@ export function FileMenu(): ReactNode {
           cachedValues: s.cachedValues,
           condFormats: s.condFormats,
           images: s.images,
+          tables: s.tables,
+          spillRanges: s.spillRanges,
           merges: s.merges,
           colWidths: s.colWidths,
           rowHeights: s.rowHeights,
@@ -78,7 +83,8 @@ export function FileMenu(): ReactNode {
         replaceWorkbook({
           sheets: rebuilt,
           activeSheetIndex: 0,
-          namedRanges: {},
+          namedRanges,
+          namedFormulas,
         });
         setStatus(`Imported ${file.name}`);
       } catch (err) {

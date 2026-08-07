@@ -217,10 +217,23 @@ function createYielder(): Yielder {
  * no-abort pacer that still yields when given no options — yielding is about
  * responsiveness, which nobody has to opt into.
  */
-export function createPacer(options: AsyncReadOptions = {}): Pacer {
+/**
+ * `AsyncReadOptions` plus the clock, which is internal.
+ *
+ * Not on the public options: a consumer has no reason to move the reader's clock,
+ * and a test that races the real one is a test that fails on a fast machine.
+ */
+export interface PacerOptions extends AsyncReadOptions {
+  now?: () => number;
+}
+
+export function createPacer(options: PacerOptions = {}): Pacer {
   const { signal, onProgress } = options;
   const yielder = createYielder();
-  let deadline = Date.now() + FRAME_BUDGET_MS;
+  // Injectable so a test can decide when the budget is spent instead of racing
+  // a real clock. `readWorkbookFile` never passes one.
+  const now = options.now ?? Date.now;
+  let deadline = now() + FRAME_BUDGET_MS;
   let ratio = 0;
   let reportedRatio = -1;
   let reportedPhase: ReadPhase | null = null;
@@ -238,7 +251,7 @@ export function createPacer(options: AsyncReadOptions = {}): Pacer {
         clamp01(phaseOffset(phase) + PHASE_WEIGHTS[phase] * clamp01(localRatio)),
       );
 
-      const overBudget = Date.now() >= deadline;
+      const overBudget = now() >= deadline;
       const worthReporting =
         phase !== reportedPhase || ratio - reportedRatio >= PROGRESS_STEP;
 
@@ -250,7 +263,7 @@ export function createPacer(options: AsyncReadOptions = {}): Pacer {
 
       if (!overBudget) return;
       await yielder.yieldToEventLoop();
-      deadline = Date.now() + FRAME_BUDGET_MS;
+      deadline = now() + FRAME_BUDGET_MS;
     },
 
     finish(detail) {

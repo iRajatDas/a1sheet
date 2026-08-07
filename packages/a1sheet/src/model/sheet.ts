@@ -13,6 +13,7 @@ import type {
   CondFormat,
   RawCell,
   Sheet,
+  SheetTable,
   StyleObject,
 } from "./types.js";
 
@@ -32,6 +33,8 @@ export function makeSheet(name: string): Sheet {
     cachedValues: {},
     condFormats: [],
     images: {},
+    tables: [],
+    spillRanges: {},
     colWidths: {},
     rowHeights: {},
     merges: [],
@@ -60,6 +63,8 @@ export function cloneSheet(sheet: Sheet): Sheet {
     // may be shared. Ranges inside it still move on insert and delete.
     condFormats: sheet.condFormats,
     images: { ...sheet.images },
+    tables: sheet.tables,
+    spillRanges: { ...sheet.spillRanges },
     colWidths: { ...sheet.colWidths },
     rowHeights: { ...sheet.rowHeights },
     merges: sheet.merges.map((m) => ({ ...m })),
@@ -168,6 +173,35 @@ function shiftCondFormats(
   });
 }
 
+/**
+ * Moves a table's range with the rows or columns it covers, on the same terms as
+ * a conditional format. A table left behind would resolve its column names
+ * against the wrong cells, which is worse than a wrong colour.
+ */
+function shiftTables(
+  tables: readonly SheetTable[],
+  axis: "row" | "col",
+  at: number,
+  delta: number,
+): readonly SheetTable[] {
+  if (tables.length === 0) return tables;
+  const startKey = axis === "row" ? "r1" : "c1";
+  const endKey = axis === "row" ? "r2" : "c2";
+  return tables.map((table) => {
+    const start = table.range[startKey];
+    const end = table.range[endKey];
+    if (end < at) return table;
+    return {
+      ...table,
+      range: {
+        ...table.range,
+        [startKey]: start >= at ? start + delta : start,
+        [endKey]: end + delta,
+      },
+    };
+  });
+}
+
 function shiftRows(sheet: Sheet, at: number, delta: number): Sheet {
   return {
     ...sheet,
@@ -176,6 +210,8 @@ function shiftRows(sheet: Sheet, at: number, delta: number): Sheet {
     cachedValues: shiftKeys(sheet.cachedValues, "row", at, delta),
     condFormats: shiftCondFormats(sheet.condFormats, "row", at, delta),
     images: shiftKeys(sheet.images, "row", at, delta),
+    tables: shiftTables(sheet.tables, "row", at, delta),
+    spillRanges: shiftKeys(sheet.spillRanges, "row", at, delta),
     rowHeights: shiftIndexMap(sheet.rowHeights, at, delta),
     rowLabels: shiftIndexMap(sheet.rowLabels, at, delta),
     hiddenRows: shiftIndexSet(sheet.hiddenRows, at, delta),
@@ -190,6 +226,8 @@ function shiftCols(sheet: Sheet, at: number, delta: number): Sheet {
     cachedValues: shiftKeys(sheet.cachedValues, "col", at, delta),
     condFormats: shiftCondFormats(sheet.condFormats, "col", at, delta),
     images: shiftKeys(sheet.images, "col", at, delta),
+    tables: shiftTables(sheet.tables, "col", at, delta),
+    spillRanges: shiftKeys(sheet.spillRanges, "col", at, delta),
     colWidths: shiftIndexMap(sheet.colWidths, at, delta),
     colLabels: shiftIndexMap(sheet.colLabels, at, delta),
     filters: shiftIndexMap(sheet.filters, at, delta),

@@ -118,10 +118,13 @@ describe("ranges and functions", () => {
   test("logical functions", () => {
     expect(evalOne("=IF(1>0,10,20)")).toBe(10);
     expect(evalOne("=IF(1<0,10,20)")).toBe(20);
-    expect(evalOne("=AND(1,1)")).toBe(1);
-    expect(evalOne("=AND(1,0)")).toBe(0);
-    expect(evalOne("=OR(0,1)")).toBe(1);
-    expect(evalOne("=NOT(0)")).toBe(1);
+    // Booleans, not 1 and 0. Excel's AND returns TRUE, and the grid renders a
+    // boolean as TRUE/FALSE — returning a number showed "1" where Excel shows
+    // "TRUE", and made ISLOGICAL impossible to write.
+    expect(evalOne("=AND(1,1)")).toBe(true);
+    expect(evalOne("=AND(1,0)")).toBe(false);
+    expect(evalOne("=OR(0,1)")).toBe(true);
+    expect(evalOne("=NOT(0)")).toBe(true);
   });
 
   test("an unknown function is #NAME?", () => {
@@ -139,17 +142,26 @@ describe("lookup functions", () => {
     "2_1": "4.00",
   };
 
-  test("VLOOKUP finds an exact text match", () => {
-    expect(evalOne('=VLOOKUP("banana",A1:B3,2)', table)).toBe("0.75");
+  test("VLOOKUP finds a text match", () => {
+    // A numeric cell reads back as a number now. `=A1` on a cell holding "0.75"
+    // used to evaluate to the STRING "0.75", so arithmetic on it went through a
+    // coercion that turned any non-numeric text into 0.
+    expect(evalOne('=VLOOKUP("banana",A1:B3,2)', table)).toBe(0.75);
   });
 
-  test("VLOOKUP returns #N/A when absent", () => {
-    expect(evalOne('=VLOOKUP("durian",A1:B3,2)', table)).toBe("#N/A");
+  test("VLOOKUP approximates by default, as Excel does", () => {
+    // The fourth argument defaults to TRUE in Excel, meaning "or the next
+    // smaller" — so "durian" finds cherry's row rather than reporting #N/A. A
+    // well-known footgun, kept because an imported formula has to compute what
+    // Excel computes.
+    expect(evalOne('=VLOOKUP("durian",A1:B3,2)', table)).toBe(4);
+    expect(evalOne('=VLOOKUP("durian",A1:B3,2,FALSE)', table)).toBe("#N/A");
   });
 
   test("MATCH returns a 1-indexed position", () => {
     expect(evalOne('=MATCH("cherry",A1:A3)', table)).toBe(3);
-    expect(evalOne('=MATCH("durian",A1:A3)', table)).toBe("#N/A");
+    // Type defaults to 1 — approximate — for the same reason as VLOOKUP.
+    expect(evalOne('=MATCH("durian",A1:A3,0)', table)).toBe("#N/A");
   });
 
   test("INDEX is 1-indexed on both axes", () => {
@@ -158,7 +170,8 @@ describe("lookup functions", () => {
   });
 
   test("INDEX/MATCH compose", () => {
-    expect(evalOne('=INDEX(B1:B3,MATCH("cherry",A1:A3))', table)).toBe("4.00");
+    // 4, not "4.00": the cell's text is a number and reads back as one.
+    expect(evalOne('=INDEX(B1:B3,MATCH("cherry",A1:A3))', table)).toBe(4);
   });
 });
 

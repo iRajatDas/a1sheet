@@ -3,34 +3,50 @@
  *
  * Adding a function is normally a one-liner in the relevant category module.
  *
- * EXCEPTION — shape-sensitive functions: VLOOKUP, INDEX, and MATCH need the raw
- * range AST node to recover 2D shape, which a flattened argument array has
- * already lost. They are special-cased inside evalNode's "call" branch and do
- * NOT live here. A new shape-sensitive function follows that pattern rather than
- * being registered in this table.
+ * ONE EXCEPTION, in `evaluate.ts` rather than here: the **lazy** forms. LET and
+ * LAMBDA bind names, so their arguments cannot be evaluated before dispatch, and
+ * IF, IFS, SWITCH, IFERROR, and IFNA must not evaluate the branch they do not
+ * take.
+ *
+ * VLOOKUP, INDEX, and MATCH used to be a second exception — they needed the raw
+ * range AST node to recover a table's 2D shape. A range evaluates to a matrix
+ * now, so there is nothing to recover and they are ordinary functions that also
+ * work on a computed table.
  */
-import type { FormulaArg, FormulaValue } from "../values.js";
+import type { FormulaArg, LambdaValue } from "../values.js";
+import { arrayFunctions } from "./array.js";
 import { dateFunctions } from "./date.js";
 import { logicFunctions } from "./logic.js";
+import { lookupFunctions } from "./lookup.js";
 import { mathFunctions } from "./math.js";
 import { textFunctions } from "./text.js";
 
 /**
- * Functions receive their arguments as a single array, matching the POC. Range
- * arguments arrive as nested arrays, which is why most implementations start by
- * flattening.
+ * What a function can do beyond looking at its arguments.
+ *
+ * `call` exists for the functions that take a lambda — MAP, MAKEARRAY, BYROW,
+ * REDUCE. Applying a lambda means evaluating its body in the scope it captured,
+ * which is the evaluator's business, so it is handed in rather than reimplemented.
  */
-export type FormulaFunction = (args: FormulaArg[]) => FormulaValue;
+export interface FormulaHost {
+  call(lambda: LambdaValue, args: readonly FormulaArg[]): FormulaArg;
+}
+
+/**
+ * Functions receive their arguments as a single array. A range argument arrives
+ * as a `Matrix` — always two-dimensional, so `[[1, 2]]` is a row and
+ * `[[1], [2]]` a column.
+ */
+export type FormulaFunction = (args: FormulaArg[], host: FormulaHost) => FormulaArg;
 
 export const FUNCTIONS: Record<string, FormulaFunction> = {
   ...mathFunctions,
   ...textFunctions,
   ...logicFunctions,
   ...dateFunctions,
+  ...arrayFunctions,
+  ...lookupFunctions,
 };
-
-/** Names handled directly in evalNode because they need the range AST node. */
-export const SHAPE_SENSITIVE = new Set(["VLOOKUP", "INDEX", "MATCH"]);
 
 /**
  * Registers a custom function. Uppercases the name to match the tokenizer,

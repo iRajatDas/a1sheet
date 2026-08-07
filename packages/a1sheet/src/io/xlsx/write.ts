@@ -77,11 +77,9 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
   }
 
   const sheetXmls = sheets.map((sheet) => {
-    const evaluator = createEvaluator(
-      sheet.cells,
-      sheet.namedRanges ?? {},
-      sheet.cachedValues ?? {},
-    );
+    const evaluator = createEvaluator(sheet.cells, sheet.namedRanges ?? {}, {
+      cachedValues: sheet.cachedValues ?? {},
+    });
 
     /**
      * Day serials are Unix-based in the model and 1899-12-30-based in the file.

@@ -7,7 +7,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { readWorkbookFile } from "./index.js";
-import type { ReadProgress } from "./progress.js";
+import { createPacer, type ReadProgress } from "./progress.js";
 import { writeXlsx } from "./xlsx/write.js";
 
 /** Rows chosen so parsing takes several frames on a fast machine. */
@@ -128,14 +128,50 @@ describe("cancellation", () => {
 });
 
 describe("yielding", () => {
-  test("a large read hands the thread back at least once", async () => {
-    // A timer scheduled before the read can only fire if the read yields.
-    let timerFired = false;
-    setTimeout(() => {
-      timerFired = true;
-    }, 0);
+  test("a checkpoint past the frame budget hands the thread back", async () => {
+    // Driven by an injected clock rather than by how long a real read happens to
+    // take. The old version scheduled a timer and read a large CSV, which only
+    // proved anything while the machine was slow enough for the read to overrun a
+    // frame — so it passed on CI and failed at random on a fast laptop.
+    //
+    // Asserted by ORDERING rather than by a timer: yielding means the checkpoint
+    // resolves on a later macrotask, so a microtask queued after it must run
+    // first. A timer cannot see this — the yielder uses a MessageChannel, which
+    // the event loop runs ahead of a setTimeout(0).
+    let clock = 0;
+    const pacer = createPacer({ now: () => clock });
+    const order: string[] = [];
 
-    await readWorkbookFile(bigCsvBlob());
-    expect(timerFired).toBe(true);
+    const inBudget = pacer
+      .checkpoint("parsing", 0.1, "x")
+      .then(() => order.push("checkpoint"));
+    await Promise.resolve().then(() => order.push("microtask"));
+    await inBudget;
+    expect(order).toEqual(["checkpoint", "microtask"]);
+
+    order.length = 0;
+    clock += 1000;
+    const overBudget = pacer
+      .checkpoint("parsing", 0.2, "x")
+      .then(() => order.push("checkpoint"));
+    await Promise.resolve().then(() => order.push("microtask"));
+    await overBudget;
+    expect(order).toEqual(["microtask", "checkpoint"]);
+
+    // The yielder holds a MessageChannel open; without this the process never
+    // exits.
+    pacer.finish("done");
+  });
+
+  test("a real read still yields when it is big enough to need to", async () => {
+    // The end-to-end version of the same property, kept because the unit test
+    // above cannot show that `readWorkbookFile` actually threads a pacer through.
+    // Asserted on the progress reports rather than on a timer: several reports
+    // can only happen across several checkpoints.
+    const seen: number[] = [];
+    await readWorkbookFile(bigCsvBlob(), {
+      onProgress: (p) => seen.push(p.ratio),
+    });
+    expect(seen.length).toBeGreaterThan(1);
   });
 });

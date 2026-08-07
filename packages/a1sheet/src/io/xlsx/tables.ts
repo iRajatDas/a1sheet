@@ -29,7 +29,11 @@ import { findElement, findElements } from "./xml.js";
 
 /** One table, as the file describes it. */
 export interface XlsxTable {
+  /** The name formulas use, which is `name` not `displayName`. */
+  name: string;
   range: Range;
+  /** Column names in order, from `<tableColumn>`. */
+  columns: readonly string[];
   /** True when the first row of `range` holds column names. */
   headerRow: boolean;
   /** Built-in style name, e.g. `"TableStyleMedium4"`. Absent for no style. */
@@ -79,7 +83,11 @@ export function parseTableXml(xml: string): XlsxTable | null {
   const styleName = info?.attrs.name;
 
   return {
+    name: table.attrs.name ?? table.attrs.displayName ?? "",
     range,
+    columns: findElements(xml, "tableColumn").map(
+      (c, i) => c.attrs.name ?? `Column${i + 1}`,
+    ),
     // headerRowCount defaults to 1; only an explicit "0" means there is none.
     headerRow: table.attrs.headerRowCount !== "0",
     ...(styleName ? { styleName } : {}),

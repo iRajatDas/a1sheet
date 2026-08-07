@@ -5,13 +5,6 @@ bug. Each names the extension point where the work would start.
 
 ## Formulas
 
-**No cross-sheet references (`Sheet2!A1`).** Formulas resolve against the active
-sheet only.
-→ `src/formula/tokenize.ts` needs a `!`-anchored lookahead before the ref
-pattern. A bare regex is not enough: sheet names ending in letters followed by
-digits collide with the ref pattern. `createEvaluator` then moves from per-sheet
-to per-workbook so `EvalContext` can expose `getSheet(name)`.
-
 **Date serials use the Unix epoch, not Excel's 1899-12-30.** Internally
 consistent and arithmetic-friendly, but a serial number copied out of a1sheet
 will not match Excel's serial for the same date. XLSX import and export convert
@@ -31,27 +24,37 @@ formula cell itself drops its imported value, and the error appears.
 → `orImported` in `src/formula/evaluate.ts`. Removing the caveat means
 implementing the functions, not changing the fallback.
 
-**Structured table references (`tblMatches[column]`) do not evaluate.** The table
-definitions in `xl/tables/*.xml` ARE read — a table's styling is applied — but the
-reference syntax is not, so a formula using one falls back to its imported value.
-→ `src/formula/tokenize.ts` for the syntax; `src/io/xlsx/tables.ts` already has
-the range and column names to resolve against.
+**A spill is not seen by another spill's tail.** The index of where array
+formulas land is built in one pass, and while it is being built an empty cell
+reads as empty rather than recursing. So a formula spilling onto cells that a
+SECOND formula spills onto in turn sees blanks. Chained spills through an
+anchor work; chained spills through a spilled cell do not.
+→ `buildSpills` in `src/formula/evaluate.ts` would need to iterate to a fixed
+point rather than making a single pass.
 
-**No dynamic arrays.** A formula returning a range does not spill into its
-neighbours, and `LET`, `LAMBDA`, `MAP`, `MAKEARRAY`, `HSTACK`, `VSTACK`,
-`SEQUENCE`, `UNIQUE`, `SORT`, `CHOOSECOLS`, and `XLOOKUP` are not implemented. An
-imported workbook built on them displays, from its cached values, but does not
-recalculate.
-→ `FormulaValue` in `src/formula/values.ts` would need a 2D array kind, and the
-sheet a map of spilled ranges so a spill can be invalidated as a unit.
+**Cross-sheet spilling is not indexed.** A qualified reference reads another
+sheet's cells and formulas, but not the cells another sheet's array formula
+spills onto — there is one spill index, for the sheet the evaluator was built
+for.
+→ `spilledInto` in `src/formula/evaluate.ts`; it would need an index per sheet.
 
-**`IF` is not lazy.** Both branches are evaluated before dispatch. No correctness
-impact (there are no side effects), but the unused branch still computes.
-→ `src/formula/functions/logic.ts`.
+**Defined names are workbook-scoped only.** A name Excel scoped to one sheet
+(`localSheetId`) is skipped on import rather than imported as a global one,
+which would let one sheet's definition win everywhere.
+→ `parseDefinedNames` in `src/io/xlsx/read.ts`, and `NamedRanges` would need to
+be keyed by sheet as well as name.
 
-**Lookups are exact-match only.** No approximate/sorted mode for `VLOOKUP` or
-`MATCH`.
-→ the shape-sensitive branch of `src/formula/evaluate.ts`.
+**Approximate lookups scan rather than bisect.** `VLOOKUP` and `MATCH` default to
+approximate matching, as Excel does, and find the nearest value on the requested
+side by scanning. Excel binary-searches, which is faster and gives undefined
+results on unsorted data; scanning is slower and gives the right answer. On a
+sorted vector the two agree.
+→ `findMatch` in `src/formula/functions/lookup.ts`.
+
+**No `OFFSET`, `INDIRECT`, or volatile functions.** A formula cannot build a
+reference from text, which also means the dependency graph is always static.
+→ `EvalContext` in `src/formula/evaluate.ts` would need a way to turn a string
+into a range, and the evaluator a notion of a cell that must always recompute.
 
 ## Grid
 

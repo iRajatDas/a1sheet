@@ -160,6 +160,19 @@ ${themeVarBlock(p, t)}
   border-radius: 4px; }
 .${p}colorwell::-moz-color-swatch { border: 1px solid ${t.buttonBorder};
   border-radius: 4px; }
+.${p}fontbtn { min-width: 132px; justify-content: space-between; gap: 8px; }
+.${p}fontbtn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 108px; text-align: left; }
+.${p}fontmenu { max-height: 320px; overflow: auto; min-width: 220px; padding: 6px; }
+.${p}fontmenu-search { width: 100%; box-sizing: border-box; margin-bottom: 6px; }
+.${p}fontmenu-heading { font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: ${t.headerText}; padding: 6px 8px 4px; }
+.${p}fontmenu-item { display: block; width: 100%; text-align: left; border: none;
+  background: none; padding: 6px 10px; font-size: ${t.fontSize}; border-radius: 4px;
+  cursor: pointer; color: ${t.cellText}; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.${p}fontmenu-item:hover { background: ${t.headerBg}; }
+.${p}fontmenu-empty { padding: 8px 10px; color: ${t.headerText}; font-size: 13px; }
 /* The dropdown affordance on a cell with a data-validation list. Sits at the
    right edge, inside the cell, and never over the fill handle's corner. */
 .${p}dropdown { position: absolute; right: 1px; top: 50%;

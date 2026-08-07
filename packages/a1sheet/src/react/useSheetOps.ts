@@ -2,8 +2,8 @@
  * Sheet operations exposed to the UI: formatting, structure, merges, freeze,
  * column width, sort, filter.
  *
- * Every one goes through the `updateSheet` it is handed — this hook never
- * touches workbook state directly.
+ * Every one goes through the mutators it is handed — this hook never touches
+ * workbook state directly.
  */
 import { useCallback, useMemo } from "react";
 import { cellKey, normalizeRange } from "../model/address.js";
@@ -30,8 +30,13 @@ export interface UseSheetOpsResult {
    * Merges a style patch into every selected cell — every range of a
    * multi-selection, not just the primary one. Formatting three separate blocks
    * bold at once is most of the point of Ctrl+click.
+   *
+   * Pass `recordHistory: false` for live drags (color picker) after the first
+   * event in a session has already recorded undo state.
    */
-  applyStyle(patch: Partial<StyleObject>): void;
+  applyStyle(patch: Partial<StyleObject>, recordHistory?: boolean): void;
+  /** Removes one style field from every cell in the selection. */
+  unsetStyle(key: keyof StyleObject): void;
   /** Deletes cell contents in every selected range. Refuses if any cell is locked. */
   clearCells(): boolean;
   clearFormatting(): void;
@@ -108,8 +113,8 @@ function toggled(set: ReadonlySet<number>, value: number): Set<number> {
 export function useSheetOps(
   sheet: Sheet,
   ranges: readonly Range[],
-  updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
-  patchSheet: (fn: SheetPatcher, addHistory?: boolean) => void,
+  mutateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
+  patchSurface: (fn: SheetPatcher, addHistory?: boolean) => void,
 ): UseSheetOpsResult {
   const selection = ranges[0] ?? { r1: 0, c1: 0, r2: 0, c2: 0 };
   const bounds = useMemo(() => normalizeRange(selection), [selection]);
@@ -128,53 +133,75 @@ export function useSheetOps(
   }, [ranges, isLocked]);
 
   const applyStyle = useCallback(
-    (patch: Partial<StyleObject>) => {
-      updateSheet((s) => {
+    (patch: Partial<StyleObject>, recordHistory = true) => {
+      patchSurface((s) => {
+        const styles = { ...s.styles };
         forEachCell(ranges, (r, c) => {
           const key = cellKey(r, c);
-          s.styles[key] = { ...(s.styles[key] ?? {}), ...patch };
+          styles[key] = { ...(styles[key] ?? {}), ...patch };
         });
-        return s;
-      });
+        return { styles };
+      }, recordHistory);
     },
-    [ranges, updateSheet],
+    [ranges, patchSurface],
   );
 
   const clearCells = useCallback(() => {
     if (anyLockedInSelection()) return false;
-    updateSheet((s) => {
+    mutateSheet((s) => {
       forEachCell(ranges, (r, c) => {
         delete s.cells[cellKey(r, c)];
       });
       return s;
     });
     return true;
-  }, [ranges, anyLockedInSelection, updateSheet]);
+  }, [ranges, anyLockedInSelection, mutateSheet]);
 
   const clearFormatting = useCallback(() => {
-    updateSheet((s) => {
+    patchSurface((s) => {
+      const styles = { ...s.styles };
       forEachCell(ranges, (r, c) => {
-        delete s.styles[cellKey(r, c)];
+        delete styles[cellKey(r, c)];
       });
-      return s;
+      return { styles };
     });
-  }, [ranges, updateSheet]);
+  }, [ranges, patchSurface]);
+
+  const unsetStyle = useCallback(
+    (key: keyof StyleObject) => {
+      patchSurface((s) => {
+        const styles = { ...s.styles };
+        forEachCell(ranges, (r, c) => {
+          const k = cellKey(r, c);
+          const prev = styles[k];
+          if (!prev || !(key in prev)) return;
+          const next = { ...prev };
+          delete next[key];
+          if (Object.keys(next).length === 0) delete styles[k];
+          else styles[k] = next;
+        });
+        return { styles };
+      });
+    },
+    [ranges, patchSurface],
+  );
 
   return {
     activeStyle: sheet.styles[cellKey(selection.r2, selection.c2)] ?? {},
     isLocked,
     anyLockedInSelection,
     applyStyle,
+    unsetStyle,
     clearCells,
     clearFormatting,
 
     mergeSelection: useCallback(() => {
       if (bounds.r1 === bounds.r2 && bounds.c1 === bounds.c2) return;
-      patchSheet((s) => ({ merges: [...s.merges, { ...bounds }] }));
-    }, [bounds, patchSheet]),
+      patchSurface((s) => ({ merges: [...s.merges, { ...bounds }] }));
+    }, [bounds, patchSurface]),
 
     unmergeSelection: useCallback(() => {
-      patchSheet((s) => ({
+      patchSurface((s) => ({
         merges: s.merges.filter(
           (m) =>
             m.r2 < bounds.r1 ||
@@ -183,67 +210,67 @@ export function useSheetOps(
             m.c1 > bounds.c2,
         ),
       }));
-    }, [bounds, patchSheet]),
+    }, [bounds, patchSurface]),
 
     // Freezes up through the active cell, which is what the toolbar means by it.
     freezeToSelection: useCallback(() => {
-      patchSheet(
+      patchSurface(
         () => ({ frozenRows: selection.r2 + 1, frozenCols: selection.c2 + 1 }),
         false,
       );
-    }, [selection.r2, selection.c2, patchSheet]),
+    }, [selection.r2, selection.c2, patchSurface]),
 
     unfreeze: useCallback(() => {
-      patchSheet(() => ({ frozenRows: 0, frozenCols: 0 }), false);
-    }, [patchSheet]),
+      patchSurface(() => ({ frozenRows: 0, frozenCols: 0 }), false);
+    }, [patchSurface]),
 
     insertRowAt: useCallback(
-      (row: number) => updateSheet((s) => insertRow(s, row)),
-      [updateSheet],
+      (row: number) => mutateSheet((s) => insertRow(s, row)),
+      [mutateSheet],
     ),
     deleteRowAt: useCallback(
-      (row: number) => updateSheet((s) => deleteRow(s, row)),
-      [updateSheet],
+      (row: number) => mutateSheet((s) => deleteRow(s, row)),
+      [mutateSheet],
     ),
     insertColAt: useCallback(
-      (col: number) => updateSheet((s) => insertCol(s, col)),
-      [updateSheet],
+      (col: number) => mutateSheet((s) => insertCol(s, col)),
+      [mutateSheet],
     ),
     deleteColAt: useCallback(
-      (col: number) => updateSheet((s) => deleteCol(s, col)),
-      [updateSheet],
+      (col: number) => mutateSheet((s) => deleteCol(s, col)),
+      [mutateSheet],
     ),
 
     // Nothing to shift: the new rows are past everything that exists, so no
     // cell, style, height, or merge moves.
     appendRows: useCallback(
       (count: number) =>
-        patchSheet((s) => ({
+        patchSurface((s) => ({
           numRows: s.numRows + Math.max(0, Math.floor(count)),
         })),
-      [patchSheet],
+      [patchSurface],
     ),
 
     // No history: a drag would otherwise push one entry per mousemove.
     setColWidth: useCallback(
       (col: number, px: number) =>
-        patchSheet(
+        patchSurface(
           (s) => ({
             colWidths: { ...s.colWidths, [col]: clampSize(px, MIN_COL_WIDTH) },
           }),
           false,
         ),
-      [patchSheet],
+      [patchSurface],
     ),
     setRowHeight: useCallback(
       (row: number, px: number) =>
-        patchSheet(
+        patchSurface(
           (s) => ({
             rowHeights: { ...s.rowHeights, [row]: clampSize(px, MIN_ROW_HEIGHT) },
           }),
           false,
         ),
-      [patchSheet],
+      [patchSurface],
     ),
 
     // Deleting the entry, rather than writing the default into it, is what
@@ -251,56 +278,56 @@ export function useSheetOps(
     // `rowHeights` is empty, and it can only become empty again this way.
     resetRowHeight: useCallback(
       (row: number) =>
-        patchSheet((s) =>
+        patchSurface((s) =>
           row in s.rowHeights ? { rowHeights: without(s.rowHeights, row) } : null,
         ),
-      [patchSheet],
+      [patchSurface],
     ),
     resetColWidth: useCallback(
       (col: number) =>
-        patchSheet((s) =>
+        patchSurface((s) =>
           col in s.colWidths ? { colWidths: without(s.colWidths, col) } : null,
         ),
-      [patchSheet],
+      [patchSurface],
     ),
 
     setRowLabel: useCallback(
       (row: number, label: string) =>
-        patchSheet((s) => ({ rowLabels: { ...s.rowLabels, [row]: label } }), false),
-      [patchSheet],
+        patchSurface((s) => ({ rowLabels: { ...s.rowLabels, [row]: label } }), false),
+      [patchSurface],
     ),
     setColLabel: useCallback(
       (col: number, label: string) =>
-        patchSheet((s) => ({ colLabels: { ...s.colLabels, [col]: label } }), false),
-      [patchSheet],
+        patchSurface((s) => ({ colLabels: { ...s.colLabels, [col]: label } }), false),
+      [patchSurface],
     ),
 
     toggleColHidden: useCallback(
       (col: number) =>
-        patchSheet((s) => ({ hiddenCols: toggled(s.hiddenCols, col) })),
-      [patchSheet],
+        patchSurface((s) => ({ hiddenCols: toggled(s.hiddenCols, col) })),
+      [patchSurface],
     ),
 
     toggleRowHidden: useCallback(
       (row: number) =>
-        patchSheet((s) => ({ hiddenRows: toggled(s.hiddenRows, row) })),
-      [patchSheet],
+        patchSurface((s) => ({ hiddenRows: toggled(s.hiddenRows, row) })),
+      [patchSurface],
     ),
 
     sort: useCallback(
       (col: number, dir: "asc" | "desc") =>
-        updateSheet((s) => sortByColumn(s, col, dir)),
-      [updateSheet],
+        mutateSheet((s) => sortByColumn(s, col, dir)),
+      [mutateSheet],
     ),
 
     setFilter: useCallback(
       (col: number, allowed: Set<string> | null) =>
-        patchSheet((s) => {
+        patchSurface((s) => {
           if (allowed !== null)
             return { filters: { ...s.filters, [col]: allowed } };
           return col in s.filters ? { filters: without(s.filters, col) } : null;
         }, false),
-      [patchSheet],
+      [patchSurface],
     ),
   };
 }

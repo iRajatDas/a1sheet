@@ -68,6 +68,29 @@ describe("an operation that touches no cell copies no cells", () => {
   }
 });
 
+describe("surface edits skip formula recalculation", () => {
+  test("applyStyle keeps the same evaluator", () => {
+    const ref = mounted();
+    const before = ref.current?.api.evaluator;
+    act(() => ref.current?.api.applyStyle({ bold: true }));
+    expect(ref.current?.api.evaluator).toBe(before);
+  });
+
+  test("freeze keeps the same evaluator", () => {
+    const ref = mounted();
+    const before = ref.current?.api.evaluator;
+    act(() => ref.current?.api.freezeToSelection());
+    expect(ref.current?.api.evaluator).toBe(before);
+  });
+
+  test("setCell rebuilds the evaluator", () => {
+    const ref = mounted();
+    const before = ref.current?.api.evaluator;
+    act(() => ref.current?.api.setCell(0, 0, "changed"));
+    expect(ref.current?.api.evaluator).not.toBe(before);
+  });
+});
+
 describe("the operations still do what they say", () => {
   test("a resize is visible on the sheet", () => {
     const ref = mounted();
@@ -114,5 +137,15 @@ describe("the operations still do what they say", () => {
     act(() => ref.current?.api.setCell(4, 4, "typed"));
     expect(ref.current?.api.sheet.cells).not.toBe(before?.cells);
     expect(ref.current?.api.sheet.cells["4_4" as CellKey]).toBe("typed");
+  });
+
+  test("applyStyle replaces styles but not cells", () => {
+    const ref = mounted();
+    const before = ref.current?.api.sheet;
+    act(() => ref.current?.api.applyStyle({ color: "#ff0000" }));
+    const after = ref.current?.api.sheet;
+    expect(after?.cells).toBe(before?.cells);
+    expect(after?.styles).not.toBe(before?.styles);
+    expect(after?.styles["0_0"]?.color).toBe("#ff0000");
   });
 });

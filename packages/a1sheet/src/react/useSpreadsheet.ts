@@ -10,7 +10,7 @@
  * intentional and cheap because evaluation is lazy and memoized per evaluator —
  * do not try to persist one across edits.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   type CondDecoration,
   condDecorationFor as condDecorationFor_,
@@ -160,29 +160,51 @@ export function useSpreadsheet(
   );
 
   /**
-   * Every sheet mutation, with the copy outline dropped first.
-   *
-   * The outline says "this is what a paste will bring in". Once the sheet has
-   * changed it may be describing cells that no longer hold what they held, so
-   * it goes — which is what Excel and Sheets both do, and it is put HERE rather
-   * than in each command so that a new command cannot forget.
+   * Bumped only when a sheet's `cells` map changes. Surface patches replace the
+   * workbook wrapper without touching cell data, so the evaluator must not treat
+   * every patch as a cell change.
+   */
+  const [cellEpoch, setCellEpoch] = useState(0);
+  const bumpCellEpoch = useCallback(() => setCellEpoch((n) => n + 1), []);
+
+  /**
+   * Every sheet mutation that moves or edits cell data, with the copy outline
+   * dropped first.
    */
   const updateSheet = useCallback<UseWorkbookResult["updateSheet"]>(
     (fn, addHistory) => {
       clearCopied();
       beginCalculation();
+      bumpCellEpoch();
       wb.updateSheet(fn, addHistory);
     },
-    [wb.updateSheet, clearCopied, beginCalculation],
+    [wb.updateSheet, clearCopied, beginCalculation, bumpCellEpoch],
   );
 
-  const patchSheet = useCallback<UseWorkbookResult["patchSheet"]>(
+  /**
+   * A cell edit that patches only `cells` (and spill caches) — still needs a
+   * recalculation pass, but not a full `cloneSheet`.
+   */
+  const patchCells = useCallback<UseWorkbookResult["patchSheet"]>(
     (fn, addHistory) => {
       clearCopied();
       beginCalculation();
+      bumpCellEpoch();
       wb.patchSheet(fn, addHistory);
     },
-    [wb.patchSheet, clearCopied, beginCalculation],
+    [wb.patchSheet, clearCopied, beginCalculation, bumpCellEpoch],
+  );
+
+  /**
+   * Layout, style, and metadata patches — no formula recalculation.
+   *
+   * Toolbar formatting, freeze, merge, resize drags, filters, and the rest of
+   * the chrome that does not touch `cells` must go through here. Putting them on
+   * the data path rebuilt the evaluator on every mousemove of a resize drag.
+   */
+  const patchSurface = useCallback<UseWorkbookResult["patchSheet"]>(
+    (fn, addHistory) => wb.patchSheet(fn, addHistory),
+    [wb.patchSheet],
   );
 
   /**
@@ -193,7 +215,7 @@ export function useSpreadsheet(
     () => [selection.selection, ...selection.extraRanges],
     [selection.selection, selection.extraRanges],
   );
-  const ops = useSheetOps(wb.sheet, ranges, updateSheet, wb.patchSheet);
+  const ops = useSheetOps(wb.sheet, ranges, updateSheet, patchSurface);
 
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -201,58 +223,38 @@ export function useSpreadsheet(
   const [viewportWidth, setViewportWidth] = useState(800);
   const [status, setStatus] = useState("");
 
-  const sheets = wb.workbook.sheets;
-
-  /**
-   * Tables are indexed across the WHOLE workbook, not per sheet. A defined name
-   * is workbook-level and may be used on any sheet while the table it reads sits
-   * on another, so each definition carries the sheet its cells are on.
-   */
-  const tables = useMemo(
-    () =>
-      tableIndex(
-        sheets.flatMap((s) => s.tables.map((t) => ({ ...t, sheet: s.name }))),
-      ),
-    [sheets],
-  );
-
-  /** Cells of every sheet, so a qualified reference can reach them. */
-  const sheetCells = useMemo(
-    () => sheets.map((s) => ({ name: s.name, cells: s.cells })),
-    [sheets],
-  );
-
-  const evaluator = useMemo(
-    () =>
-      createEvaluator(wb.sheet.cells, wb.workbook.namedRanges, {
-        cachedValues: wb.sheet.cachedValues,
-        tables,
-        sheets: sheetCells,
-        spillRanges: wb.sheet.spillRanges,
-        now: calculation.at,
-        // Names the active sheet defines for itself, which shadow the workbook's.
-        sheetNamedRanges: wb.sheet.namedRanges,
-        sheetNamedFormulas: wb.sheet.namedFormulas,
-        ...(wb.workbook.namedFormulas
-          ? { namedFormulas: wb.workbook.namedFormulas }
-          : {}),
-      }),
-    [
-      wb.sheet.cells,
-      wb.workbook.namedRanges,
-      wb.workbook.namedFormulas,
-      wb.sheet.namedRanges,
-      wb.sheet.namedFormulas,
-      wb.sheet.cachedValues,
-      wb.sheet.spillRanges,
+  const evaluator = useMemo(() => {
+    const sheets = wb.workbook.sheets;
+    const sheetCells = sheets.map((s) => ({ name: s.name, cells: s.cells }));
+    const tables = tableIndex(
+      sheets.flatMap((s) => s.tables.map((t) => ({ ...t, sheet: s.name }))),
+    );
+    return createEvaluator(wb.sheet.cells, wb.workbook.namedRanges, {
+      cachedValues: wb.sheet.cachedValues,
       tables,
-      sheetCells,
-      // The cycle, not just its instant: `serial` is what forces a rebuild when
-      // two cycles begin in the same millisecond, which is the only thing that
-      // refreshes RAND.
-      calculation,
-    ],
-  );
+      sheets: sheetCells,
+      spillRanges: wb.sheet.spillRanges,
+      now: calculation.at,
+      sheetNamedRanges: wb.sheet.namedRanges,
+      sheetNamedFormulas: wb.sheet.namedFormulas,
+      ...(wb.workbook.namedFormulas
+        ? { namedFormulas: wb.workbook.namedFormulas }
+        : {}),
+    });
+  }, [
+    cellEpoch,
+    wb.sheet.cells,
+    wb.workbook.namedRanges,
+    wb.workbook.namedFormulas,
+    wb.sheet.namedRanges,
+    wb.sheet.namedFormulas,
+    wb.sheet.cachedValues,
+    wb.sheet.spillRanges,
+    calculation,
+  ]);
+
+  const stylesRef = useRef(wb.sheet.styles);
+  stylesRef.current = wb.sheet.styles;
 
   const getValue = useCallback(
     (row: number, col: number) => evaluator.getCellDisplay(row, col),
@@ -263,9 +265,9 @@ export function useSpreadsheet(
     (row: number, col: number) => {
       const value = evaluator.getCellDisplay(row, col);
       if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
-      return formatValue(value, wb.sheet.styles[cellKey(row, col)]);
+      return formatValue(value, stylesRef.current[cellKey(row, col)]);
     },
-    [evaluator, wb.sheet.styles],
+    [evaluator],
   );
 
   const getRaw = useCallback(
@@ -355,7 +357,7 @@ export function useSpreadsheet(
         setStatus(rejection.message);
         return;
       }
-      patchSheet((sheet) => {
+      patchCells((sheet) => {
         const key = cellKey(row, col);
         if (sheet.styles[key]?.locked) return null;
         const cells = { ...sheet.cells };
@@ -373,7 +375,7 @@ export function useSpreadsheet(
         return { cells, cachedValues, images };
       });
     },
-    [patchSheet, wb.sheet, evaluator, setStatus],
+    [patchCells, wb.sheet, evaluator, setStatus],
   );
 
   const commitEdit = useCallback(

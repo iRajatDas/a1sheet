@@ -36,7 +36,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { colToLetters, normalizeRange } from "../../model/address.js";
+import { colToLetters, cellKey, normalizeRange } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
 import {
   AUTOFIT_SAMPLE_LIMIT,
@@ -48,6 +48,7 @@ import {
   SCROLLBAR_SIZE,
 } from "../constants.js";
 import { useSheetContext, GridRenderProvider } from "../context.js";
+import { useStylePreview } from "../stylePreview.js";
 import { mergeClass } from "../primitives/mergeClass.js";
 import type { CellContentProps, PrimitiveProps } from "../primitives/types.js";
 import { revealOffset } from "../reveal.js";
@@ -94,6 +95,8 @@ export function Grid({
   scrollerStyle,
 }: GridProps = {}): ReactNode {
   const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Grid");
+  const { patch: stylePreviewPatch } = useStylePreview();
+  const hasStylePreview = Object.keys(stylePreviewPatch).length > 0;
   const { renaming, setRenaming } = ui;
   const { sheet, rowWindow, colWindow, fill, bounds } = api;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -619,20 +622,28 @@ export function Grid({
     return (
       <div key={`r${absRow}`} style={{ display: "contents" }}>
         {renderRowHeader(absRow, gridRow, frozen ? absRow : undefined)}
-        {windowCols.map((c) => (
-          <Cell
-            key={c}
-            row={absRow}
-            col={c}
-            gridRow={gridRow}
-            stickyStyle={stickyStyleFor(
-              false,
-              false,
-              frozen ? absRow : undefined,
-              c < frozenCols ? c : undefined,
-            )}
-          />
-        ))}
+        {windowCols.map((c) => {
+          const key = cellKey(absRow, c);
+          const selected = api.isSelected(absRow, c);
+          return (
+            <Cell
+              key={c}
+              row={absRow}
+              col={c}
+              gridRow={gridRow}
+              styleRef={sheet.styles[key]}
+              stylePreview={
+                hasStylePreview && selected ? stylePreviewPatch : undefined
+              }
+              stickyStyle={stickyStyleFor(
+                false,
+                false,
+                frozen ? absRow : undefined,
+                c < frozenCols ? c : undefined,
+              )}
+            />
+          );
+        })}
       </div>
     );
   }

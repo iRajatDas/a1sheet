@@ -25,6 +25,8 @@ import {
   UnmergeIcon,
 } from "../icons.js";
 import { IconButton, type IconButtonProps } from "./IconButton.js";
+import { ColorWell } from "./ColorWell.js";
+import { FontFamilyMenu } from "./FontFamilyMenu.js";
 import { ToolbarSeparator } from "./chrome.js";
 
 const NUM_FMT_LABELS: Record<NumFmt, string> = {
@@ -156,33 +158,21 @@ export function ToolbarAlignRight(props: Btn = {}): ReactNode {
   );
 }
 
+export function ToolbarFontFamily(): ReactNode {
+  return <FontFamilyMenu />;
+}
+
 export function ToolbarTextColor(): ReactNode {
-  const { api, theme, prefix } = useSheetContext("Sheet.Toolbar.TextColor");
-  const s = api.activeStyle;
+  const { theme } = useSheetContext("Sheet.Toolbar.TextColor");
   return (
-    <input
-      type="color"
-      className={`${prefix}colorwell`}
-      title="Text color"
-      aria-label="Text color"
-      value={s.color ?? theme.cellText}
-      onChange={(e) => api.applyStyle({ color: e.target.value as `#${string}` })}
-    />
+    <ColorWell field="color" label="Text color" fallback={theme.cellText} />
   );
 }
 
 export function ToolbarFillColor(): ReactNode {
-  const { api, theme, prefix } = useSheetContext("Sheet.Toolbar.FillColor");
-  const s = api.activeStyle;
+  const { theme } = useSheetContext("Sheet.Toolbar.FillColor");
   return (
-    <input
-      type="color"
-      className={`${prefix}colorwell`}
-      title="Fill color"
-      aria-label="Fill color"
-      value={s.bg ?? theme.cellBg}
-      onChange={(e) => api.applyStyle({ bg: e.target.value as `#${string}` })}
-    />
+    <ColorWell field="bg" label="Fill color" fallback={theme.cellBg} />
   );
 }
 
@@ -319,6 +309,8 @@ export function ToolbarDefaultContent(): ReactNode {
       <ToolbarUndo />
       <ToolbarRedo />
       <ToolbarSeparator />
+      <ToolbarSeparator />
+      <ToolbarFontFamily />
       <ToolbarBold />
       <ToolbarItalic />
       <ToolbarUnderline />

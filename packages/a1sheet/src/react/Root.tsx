@@ -30,6 +30,7 @@ import { buildCss } from "./styles.js";
 import { resolveTheme, type Theme, themeCellFont, themeColorScheme, themeCssVars } from "./theme.js";
 import type { SheetComponents } from "./primitives/types.js";
 import { mergeClass } from "./primitives/mergeClass.js";
+import { StylePreviewProvider } from "./stylePreview.js";
 import { type UseSpreadsheetResult, useSpreadsheet } from "./useSpreadsheet.js";
 
 /**
@@ -359,6 +360,7 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
 
   return (
     <SheetContextProvider {...contextValue}>
+      <StylePreviewProvider>
       <div
         className={mergeClass(`${prefix}root`, className)}
         style={{
@@ -440,6 +442,7 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
 
         {children}
       </div>
+      </StylePreviewProvider>
     </SheetContextProvider>
   );
 });

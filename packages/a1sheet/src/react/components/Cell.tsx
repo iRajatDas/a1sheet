@@ -11,6 +11,7 @@
 import { type CSSProperties, type ReactNode, useRef } from "react";
 import { cellKey } from "../../model/address.js";
 import { getMergeAt } from "../../model/sheet.js";
+import type { StyleObject } from "../../model/types.js";
 import { cellCss } from "../cellStyle.js";
 import { useGridRender, useSheetContext } from "../context.js";
 import { useCaretBinding } from "../useCaretBinding.js";
@@ -24,11 +25,22 @@ export interface CellProps {
   gridRow: number;
   /** Sticky offsets for freeze panes, computed by the Grid. */
   stickyStyle: CSSProperties;
+  /** Stored cell style — lets the grid pass the resolved object directly. */
+  styleRef?: StyleObject;
+  /** Live toolbar preview — merged over the stored style for selected cells only. */
+  stylePreview?: Partial<StyleObject>;
 }
 
 const PERCENT = 100;
 
-export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
+export function Cell({
+  row,
+  col,
+  gridRow,
+  stickyStyle,
+  styleRef,
+  stylePreview,
+}: CellProps): ReactNode {
   const { api, theme, prefix, ui, focusRef, components } =
     useSheetContext("Sheet.Cell");
   const { renderCellContent: gridRenderCell } = useGridRender();
@@ -60,9 +72,10 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   // Base formatting, then conditional formatting over it. That order is Excel's:
   // a rule that matches wins over the cell's own fill and font, which is what
   // makes a rule visible at all.
-  const base = sheet.styles[key] ?? {};
+  const base = styleRef ?? sheet.styles[key] ?? {};
   const conditional = api.condStyleFor(row, col);
-  const style = conditional ? { ...base, ...conditional } : base;
+  const merged = stylePreview ? { ...base, ...stylePreview } : base;
+  const style = conditional ? { ...merged, ...conditional } : merged;
   // An IMAGE() cell draws its picture instead of its value, which is a URL.
   const image = sheet.images[key];
   // A colour scale, data bar, or icon set — painted rather than styled.

@@ -63,6 +63,7 @@ export const Toolbar = Object.assign(ToolbarRoot, {
   AlignLeft: toolbar.ToolbarAlignLeft,
   AlignCenter: toolbar.ToolbarAlignCenter,
   AlignRight: toolbar.ToolbarAlignRight,
+  FontFamily: toolbar.ToolbarFontFamily,
   TextColor: toolbar.ToolbarTextColor,
   FillColor: toolbar.ToolbarFillColor,
   NumFmt: toolbar.ToolbarNumFmt,

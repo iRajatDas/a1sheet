@@ -228,6 +228,7 @@ function FullShell() {
         </Sheet.Toolbar.Group>
         <Sheet.Toolbar.Separator />
         <Sheet.Toolbar.Group>
+          <Sheet.Toolbar.FontFamily />
           <Sheet.Toolbar.Bold />
           <Sheet.Toolbar.Italic />
           <Sheet.Toolbar.Underline />

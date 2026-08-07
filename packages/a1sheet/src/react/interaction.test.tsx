@@ -213,6 +213,16 @@ describe("formatting", () => {
     );
     expect(text).toContain("50.00%");
   });
+
+  test("font family applies to the selection", () => {
+    const { container } = setup({ "0_0": "serif please" });
+    fireEvent.click(screen.getByTitle("Font"));
+    fireEvent.click(screen.getByRole("option", { name: /Georgia/ }));
+    const cell = [...container.querySelectorAll(".a1s-cell")].find(
+      (el) => el.textContent === "serif please",
+    ) as HTMLElement;
+    expect(cell.style.fontFamily).toContain("Georgia");
+  });
 });
 
 describe("structure", () => {

@@ -7,6 +7,7 @@ export {
   ToolbarDeleteCol,
   ToolbarDeleteRow,
   ToolbarFillColor,
+  ToolbarFontFamily,
   ToolbarFreeze,
   ToolbarInsertCol,
   ToolbarInsertRow,

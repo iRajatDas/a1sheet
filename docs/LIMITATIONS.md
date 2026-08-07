@@ -106,12 +106,15 @@ band outside the virtualized mapping.
 
 ## Editing
 
-**A multi-range selection feeds the status bar only.** Ctrl+click and Shift+F8
-both build one, and it is drawn and summed — but copy, fill, paste, and styling
-all act on the primary range alone. Excel refuses some of those on a
-discontiguous selection and performs others; deciding which is the work here,
-not the plumbing.
-→ `extraRanges` in `src/react/useSelection.ts`; `StatusBar` is its only consumer.
+**The fill handle acts on the primary range only.** Clearing, formatting,
+copying, and the stats all cover every range of a Ctrl+click selection; dragging
+the handle fills from the active one. Excel does the same.
+→ `useFillHandle` in `src/react/useFillHandle.ts`.
+
+**Ctrl+clicking a selected range removes the whole range, not the cell.** Excel
+splits the range around the cell you click, turning one range into up to four.
+Dropping the range is the predictable half of that.
+→ `removeRangeAt` in `src/react/useSelection.ts`.
 
 **Paste aligns from the target's top-left corner with no shape validation**
 against the source range.

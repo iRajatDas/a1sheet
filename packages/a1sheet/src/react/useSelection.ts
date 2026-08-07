@@ -34,13 +34,24 @@ export interface UseSelectionResult {
   addRange(range: Range): void;
   clearExtraRanges(): void;
   /**
-   * Freezes the current selection into `extraRanges` and starts a new one at a
-   * cell — what Ctrl+click does, and what add-mode does on the first arrow key.
+   * Freezes the current selection into `extraRanges` and makes `range` the new
+   * active one — what Ctrl+click does, on a cell or on a whole row or column,
+   * and what add-mode does on the first arrow key.
    *
    * `addRange` followed by `selectCell` looks equivalent and is not: `selectCell`
    * clears the extras, so the pair discards every range it was meant to keep.
    */
-  startNewRange(row: number, col: number): void;
+  startNewRange(range: Range): void;
+  /**
+   * Drops the range containing a cell — Ctrl+clicking a second time on
+   * something already selected, which is how a misclick gets taken back.
+   *
+   * Returns false when the cell is in no range, so the caller can fall through
+   * to adding one. Excel removes the CELL and splits the range around it; this
+   * removes the whole range, which is predictable in a way that a range silently
+   * becoming three is not.
+   */
+  removeRangeAt(row: number, col: number): boolean;
   /**
    * Excel's Shift+F8 "Add to Selection": while on, moving the cursor keeps the
    * range behind it instead of replacing it, which is the only way to build a
@@ -80,11 +91,38 @@ export function useSelection(initial?: Range): UseSelectionResult {
   }, []);
 
   const startNewRange = useCallback(
-    (row: number, col: number) => {
+    (range: Range) => {
       setExtraRanges((prev) => [...prev, selection]);
-      setSelection({ r1: row, c1: col, r2: row, c2: col });
+      setSelection(range);
     },
     [selection],
+  );
+
+  const removeRangeAt = useCallback(
+    (row: number, col: number) => {
+      const covers = (r: Range) => {
+        const n = normalizeRange(r);
+        return row >= n.r1 && row <= n.r2 && col >= n.c1 && col <= n.c2;
+      };
+
+      const index = extraRanges.findIndex(covers);
+      if (index >= 0) {
+        setExtraRanges((prev) => prev.filter((_, i) => i !== index));
+        return true;
+      }
+
+      // The primary range can only go if another one can take its place: there
+      // is always an active cell, and "no selection at all" is not a state the
+      // rest of the code is written for.
+      const last = extraRanges[extraRanges.length - 1];
+      if (last && covers(selection)) {
+        setExtraRanges((prev) => prev.slice(0, -1));
+        setSelection(last);
+        return true;
+      }
+      return false;
+    },
+    [extraRanges, selection],
   );
 
   /**
@@ -139,6 +177,7 @@ export function useSelection(initial?: Range): UseSelectionResult {
       setAddMode(false);
     }, []),
     startNewRange,
+    removeRangeAt,
     addMode,
     toggleAddMode,
     move,

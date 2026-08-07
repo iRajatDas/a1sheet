@@ -30,7 +30,14 @@ export function ContextMenu(): ReactNode {
   }
 
   async function copy() {
-    const text = api.clipboard.copy(api.sheet, api.selection);
+    const text = api.clipboard.copy(api.sheet, api.ranges);
+    if (text === null) {
+      api.setStatus(
+        "That command cannot be used on multiple selections — the ranges must share their rows or their columns.",
+      );
+      onClose();
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
     } catch {

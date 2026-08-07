@@ -128,10 +128,13 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
         focusRef.current?.focus();
         if (editing) api.commitEdit();
         if (e.ctrlKey || e.metaKey) {
-          // One call, because `addRange` then `selectCell` does not work:
-          // selectCell clears the extras, so every Ctrl+click discarded the
-          // ranges it had just banked and the selection never grew past two.
-          api.startNewRange(row, col);
+          // Clicking something already selected takes it back out, as Excel
+          // does. Otherwise this is one call, because `addRange` then
+          // `selectCell` does not work: selectCell clears the extras, so every
+          // Ctrl+click discarded the ranges it had just banked.
+          if (!api.removeRangeAt(row, col)) {
+            api.startNewRange({ r1: row, c1: col, r2: row, c2: col });
+          }
         } else if (e.shiftKey) {
           api.extendTo(row, col);
         } else {

@@ -8,6 +8,37 @@ backfilled.
 
 ## Unreleased
 
+### Changed (a multiple selection is now actually selected)
+
+Ctrl+click built a selection that was shaded and nothing else: every operation
+acted on the primary range, so the other blocks were decoration.
+
+- **Clear, formatting, and the lock check cover every selected range.**
+- **Copy joins the ranges** when they line up into one block — same columns
+  stacked, or same rows side by side — and refuses anything else with Excel's
+  own message rather than guessing at a shape nobody selected.
+- **Paste drops the extra ranges** and lands on the active one.
+- **Ctrl+click a range again to remove it**, as Excel does. It drops the whole
+  range rather than splitting it around the cell, which is the predictable half
+  of that behaviour.
+- **Row and column headers take drags and modifiers**: drag across them to
+  select the bands between, Shift+click to extend, Ctrl+click to add or remove
+  one.
+
+### Changed (selection and copy visuals)
+
+- **Each range is outlined**, one box per range, so a multiple selection reads
+  as ranges rather than as scattered shading.
+- **Every line is 1px.** The active cell was a 2px box, the copy outline another
+  2px dashed one, and on a copied active cell they stacked into the loudest
+  thing on screen.
+- **Overlays sit below the sticky headers.** At a higher layer, a selection
+  scrolled under the header row drew straight across it.
+- **The copy outline goes away on any edit**, not only on paste and Escape — it
+  describes what a paste would bring in, and the sheet having changed makes that
+  a claim it can no longer support.
+- The fill handle is a circle rather than a 7px square.
+
 ### Added (selecting without a mouse, and dragging past the edge)
 
 Three things a spreadsheet can do that this one could not: cross a long sheet

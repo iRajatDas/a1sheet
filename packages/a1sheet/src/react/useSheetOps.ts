@@ -27,9 +27,13 @@ export interface UseSheetOpsResult {
   activeStyle: StyleObject;
   isLocked(row: number, col: number): boolean;
   anyLockedInSelection(): boolean;
-  /** Merges a style patch into every cell of the selection. */
+  /**
+   * Merges a style patch into every selected cell — every range of a
+   * multi-selection, not just the primary one. Formatting three separate blocks
+   * bold at once is most of the point of Ctrl+click.
+   */
   applyStyle(patch: Partial<StyleObject>): void;
-  /** Deletes cell contents in the selection. Refuses if any cell is locked. */
+  /** Deletes cell contents in every selected range. Refuses if any cell is locked. */
   clearCells(): boolean;
   clearFormatting(): void;
   mergeSelection(): void;
@@ -57,11 +61,43 @@ export interface UseSheetOpsResult {
   setFilter(col: number, allowed: Set<string> | null): void;
 }
 
+/**
+ * Visits every cell of every selected range, once.
+ *
+ * Ranges of a Ctrl+click selection may overlap, and `styles[key] = {...}` twice
+ * is only wasted work — but `forEachCell` is also what a future op that is not
+ * idempotent would use, so it dedupes here rather than leaving each caller to
+ * remember.
+ */
+function forEachCell(
+  ranges: readonly Range[],
+  visit: (row: number, col: number) => void,
+): void {
+  const seen = new Set<string>();
+  for (const range of ranges) {
+    const b = normalizeRange(range);
+    for (let r = b.r1; r <= b.r2; r++) {
+      for (let c = b.c1; c <= b.c2; c++) {
+        const key = cellKey(r, c);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        visit(r, c);
+      }
+    }
+  }
+}
+
+/**
+ * @param ranges Every selected range, the primary one first. Cell operations
+ * cover all of them; structural ones — merge, freeze, insert — use the primary,
+ * because "insert a row at three disjoint places" has no obvious meaning.
+ */
 export function useSheetOps(
   sheet: Sheet,
-  selection: Range,
+  ranges: readonly Range[],
   updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
 ): UseSheetOpsResult {
+  const selection = ranges[0] ?? { r1: 0, c1: 0, r2: 0, c2: 0 };
   const bounds = useMemo(() => normalizeRange(selection), [selection]);
 
   const isLocked = useCallback(
@@ -70,48 +106,45 @@ export function useSheetOps(
   );
 
   const anyLockedInSelection = useCallback(() => {
-    for (let r = bounds.r1; r <= bounds.r2; r++) {
-      for (let c = bounds.c1; c <= bounds.c2; c++) {
-        if (isLocked(r, c)) return true;
-      }
-    }
-    return false;
-  }, [bounds, isLocked]);
+    let locked = false;
+    forEachCell(ranges, (r, c) => {
+      if (isLocked(r, c)) locked = true;
+    });
+    return locked;
+  }, [ranges, isLocked]);
 
   const applyStyle = useCallback(
     (patch: Partial<StyleObject>) => {
       updateSheet((s) => {
-        for (let r = bounds.r1; r <= bounds.r2; r++) {
-          for (let c = bounds.c1; c <= bounds.c2; c++) {
-            const key = cellKey(r, c);
-            s.styles[key] = { ...(s.styles[key] ?? {}), ...patch };
-          }
-        }
+        forEachCell(ranges, (r, c) => {
+          const key = cellKey(r, c);
+          s.styles[key] = { ...(s.styles[key] ?? {}), ...patch };
+        });
         return s;
       });
     },
-    [bounds, updateSheet],
+    [ranges, updateSheet],
   );
 
   const clearCells = useCallback(() => {
     if (anyLockedInSelection()) return false;
     updateSheet((s) => {
-      for (let r = bounds.r1; r <= bounds.r2; r++) {
-        for (let c = bounds.c1; c <= bounds.c2; c++) delete s.cells[cellKey(r, c)];
-      }
+      forEachCell(ranges, (r, c) => {
+        delete s.cells[cellKey(r, c)];
+      });
       return s;
     });
     return true;
-  }, [bounds, anyLockedInSelection, updateSheet]);
+  }, [ranges, anyLockedInSelection, updateSheet]);
 
   const clearFormatting = useCallback(() => {
     updateSheet((s) => {
-      for (let r = bounds.r1; r <= bounds.r2; r++) {
-        for (let c = bounds.c1; c <= bounds.c2; c++) delete s.styles[cellKey(r, c)];
-      }
+      forEachCell(ranges, (r, c) => {
+        delete s.styles[cellKey(r, c)];
+      });
       return s;
     });
-  }, [bounds, updateSheet]);
+  }, [ranges, updateSheet]);
 
   return {
     activeStyle: sheet.styles[cellKey(selection.r2, selection.c2)] ?? {},

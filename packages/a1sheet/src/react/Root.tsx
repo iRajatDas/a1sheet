@@ -30,6 +30,13 @@ import { buildCss } from "./styles.js";
 import { resolveTheme, type Theme } from "./theme.js";
 import { type UseSpreadsheetResult, useSpreadsheet } from "./useSpreadsheet.js";
 
+/**
+ * What a copy says when the selected ranges do not line up into one block.
+ * Excel's own wording, because it is the message people already know.
+ */
+const MULTI_COPY_REFUSED =
+  "That command cannot be used on multiple selections — the ranges must share their rows or their columns.";
+
 export interface SheetRootProps {
   /** Uncontrolled initial workbook. */
   defaultWorkbook?: Workbook;
@@ -364,23 +371,31 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
           onKeyDown={onKeyDown}
           onCopy={(e) => {
             e.preventDefault();
-            e.clipboardData.setData(
-              "text/plain",
-              api.clipboard.copy(sheet, selection),
-            );
+            const text = api.clipboard.copy(sheet, api.ranges);
+            if (text === null) {
+              api.setStatus(MULTI_COPY_REFUSED);
+              return;
+            }
+            e.clipboardData.setData("text/plain", text);
           }}
           onCut={(e) => {
             e.preventDefault();
-            e.clipboardData.setData(
-              "text/plain",
-              api.clipboard.copy(sheet, selection),
-            );
+            const text = api.clipboard.copy(sheet, api.ranges);
+            if (text === null) {
+              api.setStatus(MULTI_COPY_REFUSED);
+              return;
+            }
+            e.clipboardData.setData("text/plain", text);
             api.clearCells();
           }}
           onPaste={(e) => {
             e.preventDefault();
             const text = e.clipboardData.getData("text/plain");
             if (!text) return;
+            // Pasting into several ranges at once has no defined meaning, so
+            // the extra ranges are dropped and the paste lands where the
+            // active range is — the same thing Excel does.
+            api.clearExtraRanges();
             api.select(
               api.clipboard.paste(
                 text,

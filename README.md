@@ -131,6 +131,15 @@ that needs a pointer is a grid some people cannot use.
 | Ctrl+D / Ctrl+R | Fill down / right |
 | Escape | Drop the extra ranges, the copy outline, and add mode |
 
+With the mouse: drag to select, Shift+click to extend, Ctrl/Cmd+click to add a
+range — or to remove one already selected. The row and column headers take the
+same three, and a drag across them selects the bands between.
+
+A multiple selection is a real selection: clearing, formatting, and the status
+bar's count all cover every range of it. Copying joins the ranges when they line
+up into one block — same columns stacked, or same rows side by side — and
+refuses anything else, as Excel does, rather than inventing a shape.
+
 **Shift+F8** is how a discontiguous selection gets made without Ctrl+click: the
 range you leave behind is kept as the cursor moves on, so Shift+F8, arrow away,
 Shift+arrow to size the next one builds the same thing a mouse would.

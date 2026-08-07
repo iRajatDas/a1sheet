@@ -33,8 +33,16 @@ export interface CopiedGrid {
 }
 
 export interface UseClipboardResult {
-  /** Serializes the range as TSV and remembers it for internal-paste detection. */
-  copy(sheet: Sheet, selection: Range): string;
+  /**
+   * Serializes the selection as TSV and remembers it for internal-paste
+   * detection.
+   *
+   * Takes every selected range. Excel's rule for a multi-range copy is that the
+   * ranges have to line up into one block — same columns stacked vertically, or
+   * same rows side by side — and it refuses anything else rather than guessing
+   * at the shape. Null is that refusal; the caller reports it.
+   */
+  copy(sheet: Sheet, ranges: readonly Range[]): string | null;
   /** Applies clipboard text at `target`. Returns the range it wrote. */
   paste(
     text: string,
@@ -43,14 +51,14 @@ export interface UseClipboardResult {
   ): Range;
   lastCopied(): CopiedGrid | null;
   /**
-   * The range the last copy came from, for the dashed outline the grid draws
-   * around it. Null once the copy has been used or dismissed.
+   * The ranges the last copy came from, for the dashed outline the grid draws
+   * around them. Empty once the copy has been used or dismissed.
    *
    * State rather than a ref, unlike `lastCopied`: this one is rendered, so a
    * copy has to re-render the grid. What it marks is the SOURCE, which is why it
    * survives the selection moving away to wherever the paste is going.
    */
-  copiedRange: Range | null;
+  copiedRanges: readonly Range[];
   /** Clears the outline — on paste, on Escape, or when an edit invalidates it. */
   clearCopied(): void;
 }
@@ -58,6 +66,60 @@ export interface UseClipboardResult {
 /** TSV: tab between columns, newline between rows — what Excel and Sheets use. */
 function serialize(grid: string[][]): string {
   return grid.map((row) => row.join("\t")).join("\n");
+}
+
+/**
+ * Lays several selected blocks out as the one grid a clipboard can hold.
+ *
+ * Two shapes work and no others: blocks in the same columns, stacked in row
+ * order, and blocks in the same rows, placed side by side in column order.
+ * Anything else — an L, two overlapping rectangles, blocks of differing widths —
+ * has no single sensible flattening, and inventing one would silently paste a
+ * shape the user never selected. Excel refuses these too.
+ *
+ * Returns null on refusal, and the origin of the topmost-leftmost block on
+ * success, which is what relative references shift against.
+ */
+function joinBlocks(
+  blocks: readonly Range[],
+  read: (block: Range) => string[][],
+): { grid: string[][]; origin: { row: number; col: number } } | null {
+  const first = blocks[0];
+  if (!first) return null;
+  if (blocks.length === 1) {
+    return { grid: read(first), origin: { row: first.r1, col: first.c1 } };
+  }
+
+  const sameCols = blocks.every((b) => b.c1 === first.c1 && b.c2 === first.c2);
+  if (sameCols) {
+    const ordered = [...blocks].sort((a, b) => a.r1 - b.r1);
+    // Overlapping blocks would repeat their shared rows.
+    for (let i = 1; i < ordered.length; i++) {
+      if ((ordered[i] as Range).r1 <= (ordered[i - 1] as Range).r2) return null;
+    }
+    const top = ordered[0] as Range;
+    return {
+      grid: ordered.flatMap(read),
+      origin: { row: top.r1, col: top.c1 },
+    };
+  }
+
+  const sameRows = blocks.every((b) => b.r1 === first.r1 && b.r2 === first.r2);
+  if (sameRows) {
+    const ordered = [...blocks].sort((a, b) => a.c1 - b.c1);
+    for (let i = 1; i < ordered.length; i++) {
+      if ((ordered[i] as Range).c1 <= (ordered[i - 1] as Range).c2) return null;
+    }
+    const left = ordered[0] as Range;
+    const grids = ordered.map(read);
+    const height = first.r2 - first.r1 + 1;
+    const grid = Array.from({ length: height }, (_, r) =>
+      grids.flatMap((g) => g[r] ?? []),
+    );
+    return { grid, origin: { row: left.r1, col: left.c1 } };
+  }
+
+  return null;
 }
 
 function deserialize(text: string): string[][] {
@@ -70,19 +132,31 @@ function deserialize(text: string): string[][] {
 
 export function useClipboard(): UseClipboardResult {
   const last = useRef<CopiedGrid | null>(null);
-  const [copiedRange, setCopiedRange] = useState<Range | null>(null);
+  const [copiedRanges, setCopiedRanges] = useState<readonly Range[]>([]);
 
-  const copy = useCallback((sheet: Sheet, selection: Range) => {
-    const b = normalizeRange(selection);
-    const grid: string[][] = [];
-    for (let r = b.r1; r <= b.r2; r++) {
-      const row: string[] = [];
-      for (let c = b.c1; c <= b.c2; c++) row.push(sheet.cells[cellKey(r, c)] ?? "");
-      grid.push(row);
-    }
-    const text = serialize(grid);
-    last.current = { grid, origin: { row: b.r1, col: b.c1 }, text };
-    setCopiedRange(b);
+  const copy = useCallback((sheet: Sheet, ranges: readonly Range[]) => {
+    const blocks = ranges.map(normalizeRange);
+    const first = blocks[0];
+    if (!first) return null;
+
+    const read = (b: Range) => {
+      const grid: string[][] = [];
+      for (let r = b.r1; r <= b.r2; r++) {
+        const row: string[] = [];
+        for (let c = b.c1; c <= b.c2; c++) {
+          row.push(sheet.cells[cellKey(r, c)] ?? "");
+        }
+        grid.push(row);
+      }
+      return grid;
+    };
+
+    const joined = joinBlocks(blocks, read);
+    if (!joined) return null;
+
+    const text = serialize(joined.grid);
+    last.current = { grid: joined.grid, origin: joined.origin, text };
+    setCopiedRanges(blocks);
     return text;
   }, []);
 
@@ -92,7 +166,7 @@ export function useClipboard(): UseClipboardResult {
       target: { row: number; col: number },
       updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
     ) => {
-      setCopiedRange(null);
+      setCopiedRanges([]);
       const internal = last.current && last.current.text === text;
       const grid = internal ? (last.current as CopiedGrid).grid : deserialize(text);
       const origin = internal ? (last.current as CopiedGrid).origin : target;
@@ -137,7 +211,7 @@ export function useClipboard(): UseClipboardResult {
     copy,
     paste,
     lastCopied: useCallback(() => last.current, []),
-    copiedRange,
-    clearCopied: useCallback(() => setCopiedRange(null), []),
+    copiedRanges,
+    clearCopied: useCallback(() => setCopiedRanges([]), []),
   };
 }

@@ -36,7 +36,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { colToLetters } from "../../model/address.js";
+import { colToLetters, normalizeRange } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
 import {
   AUTOFIT_SAMPLE_LIMIT,
@@ -88,8 +88,14 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   } | null>(null);
   const measureText = useTextMeasurer();
   const scrollerId = useId();
-  /** Which drag is in progress, if any. Not state: no render depends on it. */
-  const dragRef = useRef<"select" | "fill" | null>(null);
+  /**
+   * Which drag is in progress, if any. Not state: no render depends on it.
+   *
+   * The three selecting kinds differ only in what the pointer's position means —
+   * a cell, a whole row, or a whole column — which is why they are one drag with
+   * a mode rather than three.
+   */
+  const dragRef = useRef<"select" | "rows" | "cols" | "fill" | null>(null);
   const dragMoveRef = useRef<(clientX: number, clientY: number) => void>(() => {});
   const dragEndRef = useRef<() => void>(() => {});
 
@@ -423,6 +429,16 @@ export function Grid({ children }: GridProps = {}): ReactNode {
       fill.moveTo(hit.row, hit.col);
       return;
     }
+    // Dragging across headers keeps the band full-width or full-height and only
+    // moves the end along that axis.
+    if (dragRef.current === "rows") {
+      api.extendTo(hit.row, sheet.numCols - 1);
+      return;
+    }
+    if (dragRef.current === "cols") {
+      api.extendTo(sheet.numRows - 1, hit.col);
+      return;
+    }
     // Dragging after a reference click grows that reference into a range.
     if (api.formulaRefs.active) api.formulaRefs.extendPickTo(hit.row, hit.col);
     else api.extendTo(hit.row, hit.col);
@@ -430,6 +446,33 @@ export function Grid({ children }: GridProps = {}): ReactNode {
   dragEndRef.current = () => {
     if (dragRef.current === "fill") fill.commit(api.updateSheet);
   };
+
+  /**
+   * Clicking a row or column header, with the modifiers Excel gives it: plain
+   * replaces the selection, Shift extends across to the header clicked, Ctrl
+   * banks the current selection and adds this band — or removes it, if it is
+   * already selected. The drag that may follow is picked up by the window
+   * listeners, which extend the band across the headers the pointer crosses.
+   */
+  function selectBand(
+    axis: "row" | "col",
+    index: number,
+    e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean },
+  ) {
+    const band =
+      axis === "row"
+        ? { r1: index, c1: 0, r2: index, c2: sheet.numCols - 1 }
+        : { r1: 0, c1: index, r2: sheet.numRows - 1, c2: index };
+
+    if (e.ctrlKey || e.metaKey) {
+      if (!api.removeRangeAt(band.r1, band.c1)) api.startNewRange(band);
+    } else if (e.shiftKey) {
+      api.extendTo(band.r2, band.c2);
+    } else {
+      api.select(band);
+    }
+    dragRef.current = axis === "row" ? "rows" : "cols";
+  }
 
   function renderRowHeader(r: number, gridRow: number, frozenRowIdx?: number) {
     const isRenaming = renaming?.type === "row" && renaming.index === r;
@@ -450,9 +493,10 @@ export function Grid({ children }: GridProps = {}): ReactNode {
         }}
         onMouseDown={(e) => {
           if ((e.target as HTMLElement).tagName === "INPUT") return;
+          if (e.button !== 0) return;
           e.preventDefault();
           focusRef.current?.focus();
-          api.select({ r1: r, c1: 0, r2: r, c2: sheet.numCols - 1 });
+          selectBand("row", r, e);
         }}
         onDoubleClick={() =>
           setRenaming({
@@ -625,9 +669,10 @@ export function Grid({ children }: GridProps = {}): ReactNode {
                 }}
                 onMouseDown={(e) => {
                   if ((e.target as HTMLElement).tagName === "INPUT") return;
+                  if (e.button !== 0) return;
                   e.preventDefault();
                   focusRef.current?.focus();
-                  api.select({ r1: 0, c1: c, r2: sheet.numRows - 1, c2: c });
+                  selectBand("col", c, e);
                 }}
                 onDoubleClick={() =>
                   setRenaming({
@@ -723,22 +768,44 @@ export function Grid({ children }: GridProps = {}): ReactNode {
             renderRow(absRow, gridRow, false),
           )}
 
+          {/* An outline around each selected range. The tint on the cells says
+            which cells; this says where each range begins and ends, which is the
+            difference between a multi-range selection and a scattering of
+            shaded cells. The primary range is drawn heavier. */}
+          {api.ranges.map((range, index) => {
+            const box = rectFor(normalizeRange(range));
+            if (!box) return null;
+            return (
+              <div
+                // The identity of a range IS its position in the list: two of
+                // them can cover the same cells, and reordering is not a thing
+                // that happens — a range is appended or the lot is cleared.
+                // biome-ignore lint/suspicious/noArrayIndexKey: see above
+                key={index}
+                aria-hidden="true"
+                className={`${prefix}selbox`}
+                style={{ position: "absolute", ...box }}
+              />
+            );
+          })}
+
           {/* What was copied, dashed, until it is pasted or dismissed. The only
             thing on screen that says a copy happened at all — and, once the
             selection has moved to the paste target, the only thing saying where
             the content is coming from. */}
-          {(() => {
-            const copied = api.clipboard.copiedRange;
-            const box = copied ? rectFor(copied) : null;
+          {api.clipboard.copiedRanges.map((range, index) => {
+            const box = rectFor(normalizeRange(range));
             if (!box) return null;
             return (
               <div
+                // biome-ignore lint/suspicious/noArrayIndexKey: as above
+                key={index}
                 aria-hidden="true"
                 className={`${prefix}marquee`}
                 style={{ position: "absolute", ...box }}
               />
             );
-          })()}
+          })}
 
           {/* Reference outlines for the formula being typed. Rendered inside the
             grid element so they scroll with it, and as siblings of the cells so
@@ -759,7 +826,9 @@ export function Grid({ children }: GridProps = {}): ReactNode {
                   border: `2px solid ${color}`,
                   background: `${color}14`,
                   pointerEvents: "none",
-                  zIndex: 6,
+                  // Below the sticky headers and the frozen bands, like every
+                  // other overlay — see the layer note in styles.ts.
+                  zIndex: 1,
                 }}
               />
             );

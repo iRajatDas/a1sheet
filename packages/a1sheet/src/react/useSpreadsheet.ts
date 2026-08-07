@@ -96,6 +96,8 @@ export interface UseSpreadsheetResult
   commitEdit(move?: [number, number]): void;
   /** True when the cell falls in the primary selection or any extra range. */
   isSelected(row: number, col: number): boolean;
+  /** Every selected range, the primary first. What operations act on. */
+  ranges: readonly Range[];
   /** Transient user-facing message, e.g. "That cell is locked." */
   status: string;
   setStatus(message: string): void;
@@ -114,7 +116,34 @@ export function useSpreadsheet(
   const clipboard = useClipboard();
   const fill = useFillHandle();
   const formulaRefs = useFormulaRefs(editing.editing, editing.setValue);
-  const ops = useSheetOps(wb.sheet, selection.selection, wb.updateSheet);
+
+  const clearCopied = clipboard.clearCopied;
+
+  /**
+   * Every sheet mutation, with the copy outline dropped first.
+   *
+   * The outline says "this is what a paste will bring in". Once the sheet has
+   * changed it may be describing cells that no longer hold what they held, so
+   * it goes — which is what Excel and Sheets both do, and it is put HERE rather
+   * than in each command so that a new command cannot forget.
+   */
+  const updateSheet = useCallback<UseWorkbookResult["updateSheet"]>(
+    (fn, addHistory) => {
+      clearCopied();
+      wb.updateSheet(fn, addHistory);
+    },
+    [wb.updateSheet, clearCopied],
+  );
+
+  /**
+   * Every selected range, the primary one first. This is what an operation acts
+   * on: with a Ctrl+click selection, "the selection" is all of it.
+   */
+  const ranges = useMemo(
+    () => [selection.selection, ...selection.extraRanges],
+    [selection.selection, selection.extraRanges],
+  );
+  const ops = useSheetOps(wb.sheet, ranges, updateSheet);
 
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -246,7 +275,7 @@ export function useSpreadsheet(
 
   const setCell = useCallback(
     (row: number, col: number, raw: string) => {
-      wb.updateSheet((sheet) => {
+      updateSheet((sheet) => {
         const key = cellKey(row, col);
         if (sheet.styles[key]?.locked) return sheet;
         if (raw === "") delete sheet.cells[key];
@@ -266,7 +295,7 @@ export function useSpreadsheet(
         return sheet;
       });
     },
-    [wb],
+    [updateSheet],
   );
 
   const commitEdit = useCallback(
@@ -295,6 +324,7 @@ export function useSpreadsheet(
 
   return {
     ...wb,
+    updateSheet,
     ...selection,
     ...editing,
     ...ops,
@@ -321,6 +351,7 @@ export function useSpreadsheet(
     setCell,
     commitEdit,
     isSelected,
+    ranges,
     status,
     setStatus,
   };

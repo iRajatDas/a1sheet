@@ -51,10 +51,17 @@ results on unsorted data; scanning is slower and gives the right answer. On a
 sorted vector the two agree.
 → `findMatch` in `src/formula/functions/lookup.ts`.
 
-**No `OFFSET`, `INDIRECT`, or volatile functions.** A formula cannot build a
-reference from text, which also means the dependency graph is always static.
-→ `EvalContext` in `src/formula/evaluate.ts` would need a way to turn a string
-into a range, and the evaluator a notion of a cell that must always recompute.
+**`INDIRECT` is not volatile.** It builds a reference from text, but the result
+is memoized like any other formula, so a change to the text it was built from
+recalculates it while a change to a cell it *now* points at does not until
+something else invalidates the evaluator. In practice an edit rebuilds the
+evaluator, so this shows only within a single render.
+→ `compute` in `src/formula/evaluate.ts` would need a set of cells excluded from
+the cache.
+
+**No `RAND`, `RANDBETWEEN`, or `NOW`-driven recalculation.** `NOW` and `TODAY`
+exist but are evaluated once per evaluator, so they do not tick.
+→ The same volatility mechanism as `INDIRECT`.
 
 ## Grid
 
@@ -131,14 +138,6 @@ with a wash of it. Excel's actual definitions are several hundred entries in its
 own resources, differing in border weight and stripe opacity per family.
 → `builtinRecipe` in `src/io/xlsx/tables.ts`.
 
-**`top10` and `aboveAverage` conditional formats are dropped.** They need
-statistics over the whole range rather than a test on one cell. Colour scales,
-data bars, icon sets, expression, `cellIs`, `containsText`, and `containsBlanks`
-all work.
-→ `parseRule` in `src/io/xlsx/condFormat.ts`; `condDecorationFor` in
-`src/format/condFormat.ts` already gathers a range's numbers, which is what these
-would need.
-
 **Icon sets are drawn from a shape family, not Excel's own glyphs.** The twenty
 or so named sets are grouped by meaning — circle, arrow, flag, triangle, star —
 and coloured from one three-colour ramp, because what an icon set conveys is
@@ -157,8 +156,6 @@ with absolute references costs one evaluation — but a rule with relative
 references costs one per cell.
 → `condStyleFor` in `src/react/useSpreadsheet.ts`.
 
-**No data validation dropdowns.**
-
 ## File I/O
 
 **The DEFLATE encoder uses fixed Huffman tables, not dynamic ones.** They are
@@ -167,8 +164,7 @@ optimal tables. `MAX_CHAIN` bounds the match search, trading a little more size
 for speed.
 → `deflateRaw` in `src/io/zip/deflate.ts`.
 
-**XLSX import ignores charts, pivot tables, and data validation** rather than
-erroring on them. It trusts well-formed output from Excel, Sheets, and LibreOffice
+**XLSX import ignores charts and pivot tables** rather than erroring on them. It trusts well-formed output from Excel, Sheets, and LibreOffice
 and does not handle every OOXML edge case.
 → `src/io/xlsx/read.ts`.
 

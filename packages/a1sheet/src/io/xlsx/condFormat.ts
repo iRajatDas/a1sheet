@@ -89,6 +89,26 @@ function parseRule(
     return { type: "containsBlanks", negate: type === "notContainsBlanks" };
   }
 
+  if (type === "top10") {
+    const rank = Number.parseInt(attrs.rank ?? "10", 10);
+    return {
+      type: "top10",
+      rank: Number.isFinite(rank) ? rank : 10,
+      bottom: attrs.bottom === "1",
+      percent: attrs.percent === "1",
+    };
+  }
+
+  if (type === "aboveAverage") {
+    // `aboveAverage="0"` is how the below-average variant is written; absent
+    // means above, which is the rule's own name.
+    return {
+      type: "aboveAverage",
+      below: attrs.aboveAverage === "0",
+      orEqual: attrs.equalAverage === "1",
+    };
+  }
+
   return null;
 }
 

@@ -94,6 +94,8 @@ interface MatchContext {
   evaluator: Evaluator;
   row: number;
   col: number;
+  /** The rule's whole range, for the tests that are a statistic over it. */
+  range: Range;
   /** Top-left of the rule's range, which relative references are relative to. */
   anchorRow: number;
   anchorCol: number;
@@ -125,6 +127,28 @@ function matches(rule: CondRule, ctx: MatchContext): boolean {
   }
 
   const value = evaluator.getCellDisplay(row, col);
+
+  if (rule.type === "top10" || rule.type === "aboveAverage") {
+    const own = toNumberOr(value, Number.NaN);
+    if (Number.isNaN(own)) return false;
+    const values = rangeNumbers(ctx.range, evaluator);
+    if (values.length === 0) return false;
+
+    if (rule.type === "aboveAverage") {
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      if (rule.orEqual) return rule.below ? own <= mean : own >= mean;
+      return rule.below ? own < mean : own > mean;
+    }
+
+    // `percent` makes the rank a share of the range rather than a count.
+    const count = rule.percent
+      ? Math.max(1, Math.round((values.length * rule.rank) / PERCENT))
+      : rule.rank;
+    const ranked = rule.bottom ? values : [...values].reverse();
+    const cutoff = ranked[Math.min(count, ranked.length) - 1];
+    if (cutoff === undefined) return false;
+    return rule.bottom ? own <= cutoff : own >= cutoff;
+  }
 
   if (rule.type === "containsBlanks") {
     const blank = value === "" || value === undefined;
@@ -317,6 +341,7 @@ export function condStyleFor(
       evaluator: opts.evaluator,
       row,
       col,
+      range: format.range,
       anchorRow: normalizeRange(format.range).r1,
       anchorCol: normalizeRange(format.range).c1,
     });

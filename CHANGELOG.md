@@ -45,6 +45,18 @@ readable — it was a grid of `#NAME?` with its numbers thrown away.
 - **Array literals** (`{1,2;3,4}`), the `&` concatenation operator, and the `%`
   postfix operator, none of which the tokenizer previously recognized.
 
+### Added (the last formula gaps)
+
+- **`OFFSET` and `INDIRECT`.** Neither can be an ordinary function, because a
+  function receives values and these have to produce a *region* —
+  `OFFSET(A1,1,0)` means "the cell below A1", not "the value in A1, moved". They
+  join `LET` and `LAMBDA` as forms the evaluator intercepts. `INDIRECT` resolves a
+  qualified address too, so `INDIRECT("Sheet2!A1")` works.
+- **`top10` and `aboveAverage` conditional formats.** Their test is a statistic
+  over the whole range rather than a property of the cell, so the rule's range
+  is now passed to the matcher. Percentage ranks and the below/or-equal variants
+  are covered.
+
 ### Added (compression)
 
 - **Exported archives are compressed.** There was a DEFLATE decoder and no

@@ -199,3 +199,84 @@ describe("several rules on one cell", () => {
     expect(at(formats, 0, 0)).toEqual({ bold: true });
   });
 });
+
+describe("statistical rules", () => {
+  // 10, 20, 30, 40 down column A of a sheet of its own.
+  const ranked = createEvaluator(
+    {
+      "0_0": "10",
+      "1_0": "20",
+      "2_0": "30",
+      "3_0": "40",
+    } as Record<CellKey, RawCell>,
+    {},
+  );
+  const range = { r1: 0, c1: 0, r2: 3, c2: 0 };
+  const style = { bg: "#ff0000" } as const;
+  const over = (rule: CondFormat["rule"], row: number) =>
+    condStyleFor(
+      { condFormats: [{ range, priority: 1, rule, style }], evaluator: ranked },
+      row,
+      0,
+    );
+
+  test("top10 marks the highest N", () => {
+    const rule = { type: "top10", rank: 2, bottom: false, percent: false } as const;
+    expect(over(rule, 3)).toEqual(style);
+    expect(over(rule, 2)).toEqual(style);
+    expect(over(rule, 1)).toBeUndefined();
+  });
+
+  test("bottom marks the lowest N instead", () => {
+    const rule = { type: "top10", rank: 1, bottom: true, percent: false } as const;
+    expect(over(rule, 0)).toEqual(style);
+    expect(over(rule, 3)).toBeUndefined();
+  });
+
+  test("percent makes the rank a share of the range", () => {
+    // 50% of four values is the top two.
+    const rule = { type: "top10", rank: 50, bottom: false, percent: true } as const;
+    expect(over(rule, 2)).toEqual(style);
+    expect(over(rule, 1)).toBeUndefined();
+  });
+
+  test("aboveAverage compares against the range's mean", () => {
+    // The mean of 10, 20, 30, 40 is 25.
+    const rule = { type: "aboveAverage", below: false, orEqual: false } as const;
+    expect(over(rule, 2)).toEqual(style);
+    expect(over(rule, 1)).toBeUndefined();
+  });
+
+  test("below and orEqual flip and widen it", () => {
+    expect(over({ type: "aboveAverage", below: true, orEqual: false }, 1)).toEqual(
+      style,
+    );
+    expect(
+      over({ type: "aboveAverage", below: true, orEqual: false }, 2),
+    ).toBeUndefined();
+  });
+
+  test("a non-numeric cell is never marked", () => {
+    const text = createEvaluator(
+      { "0_0": "hello" } as Record<CellKey, RawCell>,
+      {},
+    );
+    expect(
+      condStyleFor(
+        {
+          condFormats: [
+            {
+              range,
+              priority: 1,
+              rule: { type: "aboveAverage", below: false, orEqual: false },
+              style,
+            },
+          ],
+          evaluator: text,
+        },
+        0,
+        0,
+      ),
+    ).toBeUndefined();
+  });
+});

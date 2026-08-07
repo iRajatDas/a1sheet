@@ -171,6 +171,23 @@ export type CondRule =
     }
   | { readonly type: "containsBlanks"; readonly negate: boolean }
   /**
+   * Rules whose test is a statistic over the whole range rather than over the
+   * cell — the top N values, or everything above the mean. Kept as a rule rather
+   * than resolved on import because the statistic moves when the values do.
+   */
+  | {
+      readonly type: "top10";
+      /** How many, or what percentage when `percent`. */
+      readonly rank: number;
+      readonly bottom: boolean;
+      readonly percent: boolean;
+    }
+  | {
+      readonly type: "aboveAverage";
+      readonly below: boolean;
+      readonly orEqual: boolean;
+    }
+  /**
    * A rule that paints rather than styles: a gradient across the range's values,
    * a bar in proportion to them, or an icon per band.
    *

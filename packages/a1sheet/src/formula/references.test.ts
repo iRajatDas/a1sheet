@@ -209,3 +209,46 @@ describe("defined names holding a formula", () => {
     expect(ev.evaluate("NOSUCHNAME")).toBe("#NAME?");
   });
 });
+
+describe("references built from a computation", () => {
+  const grid = {
+    "0_0": "1",
+    "1_0": "2",
+    "2_0": "3",
+    "0_1": "10",
+    "1_1": "20",
+    "2_1": "30",
+  } as Record<CellKey, RawCell>;
+  const ev = createEvaluator(
+    grid,
+    {},
+    {
+      sheets: [
+        { name: "Other", cells: { "0_0": "99" } as Record<CellKey, RawCell> },
+      ],
+    },
+  );
+
+  test("OFFSET moves a reference and can resize it", () => {
+    // Not an ordinary function: `OFFSET(A1,1,0)` means "the cell below A1", so
+    // it has to produce a region rather than a value that has been moved.
+    expect(ev.evaluate("OFFSET(A1,1,0)")).toBe(2);
+    expect(ev.evaluate("SUM(OFFSET(A1,0,0,3,1))")).toBe(6);
+    expect(ev.evaluate("SUM(OFFSET(A1,0,0,3,2))")).toBe(66);
+  });
+
+  test("OFFSET off the sheet is #REF!", () => {
+    expect(ev.evaluate("OFFSET(A1,-1,0)")).toBe("#REF!");
+    expect(ev.evaluate("OFFSET(A1,0,0,0,1)")).toBe("#REF!");
+  });
+
+  test("INDIRECT turns text into a reference, including a qualified one", () => {
+    expect(ev.evaluate('INDIRECT("B2")')).toBe(20);
+    expect(ev.evaluate('SUM(INDIRECT("A1:A3"))')).toBe(6);
+    expect(ev.evaluate('INDIRECT("Other!A1")')).toBe(99);
+  });
+
+  test("INDIRECT on something that is not an address is #REF!", () => {
+    expect(ev.evaluate('INDIRECT("nonsense")')).toBe("#REF!");
+  });
+});

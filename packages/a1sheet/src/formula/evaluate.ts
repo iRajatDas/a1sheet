@@ -265,6 +265,99 @@ const LAZY_FORMS = new Set([
   "IFNA",
 ]);
 
+/**
+ * Functions that build a reference rather than read one.
+ *
+ * They cannot be ordinary registry functions because a function receives values,
+ * and these need to produce a region for the evaluator to read — `OFFSET(A1,1,0)`
+ * means "the cell below A1", not "the value in A1, moved".
+ */
+const REFERENCE_FORMS = new Set(["OFFSET", "INDIRECT"]);
+
+function evalReferenceForm(
+  name: string,
+  args: readonly Node[],
+  ctx: EvalContext,
+): FormulaArg {
+  if (name === "INDIRECT") {
+    // The address is computed, which is exactly what makes INDIRECT volatile in
+    // Excel and why nothing here caches on it.
+    const first = args[0];
+    if (!first) return "#VALUE!";
+    const text = toText(evalNode(first, ctx));
+    const [sheet, address] = splitQualified(text);
+    const range = parseA1Range(address);
+    if (!range) return "#REF!";
+    return ctx.getRangeAbs(range.r1, range.c1, range.r2, range.c2, sheet);
+  }
+
+  // OFFSET(reference, rows, cols, [height], [width]).
+  const anchor = args[0];
+  if (!anchor) return "#VALUE!";
+  const base = rangeOf(anchor);
+  if (!base) return "#REF!";
+
+  const dRow = Math.round(toNumber(evalNode(args[1] as Node, ctx)));
+  const dCol = args[2] ? Math.round(toNumber(evalNode(args[2], ctx))) : 0;
+  const height = args[3]
+    ? Math.round(toNumber(evalNode(args[3], ctx)))
+    : base.r2 - base.r1 + 1;
+  const width = args[4]
+    ? Math.round(toNumber(evalNode(args[4], ctx)))
+    : base.c2 - base.c1 + 1;
+
+  const r1 = base.r1 + dRow;
+  const c1 = base.c1 + dCol;
+  if (r1 < 0 || c1 < 0 || height < 1 || width < 1) return "#REF!";
+  return ctx.getRangeAbs(r1, c1, r1 + height - 1, c1 + width - 1, base.sheet);
+}
+
+/** The region an AST node names, for the functions that take a reference. */
+function rangeOf(node: Node): (Range & { sheet?: string | undefined }) | null {
+  if (node.type === "ref") {
+    const { row, col } = parseCellRef(node.value);
+    return { r1: row, c1: col, r2: row, c2: col, sheet: node.sheet };
+  }
+  if (node.type === "range") {
+    const a = parseCellRef(node.from);
+    const b = parseCellRef(node.to);
+    return {
+      r1: Math.min(a.row, b.row),
+      c1: Math.min(a.col, b.col),
+      r2: Math.max(a.row, b.row),
+      c2: Math.max(a.col, b.col),
+      sheet: node.sheet,
+    };
+  }
+  return null;
+}
+
+const QUALIFIED = /^(?:'((?:[^']|'')*)'|([A-Za-z_][A-Za-z0-9_. ]*))!(.*)$/;
+
+/** Splits `Sheet2!A1:B9` into its sheet name and its address. */
+function splitQualified(text: string): [string | undefined, string] {
+  const m = text.match(QUALIFIED);
+  if (!m) return [undefined, text];
+  const sheet = (m[1] ?? m[2]) as string;
+  return [sheet.replace(/''/g, "'"), m[3] as string];
+}
+
+const A1_RANGE =
+  /^\$?([A-Za-z]{1,3})\$?(\d{1,7})(?::\$?([A-Za-z]{1,3})\$?(\d{1,7}))?$/;
+
+function parseA1Range(text: string): Range | null {
+  const m = text.trim().match(A1_RANGE);
+  if (!m) return null;
+  const from = parseCellRef(`${m[1]}${m[2]}`);
+  const to = m[3] ? parseCellRef(`${m[3]}${m[4]}`) : from;
+  return {
+    r1: Math.min(from.row, to.row),
+    c1: Math.min(from.col, to.col),
+    r2: Math.max(from.row, to.row),
+    c2: Math.max(from.col, to.col),
+  };
+}
+
 function evalCall(
   node: { type: "call"; name: string; args: Node[] },
   ctx: EvalContext,
@@ -272,6 +365,7 @@ function evalCall(
   const name = node.name;
 
   if (LAZY_FORMS.has(name)) return evalLazy(name, node.args, ctx);
+  if (REFERENCE_FORMS.has(name)) return evalReferenceForm(name, node.args, ctx);
 
   const fn = FUNCTIONS[name];
   if (!fn) return "#NAME?";
@@ -961,6 +1055,7 @@ function canSpill(node: Node): boolean {
 
 /** Functions whose result can be an array. */
 const ARRAY_RETURNING: ReadonlySet<string> = new Set([
+  "INDIRECT",
   "SEQUENCE",
   "UNIQUE",
   "SORT",

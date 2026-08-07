@@ -138,6 +138,17 @@ function ruleAttrs(rule: CondRule): string {
       );
     case "containsBlanks":
       return ` type="${rule.negate ? "notContainsBlanks" : "containsBlanks"}"`;
+    case "top10":
+      return (
+        ` type="top10" rank="${rule.rank}"` +
+        `${rule.bottom ? ` bottom="1"` : ""}${rule.percent ? ` percent="1"` : ""}`
+      );
+    case "aboveAverage":
+      return (
+        ` type="aboveAverage"` +
+        `${rule.below ? ` aboveAverage="0"` : ""}` +
+        `${rule.orEqual ? ` equalAverage="1"` : ""}`
+      );
     default:
       return ` type="${rule.type}"`;
   }

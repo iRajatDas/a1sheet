@@ -10,7 +10,7 @@ import type { Evaluator } from "../formula/evaluate.js";
 import type { CellKey, RawCell } from "../model/types.js";
 import { safeFilename } from "./csv/sanitize.js";
 import { cellsToCSV } from "./csv/write.js";
-import type { XlsxSheetInput } from "./xlsx/write.js";
+import type { WriteXlsxOptions, XlsxSheetInput } from "./xlsx/write.js";
 import { writeXlsx } from "./xlsx/write.js";
 
 function saveBlob(blob: Blob, filename: string): void {
@@ -29,9 +29,10 @@ function saveBlob(blob: Blob, filename: string): void {
 
 export function downloadXlsx(
   sheets: XlsxSheetInput[],
+  options: WriteXlsxOptions = {},
   filename = "spreadsheet.xlsx",
 ): void {
-  const bytes = writeXlsx(sheets);
+  const bytes = writeXlsx(sheets, options);
   saveBlob(
     new Blob([bytes as unknown as BlobPart], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

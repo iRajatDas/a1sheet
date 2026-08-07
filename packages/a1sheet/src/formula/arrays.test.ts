@@ -307,6 +307,75 @@ describe("spilling", () => {
     expect(ev.getCellDisplay(1, 0)).toBe("in the way");
   });
 
+  test("one array reads another's spilled tail", () => {
+    // The whole point of chaining. A1 spills 1,2,3 down; A2 and A3 hold no text
+    // of their own, so SORT sees them only if the index resolves A1 first.
+    const chained = {
+      "0_0": "=SEQUENCE(3)",
+      "0_2": "=SORT(A1:A3, 1, -1)",
+    } as Record<CellKey, RawCell>;
+    const ev = evaluator(chained);
+
+    expect(ev.getCellDisplay(0, 2)).toBe(3);
+    expect(ev.getCellDisplay(1, 2)).toBe(2);
+    expect(ev.getCellDisplay(2, 2)).toBe(1);
+  });
+
+  test("the chain holds however the cells are read first", () => {
+    // Reading the tail before the anchor used to cache the blank it found.
+    const chained = {
+      "0_0": "=SEQUENCE(3)",
+      "0_2": "=SUM(A1:A3)",
+    } as Record<CellKey, RawCell>;
+    const ev = evaluator(chained);
+
+    expect(ev.getCellDisplay(1, 0)).toBe(2);
+    expect(ev.getCellDisplay(0, 2)).toBe(6);
+  });
+
+  test("a chain three deep resolves", () => {
+    const chained = {
+      "0_0": "=SEQUENCE(3)",
+      "0_2": "=SORT(A1:A3, 1, -1)",
+      "0_4": "=SORT(C1:C3)",
+    } as Record<CellKey, RawCell>;
+    const ev = evaluator(chained);
+
+    expect(ev.getCellDisplay(0, 4)).toBe(1);
+    expect(ev.getCellDisplay(2, 4)).toBe(3);
+  });
+
+  test("two arrays that each read the other's tail terminate", () => {
+    // A genuine reference cycle. It must not hang or blow the stack; one of the
+    // two reads blanks, which is what Excel calls a circular reference.
+    const mutual = {
+      "0_0": "=SORT(C1:C2)",
+      "0_2": "=SORT(A1:A2)",
+    } as Record<CellKey, RawCell>;
+    const ev = evaluator(mutual);
+
+    expect(() => ev.getCellDisplay(0, 0)).not.toThrow();
+    expect(() => ev.getCellDisplay(0, 2)).not.toThrow();
+  });
+
+  test("a spill on another sheet is visible across the reference", () => {
+    const here = { "0_0": "=SUM(Data!A1:A3)" } as Record<CellKey, RawCell>;
+    const ev = createEvaluator(
+      here,
+      {},
+      {
+        sheets: [
+          {
+            name: "Data",
+            cells: { "0_0": "=SEQUENCE(3)" } as Record<CellKey, RawCell>,
+          },
+        ],
+      },
+    );
+
+    expect(ev.getCellDisplay(0, 0)).toBe(6);
+  });
+
   test("a formula that cannot spill costs no index", () => {
     // The index has to evaluate every candidate, so narrowing the candidates is
     // what keeps it from being a full recalculation. Asserted by behaviour: a

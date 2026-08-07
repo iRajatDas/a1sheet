@@ -614,6 +614,14 @@ export interface EvaluatorOptions {
    */
   namedFormulas?: Readonly<Record<string, string>>;
   /**
+   * Defined names scoped to the sheet this evaluator is for. They SHADOW the
+   * workbook names passed positionally, which is Excel's resolution order for a
+   * formula living on that sheet.
+   */
+  sheetNamedRanges?: NamedRanges;
+  /** The same, for sheet-scoped names holding a formula. */
+  sheetNamedFormulas?: Readonly<Record<string, string>>;
+  /**
    * Regions an array formula declares as its output, keyed by the anchor.
    *
    * An imported sheet has the array's result written into it as ordinary values,
@@ -637,7 +645,28 @@ export function createEvaluator(
 ): Evaluator {
   const cachedValues = opts.cachedValues ?? {};
   const tables = opts.tables ?? EMPTY_TABLE_INDEX;
-  const namedFormulas = opts.namedFormulas ?? {};
+  /**
+   * Workbook names with the sheet's own layered over them.
+   *
+   * A name defined at both scopes resolves to the sheet's, and it resolves to
+   * the sheet's KIND too: a name that is a range on the workbook and a formula
+   * on the sheet must not keep resolving as a range, which it would, because
+   * `evalNode` checks ranges first.
+   */
+  const localRanges = opts.sheetNamedRanges ?? {};
+  const localFormulas = opts.sheetNamedFormulas ?? {};
+  const scoped =
+    Object.keys(localRanges).length + Object.keys(localFormulas).length > 0;
+
+  const resolvedRanges: NamedRanges = scoped
+    ? without({ ...namedRanges, ...localRanges }, Object.keys(localFormulas))
+    : namedRanges;
+  const namedFormulas: Readonly<Record<string, string>> = scoped
+    ? without(
+        { ...(opts.namedFormulas ?? {}), ...localFormulas },
+        Object.keys(localRanges),
+      )
+    : (opts.namedFormulas ?? {});
   const declaredSpills = Object.entries(opts.spillRanges ?? {}) as [
     CellKey,
     Range,
@@ -734,9 +763,7 @@ export function createEvaluator(
 
     if (raw === undefined || raw === "") {
       // Not a value of its own: it may be a cell another formula spills onto.
-      // Only the evaluator's own sheet has a spill index; a cross-sheet spill
-      // would need one per sheet, which no observed file needs.
-      const spilled = sheet === undefined ? spilledInto(row, col) : "";
+      const spilled = spilledInto(row, col, sheet);
       cache.set(key, spilled);
       return spilled;
     }
@@ -780,6 +807,11 @@ export function createEvaluator(
     // not report a value it cannot actually place.
     if (isMatrix(result) && blocks(source, row, col, result)) result = "#SPILL!";
     cache.set(key, result);
+    // Record the footprint the moment it exists. A formula reading `C1:C3` walks
+    // the range in order, so an anchor at C1 registers before C2 is asked for —
+    // which is the difference between the second array in a chain seeing values
+    // and seeing blanks.
+    if (isMatrix(result)) recordSpill(row, col, sheet, result);
     return result;
   }
 
@@ -843,75 +875,141 @@ export function createEvaluator(
   /**
    * Where each spilling formula's array lands, keyed by the cell it covers.
    *
-   * Built once, lazily, on the first query for an empty cell — and only over the
-   * formulas that COULD return an array, which `canSpill` decides from the parse
-   * tree. Most formulas cannot, so a sheet of `=A1*B1` builds an empty index and
-   * pays a walk of its ASTs rather than a full recalculation.
+   * ONE INDEX PER SHEET, built lazily, resolved one anchor at a time rather than
+   * in a single prepass. The distinction is what lets a dynamic array read
+   * another one's tail: `=SORT(A1:A3)` over a range that `=SEQUENCE(3)` spills
+   * into has to see 1, 2, 3, and a prepass cannot give it those — it is the thing
+   * currently running, so the values do not exist yet and every candidate that
+   * asked got a blank.
+   *
+   * Resolving on demand inverts that. Asking about a covered cell resolves
+   * whichever anchor covers it FIRST, and the asking formula then reads a real
+   * value. `resolving` breaks the recursion: an anchor is never re-entered while
+   * its own value is being computed, so two arrays that each read the other's
+   * tail terminate, one of them seeing blanks. That is a reference cycle and
+   * Excel calls it one; the difference is that it no longer taints the ordinary
+   * chained case.
+   *
+   * Candidates come from `canSpill` over the parse tree, behind a text prefilter,
+   * so a sheet of `=A1*B1` finds none and pays a regex per formula.
    */
-  let spills: Map<string, FormulaValue> | null = null;
-  let buildingSpills = false;
-
-  function spilledInto(row: number, col: number): FormulaValue {
-    if (spills === null) {
-      // Re-entrant while building: a candidate formula reading an empty cell gets
-      // "" rather than recursing. A spill that depends on another spill's tail is
-      // therefore not seen — documented in docs/LIMITATIONS.md.
-      if (buildingSpills) return "";
-      spills = buildSpills();
-    }
-    return spills.get(`${row}_${col}`) ?? "";
+  interface SpillIndex {
+    /** Anchors that could return an array. Found without evaluating any of them. */
+    candidates: readonly (readonly [number, number])[];
+    /** Anchors already folded in, successfully or not. */
+    resolved: Set<string>;
+    /** Covered cell -> the value spilled onto it. */
+    covered: Map<string, FormulaValue>;
   }
 
-  function buildSpills(): Map<string, FormulaValue> {
-    const map = new Map<string, FormulaValue>();
-    buildingSpills = true;
-    try {
-      for (const key of Object.keys(cells) as CellKey[]) {
-        const raw = cells[key];
-        if (raw === undefined || raw[0] !== "=") continue;
+  /** Keyed by sheet name, `""` being the sheet this evaluator was built for. */
+  const spillIndexes = new Map<string, SpillIndex>();
 
-        // Text prefilter BEFORE parsing. The scan visits every formula on the
-        // sheet, and parsing each one cost more than the whole index was worth:
-        // 100k distinct `=A1*2` formulas parse to 100k ASTs to prove that none of
-        // them can spill. The regex rejects those without allocating anything.
-        if (!mightSpill(raw)) continue;
+  function spillIndexFor(sheet: string | undefined): SpillIndex | null {
+    const name = sheet ?? "";
+    const existing = spillIndexes.get(name);
+    if (existing !== undefined) return existing;
 
-        let ast: Node;
-        try {
-          ast = astFor(raw);
-        } catch {
-          continue;
-        }
-        if (!canSpill(ast)) continue;
+    const source = cellsOf(sheet);
+    if (source === null) return null;
 
-        const separator = key.indexOf("_");
-        const row = Number(key.slice(0, separator));
-        const col = Number(key.slice(separator + 1));
+    const index: SpillIndex = {
+      candidates: spillCandidates(source),
+      resolved: new Set(),
+      covered: new Map(),
+    };
+    spillIndexes.set(name, index);
+    return index;
+  }
 
-        let value: FormulaArg;
-        try {
-          value = compute(row, col);
-        } catch {
-          continue;
-        }
-        if (!isMatrix(value)) continue;
+  /**
+   * Anchors worth resolving, found by parsing only what could possibly spill.
+   *
+   * The text prefilter runs BEFORE parsing on purpose: the scan visits every
+   * formula on the sheet, and 100k distinct `=A1*2` formulas would otherwise
+   * parse to 100k ASTs just to prove that none of them can spill.
+   */
+  function spillCandidates(
+    source: Record<CellKey, RawCell>,
+  ): (readonly [number, number])[] {
+    const out: (readonly [number, number])[] = [];
+    for (const key of Object.keys(source) as CellKey[]) {
+      const raw = source[key];
+      if (raw === undefined || raw[0] !== "=") continue;
+      if (!mightSpill(raw)) continue;
 
-        // The anchor shows the top-left itself; only the rest is a spill. A
-        // blocked one never reaches here: `compute` has already turned it into
-        // #SPILL!, so it is not a matrix.
-        const height = rowCount(value);
-        const width = colCount(value);
-        for (let r = 0; r < height; r++) {
-          for (let c = 0; c < width; c++) {
-            if (r === 0 && c === 0) continue;
-            map.set(`${row + r}_${col + c}`, at(value, r, c) ?? "");
-          }
+      let ast: Node;
+      try {
+        ast = astFor(raw);
+      } catch {
+        continue;
+      }
+      if (!canSpill(ast)) continue;
+
+      const separator = key.indexOf("_");
+      out.push([Number(key.slice(0, separator)), Number(key.slice(separator + 1))]);
+    }
+    return out;
+  }
+
+  function spilledInto(row: number, col: number, sheet?: string): FormulaValue {
+    const index = spillIndexFor(sheet);
+    if (index === null) return "";
+
+    const target = `${row}_${col}`;
+    const known = index.covered.get(target);
+    if (known !== undefined) return known;
+    if (index.resolved.size === index.candidates.length) return "";
+
+    const prefix = sheet === undefined ? "" : `${sheet}!`;
+    for (const [anchorRow, anchorCol] of index.candidates) {
+      const anchor = `${prefix}${anchorRow}_${anchorCol}`;
+      if (index.resolved.has(anchor)) continue;
+      // Already on the stack: it will register its own footprint when it
+      // returns, and re-entering it would only raise a false cycle.
+      if (visiting.has(anchor)) continue;
+      try {
+        compute(anchorRow, anchorCol, sheet);
+      } catch {
+        // A candidate that throws is in a real cycle. `compute` has cached
+        // #CYCLE! for it, so marking it resolved costs nothing to redo.
+      }
+      index.resolved.add(anchor);
+      const found = index.covered.get(target);
+      if (found !== undefined) return found;
+    }
+    return index.covered.get(target) ?? "";
+  }
+
+  /** Records the cells an anchor's array lands on, as soon as it has one. */
+  function recordSpill(
+    row: number,
+    col: number,
+    sheet: string | undefined,
+    value: Matrix,
+  ): void {
+    const index = spillIndexFor(sheet);
+    if (index === null) return;
+
+    const prefix = sheet === undefined ? "" : `${sheet}!`;
+    index.resolved.add(`${prefix}${row}_${col}`);
+
+    // The anchor shows the top-left itself; only the rest is a spill. A blocked
+    // one never reaches here: `compute` turned it into #SPILL!, not a matrix.
+    const height = rowCount(value);
+    const width = colCount(value);
+    for (let r = 0; r < height; r++) {
+      for (let c = 0; c < width; c++) {
+        if (r === 0 && c === 0) continue;
+        const covered = `${row + r}_${col + c}`;
+        index.covered.set(covered, at(value, r, c) ?? "");
+        // A cell read as empty before its anchor resolved cached that emptiness.
+        // Drop it so the next read sees the spill.
+        if (cache.get(`${prefix}${covered}`) === "") {
+          cache.delete(`${prefix}${covered}`);
         }
       }
-    } finally {
-      buildingSpills = false;
     }
-    return map;
   }
 
   function getCellValue(row: number, col: number): FormulaArg {
@@ -934,7 +1032,7 @@ export function createEvaluator(
   }
 
   const ctx: EvalContext = {
-    namedRanges,
+    namedRanges: resolvedRanges,
     tables,
     scope: EMPTY_SCOPE,
     currentRow: -1,
@@ -1132,4 +1230,15 @@ function mightSpill(raw: string): boolean {
   if (raw.includes("{") || raw.includes("[") || raw.includes(":")) return true;
   if (!raw.includes("(")) return BARE_NAME.test(raw);
   return SPILL_HINT.test(raw);
+}
+
+/** A copy of `record` without the given keys. Used to resolve name-kind conflicts. */
+function without<T>(
+  record: Record<string, T>,
+  keys: readonly string[],
+): Record<string, T> {
+  if (keys.length === 0) return record;
+  const out = { ...record };
+  for (const key of keys) delete out[key];
+  return out;
 }

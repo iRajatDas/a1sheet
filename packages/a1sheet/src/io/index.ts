@@ -88,6 +88,9 @@ export async function readWorkbookFile(
         rowHeights: {},
         hiddenCols: [],
         hiddenRows: [],
+        // A CSV has no names of any kind, sheet-scoped included.
+        namedRanges: {},
+        namedFormulas: {},
         validations: [],
       },
     ],

@@ -361,13 +361,22 @@ export interface Sheet {
    * clearing a filter always restores the original order and content.
    */
   filters: Record<number, Set<string>>;
+  /**
+   * Defined names scoped to THIS sheet, which shadow the workbook's of the same
+   * name. Excel writes them with a `localSheetId`, and two sheets are free to
+   * define the same name differently — which is why they cannot be merged into
+   * the workbook's map.
+   */
+  namedRanges: NamedRanges;
+  /** The same, for names holding a formula rather than a range. */
+  namedFormulas: Readonly<Record<string, string>>;
   numRows: number;
   numCols: number;
 }
 
 /**
- * Named ranges are workbook-level but resolve against whichever sheet is active
- * when a formula uses them. There is no per-sheet scoping yet.
+ * A name to a region. Held both on the workbook and, for names Excel scoped to
+ * one sheet, on the sheet — where they shadow the workbook's.
  */
 export type NamedRanges = Record<string, Range>;
 

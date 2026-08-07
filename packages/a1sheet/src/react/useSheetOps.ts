@@ -16,7 +16,7 @@ import {
 } from "../model/sheet.js";
 import type { Range, Sheet, StyleObject } from "../model/types.js";
 import { MIN_COL_WIDTH, MIN_ROW_HEIGHT } from "./constants.js";
-import type { SheetUpdater } from "./useWorkbook.js";
+import type { SheetPatcher, SheetUpdater } from "./useWorkbook.js";
 
 /** A resize drag can go anywhere, including negative. Rounding keeps offsets integral. */
 const clampSize = (px: number, min: number) => Math.max(min, Math.round(px));
@@ -91,10 +91,25 @@ function forEachCell(
  * cover all of them; structural ones — merge, freeze, insert — use the primary,
  * because "insert a row at three disjoint places" has no obvious meaning.
  */
+/** A copy of `record` without one key. Deleting an entry is what resets a size. */
+function without<T>(record: Record<number, T>, key: number): Record<number, T> {
+  const out = { ...record };
+  delete out[key];
+  return out;
+}
+
+/** A copy of `set` with `value` added or removed. */
+function toggled(set: ReadonlySet<number>, value: number): Set<number> {
+  const out = new Set(set);
+  if (!out.delete(value)) out.add(value);
+  return out;
+}
+
 export function useSheetOps(
   sheet: Sheet,
   ranges: readonly Range[],
   updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
+  patchSheet: (fn: SheetPatcher, addHistory?: boolean) => void,
 ): UseSheetOpsResult {
   const selection = ranges[0] ?? { r1: 0, c1: 0, r2: 0, c2: 0 };
   const bounds = useMemo(() => normalizeRange(selection), [selection]);
@@ -155,41 +170,32 @@ export function useSheetOps(
 
     mergeSelection: useCallback(() => {
       if (bounds.r1 === bounds.r2 && bounds.c1 === bounds.c2) return;
-      updateSheet((s) => {
-        s.merges = [...s.merges, { ...bounds }];
-        return s;
-      });
-    }, [bounds, updateSheet]),
+      patchSheet((s) => ({ merges: [...s.merges, { ...bounds }] }));
+    }, [bounds, patchSheet]),
 
     unmergeSelection: useCallback(() => {
-      updateSheet((s) => {
-        s.merges = s.merges.filter(
+      patchSheet((s) => ({
+        merges: s.merges.filter(
           (m) =>
             m.r2 < bounds.r1 ||
             m.r1 > bounds.r2 ||
             m.c2 < bounds.c1 ||
             m.c1 > bounds.c2,
-        );
-        return s;
-      });
-    }, [bounds, updateSheet]),
+        ),
+      }));
+    }, [bounds, patchSheet]),
 
     // Freezes up through the active cell, which is what the toolbar means by it.
     freezeToSelection: useCallback(() => {
-      updateSheet((s) => {
-        s.frozenRows = selection.r2 + 1;
-        s.frozenCols = selection.c2 + 1;
-        return s;
-      }, false);
-    }, [selection.r2, selection.c2, updateSheet]),
+      patchSheet(
+        () => ({ frozenRows: selection.r2 + 1, frozenCols: selection.c2 + 1 }),
+        false,
+      );
+    }, [selection.r2, selection.c2, patchSheet]),
 
     unfreeze: useCallback(() => {
-      updateSheet((s) => {
-        s.frozenRows = 0;
-        s.frozenCols = 0;
-        return s;
-      }, false);
-    }, [updateSheet]),
+      patchSheet(() => ({ frozenRows: 0, frozenCols: 0 }), false);
+    }, [patchSheet]),
 
     insertRowAt: useCallback(
       (row: number) => updateSheet((s) => insertRow(s, row)),
@@ -212,29 +218,32 @@ export function useSheetOps(
     // cell, style, height, or merge moves.
     appendRows: useCallback(
       (count: number) =>
-        updateSheet((s) => {
-          s.numRows += Math.max(0, Math.floor(count));
-          return s;
-        }),
-      [updateSheet],
+        patchSheet((s) => ({
+          numRows: s.numRows + Math.max(0, Math.floor(count)),
+        })),
+      [patchSheet],
     ),
 
     // No history: a drag would otherwise push one entry per mousemove.
     setColWidth: useCallback(
       (col: number, px: number) =>
-        updateSheet((s) => {
-          s.colWidths[col] = clampSize(px, MIN_COL_WIDTH);
-          return s;
-        }, false),
-      [updateSheet],
+        patchSheet(
+          (s) => ({
+            colWidths: { ...s.colWidths, [col]: clampSize(px, MIN_COL_WIDTH) },
+          }),
+          false,
+        ),
+      [patchSheet],
     ),
     setRowHeight: useCallback(
       (row: number, px: number) =>
-        updateSheet((s) => {
-          s.rowHeights[row] = clampSize(px, MIN_ROW_HEIGHT);
-          return s;
-        }, false),
-      [updateSheet],
+        patchSheet(
+          (s) => ({
+            rowHeights: { ...s.rowHeights, [row]: clampSize(px, MIN_ROW_HEIGHT) },
+          }),
+          false,
+        ),
+      [patchSheet],
     ),
 
     // Deleting the entry, rather than writing the default into it, is what
@@ -242,56 +251,40 @@ export function useSheetOps(
     // `rowHeights` is empty, and it can only become empty again this way.
     resetRowHeight: useCallback(
       (row: number) =>
-        updateSheet((s) => {
-          delete s.rowHeights[row];
-          return s;
-        }),
-      [updateSheet],
+        patchSheet((s) =>
+          row in s.rowHeights ? { rowHeights: without(s.rowHeights, row) } : null,
+        ),
+      [patchSheet],
     ),
     resetColWidth: useCallback(
       (col: number) =>
-        updateSheet((s) => {
-          delete s.colWidths[col];
-          return s;
-        }),
-      [updateSheet],
+        patchSheet((s) =>
+          col in s.colWidths ? { colWidths: without(s.colWidths, col) } : null,
+        ),
+      [patchSheet],
     ),
 
     setRowLabel: useCallback(
       (row: number, label: string) =>
-        updateSheet((s) => {
-          s.rowLabels[row] = label;
-          return s;
-        }, false),
-      [updateSheet],
+        patchSheet((s) => ({ rowLabels: { ...s.rowLabels, [row]: label } }), false),
+      [patchSheet],
     ),
     setColLabel: useCallback(
       (col: number, label: string) =>
-        updateSheet((s) => {
-          s.colLabels[col] = label;
-          return s;
-        }, false),
-      [updateSheet],
+        patchSheet((s) => ({ colLabels: { ...s.colLabels, [col]: label } }), false),
+      [patchSheet],
     ),
 
     toggleColHidden: useCallback(
       (col: number) =>
-        updateSheet((s) => {
-          if (s.hiddenCols.has(col)) s.hiddenCols.delete(col);
-          else s.hiddenCols.add(col);
-          return s;
-        }),
-      [updateSheet],
+        patchSheet((s) => ({ hiddenCols: toggled(s.hiddenCols, col) })),
+      [patchSheet],
     ),
 
     toggleRowHidden: useCallback(
       (row: number) =>
-        updateSheet((s) => {
-          if (s.hiddenRows.has(row)) s.hiddenRows.delete(row);
-          else s.hiddenRows.add(row);
-          return s;
-        }),
-      [updateSheet],
+        patchSheet((s) => ({ hiddenRows: toggled(s.hiddenRows, row) })),
+      [patchSheet],
     ),
 
     sort: useCallback(
@@ -302,12 +295,12 @@ export function useSheetOps(
 
     setFilter: useCallback(
       (col: number, allowed: Set<string> | null) =>
-        updateSheet((s) => {
-          if (allowed === null) delete s.filters[col];
-          else s.filters[col] = allowed;
-          return s;
+        patchSheet((s) => {
+          if (allowed !== null)
+            return { filters: { ...s.filters, [col]: allowed } };
+          return col in s.filters ? { filters: without(s.filters, col) } : null;
         }, false),
-      [updateSheet],
+      [patchSheet],
     ),
   };
 }

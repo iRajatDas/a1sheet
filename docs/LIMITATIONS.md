@@ -30,27 +30,22 @@ formula cell itself drops its imported value, and the error appears.
 → `orImported` in `src/formula/evaluate.ts`. Removing the caveat means
 implementing the functions, not changing the fallback.
 
-**A spill is not seen by another spill's tail.** The index of where array
-formulas land is built in one pass, and while it is being built an empty cell
-reads as empty rather than recursing. So a formula spilling onto cells that a
-SECOND formula spills onto in turn sees blanks. Chained spills through an
-anchor work; chained spills through a spilled cell do not.
-→ `buildSpills` in `src/formula/evaluate.ts` would need to iterate to a fixed
-point rather than making a single pass.
+**Two arrays that each read the other's spilled tail resolve one-sidedly.** An
+ordinary chain is fine — `=SORT(A1:A3)` reads what `=SEQUENCE(3)` spilled, on
+this sheet or another. A genuine cycle between two of them terminates rather
+than hanging, but one of the pair sees blanks instead of reporting `#CYCLE!`
+the way a cycle between two scalar formulas does.
+→ `spilledInto` in `src/formula/evaluate.ts` skips an anchor already on the
+stack; making it a reported cycle means routing that skip through `CycleSignal`.
 
-**Cross-sheet spilling is not indexed.** A qualified reference reads another
-sheet's cells and formulas, but not the cells another sheet's array formula
-spills onto — there is one spill index, for the sheet the evaluator was built
-for.
-→ `spilledInto` in `src/formula/evaluate.ts`; it would need an index per sheet.
-
-**Defined names are workbook-scoped only.** A name Excel scoped to one sheet
-(`localSheetId`) is skipped on import rather than imported as a global one,
-which would let one sheet's definition win everywhere. Dropping it is the safe
-half of that choice, not a free one: a formula using such a name is `#NAME?`,
-covered by the imported value until you edit the cell.
-→ `parseDefinedNames` in `src/io/xlsx/read.ts`, and `NamedRanges` would need to
-be keyed by sheet as well as name.
+**A sheet-scoped name resolves in the active sheet's scope, wherever the formula
+lives.** Names Excel scoped to one sheet import onto that sheet, shadow the
+workbook's, and export again with their `localSheetId`. What is not modelled is
+the scope of a formula being read THROUGH a cross-sheet reference: evaluating
+`Sheet2!A1` resolves any name in it against the sheet the evaluator was built
+for, not against Sheet2.
+→ `evalNode`'s `"name"` case in `src/formula/evaluate.ts` would have to know
+which sheet the formula it is walking belongs to.
 
 **Approximate lookups scan rather than bisect.** `VLOOKUP` and `MATCH` default to
 approximate matching, as Excel does, and find the nearest value on the requested
@@ -94,12 +89,23 @@ are incremental.
 → `volatile` in `src/react/useFilterHidden.ts`; needs the evaluator to report
 which cells its last recalculation changed.
 
-**Committing an edit copies the whole cell map.** `useWorkbook` clones on write,
-so edit cost grows with the number of filled cells — about 26 ms at 10k, about
-390 ms at 1M. Virtualization does not help: this is the write path, and it is
-now the largest cost in the grid by a wide margin.
-→ `cloneSheet` in `src/model/sheet.ts` and `updateSheet` in
-`src/react/useWorkbook.ts` would need structural sharing rather than a spread.
+**Committing a CELL edit copies the whole cell map.** `updateSheet` hands its
+updater a clone, and the spread of `cells` is 66 ms of the 70 that clone costs
+at a million filled cells (0.4 ms at 10k, 4 ms at 100k). Virtualization does not
+help: this is the write path.
+
+Operations that touch no cell no longer pay it — a resize, a label, a filter,
+the frozen counts and hidden sets all go through `patchSheet`, which replaces
+named fields and leaves `cells` and `styles` as the same objects. That was the
+urgent half: column resize fires on every mousemove, so it was a 70 ms stall per
+frame to change one number. It is now unmeasurable.
+
+What remains is typing itself. Fixing it means `cells` stopping being a plain
+object, since a new identity for a plain object costs a full copy however the
+copy is made.
+→ `Sheet["cells"]` in `src/model/types.ts` would have to become a persistent map
+with structural sharing. That is a breaking change to the most public type in
+the library, which is why it is not in 0.1.
 
 **Frozen rows are assumed never hidden.** They render as a separate always-on
 band outside the virtualized mapping.

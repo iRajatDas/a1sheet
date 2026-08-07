@@ -45,6 +45,8 @@ export function makeSheet(name: string): Sheet {
     colLabels: {},
     rowLabels: {},
     filters: {},
+    namedRanges: {},
+    namedFormulas: {},
     numRows: DEFAULT_NUM_ROWS,
     numCols: DEFAULT_NUM_COLS,
   };
@@ -60,8 +62,10 @@ export function cloneSheet(sheet: Sheet): Sheet {
     cells: { ...sheet.cells },
     styles: { ...sheet.styles },
     cachedValues: { ...sheet.cachedValues },
-    // Frozen values, replaced wholesale rather than edited, so the array itself
-    // may be shared. Ranges inside it still move on insert and delete.
+    // Frozen values, replaced wholesale rather than edited, so the container
+    // itself may be shared. Ranges inside it still move on insert and delete.
+    // `namedRanges` and `namedFormulas` ride along on the spread for the same
+    // reason.
     condFormats: sheet.condFormats,
     images: { ...sheet.images },
     tables: sheet.tables,

@@ -31,6 +31,8 @@ import {
 } from "../model/workbook.js";
 
 export type SheetUpdater = (sheet: Sheet) => Sheet;
+/** Returns the fields to replace on the active sheet, or null to change nothing. */
+export type SheetPatcher = (sheet: Sheet) => Partial<Sheet> | null;
 export type WorkbookUpdater = (wb: Workbook) => Workbook;
 
 export interface UseWorkbookResult {
@@ -38,6 +40,17 @@ export interface UseWorkbookResult {
   sheet: Sheet;
   /** Applies `fn` to the active sheet. Pass `addHistory: false` for transient edits. */
   updateSheet(fn: SheetUpdater, addHistory?: boolean): void;
+  /**
+   * Replaces named fields of the active sheet without cloning the rest of it.
+   *
+   * `updateSheet` hands the updater a full clone, which copies `cells` — 66 ms of
+   * the 70 a clone costs at a million filled cells. An operation that touches
+   * only a row/column-keyed container (a width, a label, a filter, the frozen
+   * counts) does not need that copy, and some of them fire on every mousemove of
+   * a resize drag. `fn` returns the fields it is changing, already copied, or
+   * null for no change.
+   */
+  patchSheet(fn: SheetPatcher, addHistory?: boolean): void;
   updateWorkbook(fn: WorkbookUpdater, addHistory?: boolean): void;
   /** Replaces the whole workbook, e.g. after a file import. Always recorded. */
   replaceWorkbook(next: Workbook): void;
@@ -134,6 +147,24 @@ export function useWorkbook(opts: UseWorkbookOptions = {}): UseWorkbookResult {
     [updateWorkbook],
   );
 
+  const patchSheet = useCallback(
+    (fn: SheetPatcher, addHistory = true) => {
+      updateWorkbook((prev) => {
+        const active = prev.sheets[prev.activeSheetIndex];
+        if (!active) return prev;
+        const patch = fn(active);
+        if (patch === null) return prev;
+        return {
+          ...prev,
+          sheets: prev.sheets.map((s, i) =>
+            i === prev.activeSheetIndex ? { ...s, ...patch } : s,
+          ),
+        };
+      }, addHistory);
+    },
+    [updateWorkbook],
+  );
+
   const replaceWorkbook = useCallback(
     (next: Workbook) => updateWorkbook(() => next, true),
     [updateWorkbook],
@@ -169,6 +200,7 @@ export function useWorkbook(opts: UseWorkbookOptions = {}): UseWorkbookResult {
     workbook,
     sheet,
     updateSheet,
+    patchSheet,
     updateWorkbook,
     replaceWorkbook,
     undo,

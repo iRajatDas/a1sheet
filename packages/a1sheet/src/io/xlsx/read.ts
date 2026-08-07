@@ -64,6 +64,12 @@ export interface XlsxWorkbookData {
   namedFormulas: Record<string, string>;
 }
 
+/** Defined names belonging to one sheet, keyed by its index in the workbook. */
+type ScopedNames = Map<
+  number,
+  { namedRanges: Record<string, Range>; namedFormulas: Record<string, string> }
+>;
+
 /** One sheet as it comes out of the file, before becoming a full `Sheet`. */
 export interface XlsxSheetData {
   name: string;
@@ -97,6 +103,10 @@ export interface XlsxSheetData {
   hiddenRows: number[];
   /** Data-validation rules, for dropdowns and input limits. */
   validations: DataValidation[];
+  /** Defined names Excel scoped to this sheet, which shadow the workbook's. */
+  namedRanges: Record<string, Range>;
+  /** The same, for names holding a formula rather than a range. */
+  namedFormulas: Record<string, string>;
 }
 
 const REF_RE = /^([A-Za-z]+)(\d+)$/;
@@ -118,36 +128,43 @@ const NAME_AS_RANGE =
 
 /**
  * Splits `<definedNames>` into the ones that name a range and the ones that name
- * a formula.
+ * a formula, workbook-wide names apart from sheet-scoped ones.
  *
- * Both live in the same element and are told apart only by whether the value
- * parses as a reference. Names scoped to one sheet (`localSheetId`) are skipped:
- * this model has no per-sheet name scoping, and importing a local name as a
- * global one would let one sheet's definition win for the whole workbook.
+ * Range and formula names live in the same element and are told apart only by
+ * whether the value parses as a reference. A name carrying `localSheetId`
+ * belongs to that one sheet and may differ from a workbook name spelled the
+ * same, so the two sets cannot be merged — the sheet's copy is returned
+ * separately and shadows the workbook's when a formula on it resolves the name.
  */
-function parseDefinedNames(xml: string | undefined): XlsxWorkbookData {
-  const namedRanges: Record<string, Range> = {};
-  const namedFormulas: Record<string, string> = {};
-  if (!xml) return { namedRanges, namedFormulas };
+function parseDefinedNames(xml: string | undefined): {
+  workbook: XlsxWorkbookData;
+  scoped: ScopedNames;
+} {
+  const workbook: XlsxWorkbookData = { namedRanges: {}, namedFormulas: {} };
+  const scoped: ScopedNames = new Map();
+  if (!xml) return { workbook, scoped };
 
   const block = findElement(xml, "definedNames");
-  if (!block) return { namedRanges, namedFormulas };
+  if (!block) return { workbook, scoped };
 
   for (const el of findElements(block.inner, "definedName")) {
     const name = el.attrs.name;
-    if (!name || el.attrs.localSheetId !== undefined) continue;
+    if (!name) continue;
     // Excel's own built-in names, like _xlnm.Print_Area.
     if (name.startsWith("_xlnm.")) continue;
 
     const body = normalizeFormula(textOf(el.inner).trim());
     if (body === "" || body.includes("#REF!")) continue;
 
+    const target = scopeFor(el.attrs.localSheetId, workbook, scoped);
+    if (target === null) continue;
+
     const asRange = body.match(NAME_AS_RANGE);
     if (asRange) {
       const from = parseRef(`${asRange[3]}${asRange[4]}`);
       const to = asRange[5] ? parseRef(`${asRange[5]}${asRange[6]}`) : from;
       if (from && to) {
-        namedRanges[name.toUpperCase()] = {
+        target.namedRanges[name.toUpperCase()] = {
           r1: from.row,
           c1: from.col,
           r2: to.row,
@@ -156,10 +173,33 @@ function parseDefinedNames(xml: string | undefined): XlsxWorkbookData {
         continue;
       }
     }
-    namedFormulas[name.toUpperCase()] = body;
+    target.namedFormulas[name.toUpperCase()] = body;
   }
 
-  return { namedRanges, namedFormulas };
+  return { workbook, scoped };
+}
+
+/**
+ * Which set a name belongs to. `null` for a `localSheetId` that is not a sheet
+ * index — the name names nothing reachable, and guessing would attach it to the
+ * wrong sheet.
+ */
+function scopeFor(
+  localSheetId: string | undefined,
+  workbook: XlsxWorkbookData,
+  scoped: ScopedNames,
+): XlsxWorkbookData | null {
+  if (localSheetId === undefined) return workbook;
+
+  const index = Number(localSheetId);
+  if (!Number.isInteger(index) || index < 0) return null;
+
+  const existing = scoped.get(index);
+  if (existing) return existing;
+
+  const fresh: XlsxWorkbookData = { namedRanges: {}, namedFormulas: {} };
+  scoped.set(index, fresh);
+  return fresh;
 }
 
 function parseRef(ref: string): { row: number; col: number } | null {
@@ -308,7 +348,7 @@ export async function readXlsx(
   const sheetNames = wbXml
     ? findElements(wbXml, "sheet").map((s, i) => s.attrs.name || `Sheet${i + 1}`)
     : [];
-  const workbookData = parseDefinedNames(wbXml);
+  const { workbook: workbookData, scoped: scopedNames } = parseDefinedNames(wbXml);
 
   /**
    * A sheet reaches its tables through its own relationship part, not by
@@ -515,6 +555,8 @@ export async function readXlsx(
       hiddenCols,
       hiddenRows: hiddenRowList,
       validations: parseValidations(xml),
+      namedRanges: scopedNames.get(i)?.namedRanges ?? {},
+      namedFormulas: scopedNames.get(i)?.namedFormulas ?? {},
     });
     await pacer.checkpoint("parsing", parsed / totalElements, name);
   }
@@ -542,6 +584,8 @@ export async function readXlsx(
           hiddenCols: [],
           hiddenRows: [],
           validations: [],
+          namedRanges: {},
+          namedFormulas: {},
         },
       ];
 }

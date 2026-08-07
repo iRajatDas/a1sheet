@@ -250,9 +250,11 @@ The scroll extent is the real one — a 100k-row sheet scrolls through
 Two things do still scale with the sheet, and are worth knowing before you load
 a million cells into one:
 
-- **Committing an edit copies the cell map.** `useWorkbook` clones on write, so
-  an edit costs about 26 ms at 10k filled cells and about 390 ms at 1M. This is
-  the write path, not the render path, and it is the next thing to fix.
+- **Committing a cell edit copies the cell map.** About 0.4 ms at 10k filled
+  cells, 4 ms at 100k, 70 ms at 1M. This is the write path, not the render path,
+  and it is the next thing to fix. Operations that touch no cell — resize,
+  freeze, hide, filter, relabel — do not pay it and cost nothing measurable at
+  any size.
 - **A filter over a column of formulas rescans every row on every edit**
   (about 60 ms at 100k). Columns of plain values are re-tested incrementally and
   cost nothing measurable.

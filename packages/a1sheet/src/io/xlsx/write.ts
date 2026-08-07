@@ -45,7 +45,10 @@ export interface XlsxSheetInput {
   cells: Record<CellKey, RawCell>;
   styles: Record<CellKey, StyleObject>;
   merges: Range[];
+  /** Defined names scoped to THIS sheet. Workbook names go in `WriteXlsxOptions`. */
   namedRanges?: NamedRanges;
+  /** The same, for names holding a formula rather than a range. */
+  namedFormulas?: Readonly<Record<string, string>>;
   /**
    * Values from a previous import, for formulas this engine cannot evaluate.
    * Passing them keeps an exported formula's `<v>` truthful instead of writing
@@ -78,7 +81,18 @@ const NS_PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships
 const INTEGER_OR_DECIMAL = /^-?\d+(\.\d+)?$/;
 
 /** Builds a complete .xlsx as bytes. */
-export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
+export interface WriteXlsxOptions {
+  /**
+   * Defined names that belong to the whole workbook rather than to one sheet.
+   * A sheet's own names travel on its `XlsxSheetInput`.
+   */
+  namedRanges?: NamedRanges;
+}
+
+export function writeXlsx(
+  sheets: XlsxSheetInput[],
+  options: WriteXlsxOptions = {},
+): Uint8Array {
   const encoder = new TextEncoder();
 
   // Style table shared across every sheet. Index 0 is the default, so a cell with
@@ -317,7 +331,7 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
     `<Relationship Id="rId1" Type="${NS_REL}/officeDocument" Target="xl/workbook.xml"/>` +
     `</Relationships>`;
 
-  const definedNames = collectDefinedNames(sheets);
+  const definedNames = collectDefinedNames(sheets, options.namedRanges ?? {});
   const workbookXml =
     `${XML_DECL}<workbook xmlns="${NS_MAIN}" xmlns:r="${NS_REL}"><sheets>` +
     sheets
@@ -399,23 +413,53 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
 }
 
 /**
- * Named ranges are workbook-level in our model, so they are taken from the first
- * sheet that carries them and scoped to that sheet's name on the way out.
+ * `<definedNames>`, workbook-scoped and sheet-scoped together.
+ *
+ * A sheet's own names are written with `localSheetId` set to its index, which is
+ * exactly how Excel says "this name belongs to this sheet" — and is what lets
+ * two sheets define the same name differently without one overwriting the other.
+ * A workbook name is written without it.
+ *
+ * Every reference is qualified with a sheet, because an unqualified one in a
+ * defined name resolves against whichever sheet is active when it is used.
  */
-function collectDefinedNames(sheets: XlsxSheetInput[]): string {
-  const owner = sheets.find(
-    (s) => s.namedRanges && Object.keys(s.namedRanges).length > 0,
-  );
-  if (!owner?.namedRanges) return "";
+function collectDefinedNames(
+  sheets: XlsxSheetInput[],
+  workbookNames: NamedRanges,
+): string {
+  const first = sheets[0];
+  if (first === undefined) return "";
 
-  const entries = Object.entries(owner.namedRanges);
-  if (entries.length === 0) return "";
+  const entries: string[] = [];
 
-  const quoted = `'${owner.name.replace(/'/g, "''")}'`;
-  return `<definedNames>${entries
-    .map(([name, r]) => {
-      const ref = `${quoted}!$${colToLetters(r.c1)}$${r.r1 + 1}:$${colToLetters(r.c2)}$${r.r2 + 1}`;
-      return `<definedName name="${xmlEscape(name)}">${xmlEscape(ref)}</definedName>`;
-    })
-    .join("")}</definedNames>`;
+  for (const [name, range] of Object.entries(workbookNames)) {
+    entries.push(definedName(name, range, first.name));
+  }
+
+  for (const [index, sheet] of sheets.entries()) {
+    for (const [name, range] of Object.entries(sheet.namedRanges ?? {})) {
+      entries.push(definedName(name, range, sheet.name, index));
+    }
+    for (const [name, body] of Object.entries(sheet.namedFormulas ?? {})) {
+      entries.push(
+        `<definedName name="${xmlEscape(name)}" localSheetId="${index}">${xmlEscape(body)}</definedName>`,
+      );
+    }
+  }
+
+  return entries.length === 0
+    ? ""
+    : `<definedNames>${entries.join("")}</definedNames>`;
+}
+
+function definedName(
+  name: string,
+  r: Range,
+  sheetName: string,
+  localSheetId?: number,
+): string {
+  const quoted = `'${sheetName.replace(/'/g, "''")}'`;
+  const ref = `${quoted}!$${colToLetters(r.c1)}$${r.r1 + 1}:$${colToLetters(r.c2)}$${r.r2 + 1}`;
+  const scope = localSheetId === undefined ? "" : ` localSheetId="${localSheetId}"`;
+  return `<definedName name="${xmlEscape(name)}"${scope}>${xmlEscape(ref)}</definedName>`;
 }

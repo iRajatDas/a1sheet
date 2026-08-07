@@ -183,7 +183,7 @@ export function useSpreadsheet(
     () => [selection.selection, ...selection.extraRanges],
     [selection.selection, selection.extraRanges],
   );
-  const ops = useSheetOps(wb.sheet, ranges, updateSheet);
+  const ops = useSheetOps(wb.sheet, ranges, updateSheet, wb.patchSheet);
 
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -220,6 +220,9 @@ export function useSpreadsheet(
         sheets: sheetCells,
         spillRanges: wb.sheet.spillRanges,
         now: calculation.at,
+        // Names the active sheet defines for itself, which shadow the workbook's.
+        sheetNamedRanges: wb.sheet.namedRanges,
+        sheetNamedFormulas: wb.sheet.namedFormulas,
         ...(wb.workbook.namedFormulas
           ? { namedFormulas: wb.workbook.namedFormulas }
           : {}),
@@ -228,6 +231,8 @@ export function useSpreadsheet(
       wb.sheet.cells,
       wb.workbook.namedRanges,
       wb.workbook.namedFormulas,
+      wb.sheet.namedRanges,
+      wb.sheet.namedFormulas,
       wb.sheet.cachedValues,
       wb.sheet.spillRanges,
       tables,

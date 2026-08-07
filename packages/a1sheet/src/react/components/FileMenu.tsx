@@ -80,6 +80,8 @@ export function FileMenu(): ReactNode {
           merges: s.merges,
           colWidths: s.colWidths,
           rowHeights: s.rowHeights,
+          namedRanges: s.namedRanges,
+          namedFormulas: s.namedFormulas,
           numRows: Math.max(DEFAULT_NUM_ROWS, s.rows),
           numCols: Math.max(DEFAULT_NUM_COLS, s.cols),
         }));
@@ -151,8 +153,12 @@ export function FileMenu(): ReactNode {
               tables: s.tables,
               condFormats: s.condFormats,
               images: s.images,
-              namedRanges: api.workbook.namedRanges,
+              // The sheet's own names go with the sheet; the workbook's are
+              // passed once, below.
+              namedRanges: s.namedRanges,
+              namedFormulas: s.namedFormulas,
             })),
+            { namedRanges: api.workbook.namedRanges },
           )
         }
       >

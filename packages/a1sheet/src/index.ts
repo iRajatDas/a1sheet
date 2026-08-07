@@ -60,7 +60,7 @@ export type { AsyncReadOptions, ReadPhase, ReadProgress } from "./io/progress.js
 export { READ_PHASES } from "./io/progress.js";
 export type { XlsxSheetData } from "./io/xlsx/read.js";
 export { readXlsx } from "./io/xlsx/read.js";
-export type { XlsxSheetInput } from "./io/xlsx/write.js";
+export type { WriteXlsxOptions, XlsxSheetInput } from "./io/xlsx/write.js";
 export { writeXlsx } from "./io/xlsx/write.js";
 export {
   cellKey,

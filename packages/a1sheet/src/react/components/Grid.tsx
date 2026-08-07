@@ -54,6 +54,12 @@ import { Scrollbar } from "./Scrollbar.js";
 
 /** Left and right padding on a cell, from the stylesheet. Auto-fit must clear it. */
 const CELL_PADDING_X = 12;
+/**
+ * The room the sort/filter button holds in a column header: a 12px icon plus its
+ * 2px margin. Auto-fit adds it to the header's own width, so fitting a column to
+ * its title does not leave the title ellipsed by the button beside it.
+ */
+const HEADER_MENU_WIDTH = 14;
 
 export interface GridProps {
   /**
@@ -196,7 +202,9 @@ export function Grid({ children }: GridProps = {}): ReactNode {
       if (!sample || typeof getComputedStyle === "undefined") return;
       const font = getComputedStyle(sample).font;
 
-      let widest = measureText(sheet.colLabels[col] ?? colToLetters(col), font);
+      let widest =
+        measureText(sheet.colLabels[col] ?? colToLetters(col), font) +
+        HEADER_MENU_WIDTH;
       let measured = 0;
       const suffix = `_${col}`;
       for (const key of Object.keys(sheet.cells)) {
@@ -517,26 +525,19 @@ export function Grid({ children }: GridProps = {}): ReactNode {
                   />
                 ) : (
                   <>
-                    {sheet.colLabels[c] ?? colToLetters(c)}
+                    <span className={`${prefix}headlabel`}>
+                      {sheet.colLabels[c] ?? colToLetters(c)}
+                    </span>
                     <button
                       type="button"
                       aria-label={`Sort and filter column ${colToLetters(c)}`}
-                      style={{
-                        position: "absolute",
-                        right: 6,
-                        border: "none",
-                        background: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        display: "flex",
-                        color: filtered ? theme.accent : theme.headerText,
-                      }}
+                      className={`${prefix}headmenu${filtered ? ` ${prefix}headfiltered` : ""}`}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        const box = (
-                          e.target as HTMLElement
-                        ).getBoundingClientRect();
+                        // currentTarget, not target: a click landing on the SVG
+                        // would otherwise place the menu against the icon's box.
+                        const box = e.currentTarget.getBoundingClientRect();
                         ui.setColumnMenu({ col: c, x: box.left, y: box.bottom });
                       }}
                     >

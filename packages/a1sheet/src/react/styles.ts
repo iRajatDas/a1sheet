@@ -49,6 +49,22 @@ export function buildCss(prefix: string, t: Theme): string {
 /* Headers spanned by the selection, so the range is readable from the edges.
    The tint itself is the shared ::after rule above; only the text changes here. */
 .${p}head.${p}headon { color: ${t.accent}; }
+/* The label truncates rather than running under the menu button. min-width: 0 is
+   what allows that at all — a flex item's default minimum is its content, so
+   without it the label pushes the button out of the header instead of ellipsing. */
+.${p}headlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; }
+/* The sort/filter button sits IN the flow, not over the label: absolutely
+   positioned it collided with the letters in any column narrow enough that the
+   two wanted the same pixels. It is hidden rather than unmounted when idle, so
+   its space stays reserved and the label does not shift on hover. */
+.${p}headmenu { flex: none; display: flex; align-items: center; margin-left: 2px;
+  border: none; background: none; padding: 0; cursor: pointer; color: inherit;
+  visibility: hidden; }
+.${p}head:hover .${p}headmenu,
+.${p}head.${p}headon .${p}headmenu,
+.${p}headmenu.${p}headfiltered { visibility: visible; }
+.${p}headmenu.${p}headfiltered { color: ${t.accent}; }
 /* Resize grabbers straddle the divider they move: half inside the header, half
    over the neighbour, so the target is the line the user is aiming at rather
    than the few pixels to one side of it. */

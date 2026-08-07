@@ -166,3 +166,46 @@ describe("changing the filter itself", () => {
     expect(cellAt(1, 0)).not.toBeNull();
   });
 });
+
+describe("the header lays its label and its menu out side by side", () => {
+  /**
+   * The button used to be absolutely positioned against the header's right edge
+   * while the label was centred under it, so in any column narrow enough for the
+   * two to want the same pixels the letters and the chevron drew on top of each
+   * other. Both are flex items now.
+   */
+  function header(col: number): HTMLElement {
+    const { container } = render(<Spreadsheet />);
+    const el = container.querySelector(`.a1s-head[data-col="${col}"]`);
+    if (!el) throw new Error(`no header for column ${col}`);
+    return el as HTMLElement;
+  }
+
+  test("the label is its own element, not a bare text node beside the button", () => {
+    const label = header(0).querySelector(".a1s-headlabel");
+    expect(label?.textContent).toBe("A");
+  });
+
+  test("the menu button is in the flow, taking its own width", () => {
+    const button = header(0).querySelector(".a1s-headmenu") as HTMLElement;
+    expect(button).not.toBeNull();
+    expect(button.style.position).toBe("");
+  });
+
+  test("a filtered column keeps its button visible, an unfiltered one does not", () => {
+    // Hidden rather than unmounted: the space stays reserved either way, so the
+    // label never shifts when the pointer enters the header.
+    const wb = createWorkbook(["Sheet1"]);
+    Object.assign(wb.sheets[0] as object, {
+      cells: { "0_0": "a" },
+      filters: { 0: new Set(["a"]) },
+    });
+    const { container } = render(<Spreadsheet defaultWorkbook={wb} />);
+
+    const buttonIn = (col: number) =>
+      container.querySelector(`.a1s-head[data-col="${col}"] .a1s-headmenu`);
+
+    expect(buttonIn(0)?.className).toContain("a1s-headfiltered");
+    expect(buttonIn(1)?.className).not.toContain("a1s-headfiltered");
+  });
+});

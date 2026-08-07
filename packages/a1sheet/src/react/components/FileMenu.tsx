@@ -145,6 +145,9 @@ export function FileMenu(): ReactNode {
               merges: s.merges,
               colWidths: s.colWidths,
               rowHeights: s.rowHeights,
+              tables: s.tables,
+              condFormats: s.condFormats,
+              images: s.images,
               namedRanges: api.workbook.namedRanges,
             })),
           )

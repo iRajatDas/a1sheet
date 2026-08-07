@@ -190,10 +190,21 @@ falls back to its URL. An allow-list rather than a block-list, so a format nobod
 has vetted never becomes a `data:` URI.
 → `EMBEDDABLE` in `src/io/xlsx/images.ts`.
 
-**Exporting does not write images, tables, or conditional formats.** They are read
-and rendered; `writeXlsx` emits cells, styles, merges, and sizing. A round trip
-through export therefore flattens a table to its cell colours and drops the rest.
-→ `src/io/xlsx/write.ts` and `src/io/xlsx/writeStyles.ts`.
+**An exported table is written with a neutral style.** The range, the column
+names, and the header row survive, but the built-in style name does not: a
+table's appearance is flattened onto its cells at import, so re-declaring a style
+would paint it twice. The cells keep their colours.
+→ `tableXml` in `src/io/xlsx/writeParts.ts`.
+
+**An exported workbook has no theme.** Colours are written as literal RGB, since
+`ThemePalette` is resolved on the way in and not kept. A file we wrote therefore
+does not follow a reader's theme the way one Excel wrote does.
+→ `src/io/xlsx/writeStyles.ts` would need to emit `xl/theme/theme1.xml` and
+`Sheet` a place to keep the palette.
+
+**Exported images embed as they were read.** An image that fell back to its URL
+on import is written as a URL, not fetched and embedded.
+→ `imageParts` in `src/io/xlsx/writeParts.ts`.
 
 **Reads are paced, not off-thread.** `readWorkbookFile` yields to the event loop
 between chunks and honors an `AbortSignal`, so the tab stays responsive and an

@@ -45,6 +45,24 @@ readable — it was a grid of `#NAME?` with its numbers thrown away.
 - **Array literals** (`{1,2;3,4}`), the `&` concatenation operator, and the `%`
   postfix operator, none of which the tokenizer previously recognized.
 
+### Added (XLSX export)
+
+- **Tables, conditional formats, and in-cell images are written,** not only read.
+  Each needs its own part, relationship, and content-type override, so reading
+  them without writing them was a quiet data loss: a workbook imported, edited,
+  and exported came back with its tables flattened to plain cells and its rules
+  and pictures gone. `XlsxSheetInput` gained `tables`, `condFormats`, and
+  `images`.
+- One media part per distinct picture rather than per cell — the sample workbook
+  points 140 cells at 20 images, and a part each made a 4.7 MB file export as
+  64 MB.
+
+Two traps found by round-tripping rather than by reading the spec: a cell style's
+solid fill names its colour `fgColor` while a differential format's names it
+`bgColor` — the same fill, the opposite attribute — and a cell holding nothing but
+a picture was outside the extent the writer computed, so it was never written at
+all.
+
 ### Added (references)
 
 - **Structured references** — `tblMatches[home_goal]`,

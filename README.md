@@ -388,9 +388,11 @@ can recalculate a formula it could not parse, so editing its inputs will not
 change it. Editing the cell itself drops the imported value and reveals the
 error.
 
-**Export** writes cells, styles, merges, and sizing — not tables, conditional
-formats, or images. A round trip through export flattens a table to its cell
-colours.
+**Export** writes everything import reads: cells, styles, merges, sizing, tables,
+conditional formats, and in-cell images. A table comes back with a neutral style
+name — its appearance is flattened onto the cells at import, so re-declaring one
+would paint it twice — and colours are written as literal RGB rather than through
+a theme.
 
 Every gap is listed with the extension point where the work would start:
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).

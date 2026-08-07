@@ -128,7 +128,15 @@ const keyOf = {
   border: (s: StyleObject) => JSON.stringify(s.borders ?? ""),
 };
 
-export function buildStylesXml(styleList: readonly StyleObject[]): string {
+/**
+ * @param dxfsXml Differential formats, already serialized. They belong to
+ * conditional formatting and to table styling, both of which index into this
+ * block by position — so it is passed in whole rather than rebuilt here.
+ */
+export function buildStylesXml(
+  styleList: readonly StyleObject[],
+  dxfsXml = "",
+): string {
   const fonts = table<string>();
   // The two reserved fills, written verbatim so their indices stay 0 and 1.
   const fills = table<string>([
@@ -198,6 +206,14 @@ export function buildStylesXml(styleList: readonly StyleObject[]): string {
     `<fills count="${fills.entries.length}">${fills.entries.join("")}</fills>` +
     `<borders count="${borders.entries.length}">${borders.entries.join("")}</borders>` +
     `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-    `<cellXfs count="${xfs.length}">${xfsXml}</cellXfs></styleSheet>`
+    `<cellXfs count="${xfs.length}">${xfsXml}</cellXfs>` +
+    // <dxfs> follows <cellXfs> in the schema; putting it earlier is rejected.
+    (dxfsXml ? `<dxfs count="${countDxfs(dxfsXml)}">${dxfsXml}</dxfs>` : "") +
+    `</styleSheet>`
   );
+}
+
+/** How many `<dxf>` elements a serialized block holds. */
+function countDxfs(xml: string): number {
+  return xml.split("<dxf>").length - 1;
 }

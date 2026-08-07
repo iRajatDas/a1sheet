@@ -272,6 +272,53 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     expect(Object.keys(result[1]?.spillRanges ?? {}).length).toBeGreaterThan(0);
   });
 
+  test("a whole real workbook survives an export and re-import", async () => {
+    // The end-to-end version of everything above. Reading these parts without
+    // writing them is a quiet data loss: a workbook imported, edited, and
+    // exported would come back with its tables flattened to plain cells and its
+    // rules and pictures gone.
+    const src = await readXlsx(bytes);
+    const written = writeXlsx(
+      src.map((s) => ({
+        name: s.name,
+        cells: s.cells,
+        styles: s.styles,
+        cachedValues: s.cachedValues,
+        merges: s.merges,
+        colWidths: s.colWidths,
+        rowHeights: s.rowHeights,
+        tables: s.tables,
+        condFormats: s.condFormats,
+        images: s.images,
+      })),
+    );
+    const back = await readXlsx(written);
+
+    for (const [i, sheet] of back.entries()) {
+      const before = src[i];
+      if (!before) throw new Error("sheet count changed");
+      expect(sheet.name).toBe(before.name);
+      expect(sheet.tables).toEqual(before.tables);
+      expect(sheet.condFormats).toHaveLength(before.condFormats.length);
+      expect(Object.keys(sheet.images)).toHaveLength(
+        Object.keys(before.images).length,
+      );
+      expect(Object.keys(sheet.styles)).toHaveLength(
+        Object.keys(before.styles).length,
+      );
+      expect(sheet.merges).toEqual(before.merges);
+    }
+
+    // The crest is the same picture, not a re-encoded or swapped one.
+    expect(back[0]?.images["1_9" as CellKey]?.src).toBe(
+      src[0]?.images["1_9" as CellKey]?.src,
+    );
+    // …and the purple gradient a conditional format carries came back whole.
+    expect(back[1]?.condFormats[0]?.style.gradient).toEqual(
+      src[1]?.condFormats[0]?.style.gradient,
+    );
+  });
+
   test("dates survive the trip back out to a file", async () => {
     const [data] = await readXlsx(bytes);
     if (!data) throw new Error("no sheets");

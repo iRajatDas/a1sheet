@@ -223,22 +223,28 @@ function parseFill(inner: string, palette: ThemePalette): ParsedFill {
 
   const pattern = findElement(inner, "patternFill");
   if (!pattern) return NO_FILL;
-  // patternType="none" is the empty fill every workbook has at index 0, and
-  // "gray125" is the second one Excel always writes. Neither is a colour.
-  if (!pattern.attrs.patternType || pattern.attrs.patternType === "none") {
-    return NO_FILL;
+  // "none" is the empty fill every workbook has at index 0 and "gray125" the
+  // second one Excel always writes. Neither is a colour — but a DIFFERENTIAL
+  // format routinely omits patternType entirely and still means a fill, so the
+  // absence of the attribute cannot be treated as "none".
+  if (pattern.attrs.patternType === "none") return NO_FILL;
+
+  const fgEl = findElement(pattern.inner, "fgColor");
+  const bgEl = findElement(pattern.inner, "bgColor");
+  const fg = fgEl ? resolveColorAttrs(fgEl.attrs, palette) : null;
+  const behind = bgEl ? resolveColorAttrs(bgEl.attrs, palette) : null;
+
+  // A cell style's solid fill names its colour fgColor; a differential format's
+  // names it bgColor. The same fill, the opposite attribute — a long-standing
+  // trap in the format, and the reason a conditional format's colour vanished
+  // while the identical cell fill survived. Take whichever is there.
+  if (pattern.attrs.patternType === "solid" || !pattern.attrs.patternType) {
+    return { bg: fg ?? behind, gradient: null };
   }
-  const fg = findElement(pattern.inner, "fgColor");
-  const bg = fg ? resolveColorAttrs(fg.attrs, palette) : null;
-  // A solid fill states its colour as fgColor. A patterned one puts the pattern
-  // colour there and the background in bgColor; since the pattern itself is not
-  // drawn, the background is the better single answer.
-  if (pattern.attrs.patternType !== "solid") {
-    const bgEl = findElement(pattern.inner, "bgColor");
-    const behind = bgEl ? resolveColorAttrs(bgEl.attrs, palette) : null;
-    if (behind) return { bg: behind, gradient: null };
-  }
-  return { bg, gradient: null };
+  // A real pattern puts the pattern's colour in fgColor and the surface behind
+  // it in bgColor; since the pattern itself is not drawn, the surface is the
+  // better single answer.
+  return { bg: behind ?? fg, gradient: null };
 }
 
 interface ParsedFont {

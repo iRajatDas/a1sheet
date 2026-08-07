@@ -5,13 +5,19 @@ bug. Each names the extension point where the work would start.
 
 ## Formulas
 
-**Date serials use the Unix epoch, not Excel's 1899-12-30.** Internally
-consistent and arithmetic-friendly, but a serial number copied out of a1sheet
-will not match Excel's serial for the same date. XLSX import and export convert
-between the two, so a file is unaffected; only a serial you read off the screen
-and paste into Excel by hand will disagree.
-→ `src/formula/values.ts` (`DAY_MS`) and `src/formula/functions/date.ts`; the
-conversion is `src/io/xlsx/dates.ts`.
+**A date typed as text stays text.** Only a number is a date; entering
+`2024-08-16` in a cell stores the string, and `YEAR` of it is `1905` — the text
+coerces to the leading `2024`, which is a serial in 1905. Excel and Sheets parse
+the entry against the locale's date formats and store the serial.
+→ the entry path in `src/react/useSpreadsheet.ts`; a parser would sit beside
+`src/serial.ts` and produce a serial before the value reaches the model.
+
+**Only whole-day arithmetic is Excel-exact.** A serial carries the time of day as
+a fraction, so `NOW()` differences accumulate floating-point error at the second
+level — visible if you format a difference as `[ss]`. Excel has the same
+representation and the same error; the two are not guaranteed to round the same
+way.
+→ `src/serial.ts`.
 
 **A formula this engine cannot evaluate displays the value it was imported
 with, and that value is never recalculated.** `Sheet.cachedValues` holds what

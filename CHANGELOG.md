@@ -8,6 +8,35 @@ backfilled.
 
 ## Unreleased
 
+### Changed (BREAKING: a day serial is now Excel's day serial)
+
+A date cell holds a number, and that number used to count days from the Unix
+epoch while every other spreadsheet counts from 1899-12-30. Import and export
+rebased it, so files round-tripped and the gap stayed hidden — but the value in
+the model was seventy years from the value Excel puts there, and anything that
+did not pass through the importer saw the wrong one: a serial pasted from Excel,
+a serial read off the screen, `DATE(2024,8,16)` compared against `45520`.
+
+`45520` is now 2024-08-16 in a1sheet, as it is everywhere else.
+
+- **Breaking for stored serials.** A number that a1sheet wrote into a
+  date-formatted cell and you persisted outside an XLSX file — in JSON, a
+  database, your own export — is 25569 too small (25568 below serial 60). Add the
+  offset on read, or re-export the workbook through `writeXlsx`. Workbooks saved
+  as `.xlsx` or `.csv` are unaffected: those always held Excel's serials.
+- **Breaking for `DAY_MS` consumers.** It now comes from `a1sheet`'s new serial
+  module rather than from the formula values module. The value is unchanged, but
+  multiplying a serial by it no longer gives a Unix timestamp — use `serialToMs`.
+
+### Added (serials)
+
+- `serialToMs`, `msToSerial`, `serialToParts`, and the `SerialParts` type —
+  the conversion between a day serial and a UTC instant, including Excel's
+  phantom 1900-02-29. One module now owns the epoch; `src/io/xlsx/dates.ts`,
+  which existed only to rebase across it, is gone.
+- `YEAR`, `MONTH`, and `DAY` return `#NUM!` for a serial no calendar date
+  corresponds to, instead of `NaN`.
+
 ### Fixed (the frozen band)
 
 - **The frozen row's own number was painted over** by whatever row happened to

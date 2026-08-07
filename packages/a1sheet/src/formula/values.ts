@@ -40,9 +40,6 @@ export interface LambdaValue {
 
 export type FormulaArg = FormulaValue | Matrix | LambdaValue;
 
-/** Day-serial epoch. Unix-based, NOT Excel's 1899-12-30 — see docs/LIMITATIONS.md. */
-export const DAY_MS = 86400000;
-
 export function isMatrix(v: FormulaArg): v is Matrix {
   return Array.isArray(v);
 }

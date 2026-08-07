@@ -2,7 +2,8 @@
  * Import fidelity: the two ways a file used to arrive silently wrong.
  *
  * Dates landed seventy years out, because a serial is just a number and the two
- * formats count from different epochs. Formulas using anything this engine does
+ * formats counted from different epochs. The epochs agree now (see
+ * `src/serial.ts`), and this asserts it against a file Excel wrote. Formulas using anything this engine does
  * not implement landed as `#NAME?`, discarding the value Excel had already
  * computed and stored right next to them — so a workbook built on dynamic arrays
  * or structured references imported as a wall of errors.
@@ -18,7 +19,7 @@ import { createEvaluator } from "../../formula/evaluate.js";
 import { imageUrlIn } from "../../formula/imageCall.js";
 import { tableIndex } from "../../formula/tableRefs.js";
 import type { CellKey } from "../../model/types.js";
-import { daySerialToExcelSerial, excelSerialToDaySerial } from "./dates.js";
+import { serialToMs } from "../../serial.js";
 import { readXlsx } from "./read.js";
 import { writeXlsx } from "./write.js";
 
@@ -39,39 +40,6 @@ const fixture = await Bun.file(FIXTURE)
   .then((b) => new Uint8Array(b))
   .catch(() => undefined);
 
-describe("Excel's day-serial epoch", () => {
-  test("a serial reads back as the date Excel shows", () => {
-    // 45520 is 2024-08-16 in Excel. Read as a Unix day serial it is 2094-08-18,
-    // which is why this failure was invisible: a plausible date, wrong century.
-    const day = excelSerialToDaySerial(45520);
-    expect(new Date(day * 86400000).toISOString().slice(0, 10)).toBe("2024-08-16");
-  });
-
-  test("the phantom 1900 leap day does not shift the dates around it", () => {
-    // Excel believes 1900-02-29 existed, so the offset differs either side of it.
-    const iso = (serial: number) =>
-      new Date(excelSerialToDaySerial(serial) * 86400000)
-        .toISOString()
-        .slice(0, 10);
-    expect(iso(1)).toBe("1900-01-01");
-    expect(iso(59)).toBe("1900-02-28");
-    expect(iso(61)).toBe("1900-03-01");
-  });
-
-  test("every real serial survives a round trip through our epoch", () => {
-    for (const serial of [1, 59, 61, 366, 25569, 45520, 60000]) {
-      expect(daySerialToExcelSerial(excelSerialToDaySerial(serial))).toBe(serial);
-    }
-  });
-
-  test("the phantom day collapses onto the real one it precedes", () => {
-    // 60 is 1900-02-29, which never happened, so it cannot round trip. It reads
-    // as 1900-02-28 and writes back as 59 — the serial that day really has.
-    expect(excelSerialToDaySerial(60)).toBe(excelSerialToDaySerial(59));
-    expect(daySerialToExcelSerial(excelSerialToDaySerial(60))).toBe(59);
-  });
-});
-
 describe.skipIf(!fixture)("a workbook Excel wrote", () => {
   const bytes = fixture as Uint8Array;
 
@@ -82,9 +50,19 @@ describe.skipIf(!fixture)("a workbook Excel wrote", () => {
     // Data!G2, the first date_time value. Excel shows 16/08/2024 20:00.
     const serial = Number(data.cells["1_6" as CellKey]);
     expect(data.styles["1_6" as CellKey]?.numFmt).toBe("date");
-    expect(new Date(serial * 86400000).toISOString().slice(0, 10)).toBe(
+    expect(new Date(serialToMs(serial)).toISOString().slice(0, 10)).toBe(
       "2024-08-16",
     );
+  });
+
+  test("the serial in the model is the serial in the file, unshifted", async () => {
+    // Not a restatement of the test above: that one would also pass if the
+    // importer rebased the value and the formatter rebased it back. This is the
+    // property that makes a serial mean one thing everywhere.
+    const [data] = await readXlsx(bytes);
+    if (!data) throw new Error("no sheets");
+
+    expect(Math.floor(Number(data.cells["1_6" as CellKey]))).toBe(45520);
   });
 
   test("a formula we cannot evaluate shows Excel's value, not #NAME?", async () => {

@@ -49,7 +49,7 @@ export { shiftFormulaRefs } from "./formula/refs.js";
 export { extrapolateSeries } from "./formula/series.js";
 export { tokenize } from "./formula/tokenize.js";
 export type { FormulaArg, FormulaValue } from "./formula/values.js";
-export { DAY_MS, toNumber, toText } from "./formula/values.js";
+export { toNumber, toText } from "./formula/values.js";
 export { csvToCells, iterCsvRows, parseCSV } from "./io/csv/read.js";
 export { cellsToCSV, getUsedBounds } from "./io/csv/write.js";
 export { downloadCsv, downloadXlsx } from "./io/download.js";
@@ -121,3 +121,6 @@ export {
   deleteSheet,
   renameSheet,
 } from "./model/workbook.js";
+// --------------------------------------------------------------- serials
+export type { SerialParts } from "./serial.js";
+export { DAY_MS, msToSerial, serialToMs, serialToParts } from "./serial.js";

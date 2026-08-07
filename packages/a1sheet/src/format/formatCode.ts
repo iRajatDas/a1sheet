@@ -13,6 +13,8 @@
  * plain number rather than to an error, so an unhandled code never breaks a cell.
  */
 
+import { type SerialParts, serialToParts } from "../serial.js";
+
 /** A parsed code, ready to apply. Cheap to build but built once per code. */
 export interface NumberFormat {
   sections: readonly string[];
@@ -102,7 +104,6 @@ function stripLiterals(pattern: string): string {
 }
 
 const PERCENT_SCALE = 100;
-const MS_PER_DAY = 86400000;
 const MINUTES_PER_HOUR = 60;
 const SECONDS_PER_MINUTE = 60;
 const HOURS_PER_DAY = 24;
@@ -132,32 +133,32 @@ const DAY_NAMES = [
 ] as const;
 const SHORT_NAME_LENGTH = 3;
 
-interface DateParts {
-  year: number;
-  month: number;
-  day: number;
-  hours: number;
-  minutes: number;
-  seconds: number;
-  weekday: number;
+interface DateParts extends SerialParts {
   /** Whole days, for the elapsed-time forms. */
-  totalDays: number;
+  readonly totalDays: number;
 }
 
-/** A day serial in this engine's Unix-based epoch, split into parts in UTC. */
+/**
+ * A day serial split into UTC parts, plus the serial itself for `[h]`-style
+ * elapsed forms, which count from zero rather than from a calendar date.
+ *
+ * A serial no date can be built from renders as all zeroes rather than as
+ * `Invalid Date` — a format code is display, and display never errors.
+ */
 function dateParts(serial: number): DateParts {
-  const d = new Date(Math.round(serial * MS_PER_DAY));
-  return {
-    year: d.getUTCFullYear(),
-    month: d.getUTCMonth() + 1,
-    day: d.getUTCDate(),
-    hours: d.getUTCHours(),
-    minutes: d.getUTCMinutes(),
-    seconds: d.getUTCSeconds(),
-    weekday: d.getUTCDay(),
-    totalDays: serial,
-  };
+  const parts = serialToParts(serial) ?? EPOCH_PARTS;
+  return { ...parts, totalDays: serial };
 }
+
+const EPOCH_PARTS: SerialParts = {
+  year: 0,
+  month: 0,
+  day: 0,
+  hours: 0,
+  minutes: 0,
+  seconds: 0,
+  weekday: 0,
+};
 
 function pad(n: number, width: number): string {
   return String(Math.abs(n)).padStart(width, "0");

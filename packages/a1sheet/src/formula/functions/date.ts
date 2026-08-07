@@ -1,25 +1,35 @@
 /**
  * Date functions. Ported from ref/formulaEngine.js:216-221.
  *
- * Dates are day-serial numbers since the UNIX epoch, not Excel's 1899-12-30
- * epoch. Internally consistent and arithmetic-friendly, but a serial copied out
- * of a1sheet will not match Excel's serial for the same date. See
- * docs/LIMITATIONS.md.
+ * These speak day serials, which are Excel's day serials — see `src/serial.ts`
+ * for what that means and why the 1900 leap year is a lie.
  */
-import { DAY_MS, toNumber } from "../values.js";
+import { msToSerial, type SerialParts, serialToParts } from "../../serial.js";
+import { toNumber } from "../values.js";
 import type { FormulaFunction } from "./registry.js";
 
+/** Excel's error for a serial no calendar date corresponds to. */
+const NUM_ERROR = "#NUM!";
+
+/** Lifts a UTC part accessor into a function that fails on an unusable serial. */
+function part(read: (parts: SerialParts) => number): FormulaFunction {
+  return (a) => {
+    const parts = serialToParts(toNumber(a[0]));
+    return parts === undefined ? NUM_ERROR : read(parts);
+  };
+}
+
 export const dateFunctions: Record<string, FormulaFunction> = {
-  TODAY: () => Math.floor(Date.now() / DAY_MS),
-  NOW: () => Date.now() / DAY_MS,
+  TODAY: () => Math.floor(msToSerial(Date.now())),
+  NOW: () => msToSerial(Date.now()),
 
   /** Month is 1-indexed on the way in, matching Excel. */
-  DATE: (a) =>
-    Math.floor(
-      Date.UTC(toNumber(a[0]), toNumber(a[1]) - 1, toNumber(a[2])) / DAY_MS,
-    ),
+  DATE: (a) => {
+    const ms = Date.UTC(toNumber(a[0]), toNumber(a[1]) - 1, toNumber(a[2]));
+    return Number.isNaN(ms) ? NUM_ERROR : Math.floor(msToSerial(ms));
+  },
 
-  YEAR: (a) => new Date(toNumber(a[0]) * DAY_MS).getUTCFullYear(),
-  MONTH: (a) => new Date(toNumber(a[0]) * DAY_MS).getUTCMonth() + 1,
-  DAY: (a) => new Date(toNumber(a[0]) * DAY_MS).getUTCDate(),
+  YEAR: part((p) => p.year),
+  MONTH: part((p) => p.month),
+  DAY: part((p) => p.day),
 };

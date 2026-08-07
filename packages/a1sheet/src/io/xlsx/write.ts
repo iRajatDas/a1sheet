@@ -26,7 +26,6 @@ import type {
   StyleObject,
 } from "../../model/types.js";
 import { makeZip, type ZipEntry } from "../zip/zip.js";
-import { daySerialToExcelSerial } from "./dates.js";
 import { styleKey } from "./styles.js";
 import { pxToColWidth, pxToRowHeight } from "./units.js";
 import { validationXml } from "./validation.js";
@@ -121,14 +120,6 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
       cachedValues: sheet.cachedValues ?? {},
     });
 
-    /**
-     * Day serials are Unix-based in the model and 1899-12-30-based in the file.
-     * Only a date-formatted cell holds one, so only that cell is shifted — a
-     * plain number must not move.
-     */
-    const forFile = (n: number, style: StyleObject | undefined) =>
-      style?.numFmt === "date" ? daySerialToExcelSerial(n) : n;
-
     // Extent must cover styled-but-empty cells too, or formatting is lost.
     let maxR = -1;
     let maxC = -1;
@@ -190,10 +181,10 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
           // and shows 0. Only numbers may be written bare.
           rowCells +=
             typeof val === "number"
-              ? `<c r="${ref}"${sAttr}${vmAttr}>${f}<v>${forFile(val, style)}</v></c>`
+              ? `<c r="${ref}"${sAttr}${vmAttr}>${f}<v>${val}</v></c>`
               : `<c r="${ref}"${sAttr}${vmAttr} t="str">${f}<v>${xmlEscape(String(val))}</v></c>`;
         } else if (raw && INTEGER_OR_DECIMAL.test(raw)) {
-          rowCells += `<c r="${ref}"${sAttr}${vmAttr}><v>${forFile(Number(raw), style)}</v></c>`;
+          rowCells += `<c r="${ref}"${sAttr}${vmAttr}><v>${Number(raw)}</v></c>`;
         } else if (raw) {
           rowCells += `<c r="${ref}"${sAttr}${vmAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(raw)}</t></is></c>`;
         } else {

@@ -33,7 +33,6 @@ import {
 } from "../progress.js";
 import { listZipEntries, readZipMember } from "../zip/zip.js";
 import { parseCondFormats } from "./condFormat.js";
-import { excelSerialToDaySerial } from "./dates.js";
 import { parseImageTable } from "./images.js";
 import { parseThemePalette } from "./palette.js";
 import { parseDifferentialStyle, parseStylesXml } from "./styles.js";
@@ -188,16 +187,12 @@ function normalizeFormula(text: string): string {
  * `t="str"` and an error as `t="e"`, never as a shared-string index, so there is
  * no string table to consult here.
  */
-function cachedValue(
-  text: string,
-  type: string | undefined,
-  style: StyleObject | undefined,
-): CellValue {
+function cachedValue(text: string, type: string | undefined): CellValue {
   if (type === "b") return text === "1";
   if (type === "str" || type === "e" || type === "inlineStr") return text;
   const n = Number.parseFloat(text);
   if (Number.isNaN(n)) return text;
-  return style?.numFmt === "date" ? excelSerialToDaySerial(n) : n;
+  return n;
 }
 
 /**
@@ -417,21 +412,15 @@ export async function readXlsx(
       const style = (sIdx ? xfStyles[parseInt(sIdx, 10)] : null) ?? undefined;
       if (style) styles[key] = style;
 
-      // A date is a plain number in the file; only the format says otherwise.
-      // Rebase it here rather than at display time, so the value in the model is
-      // a day serial this engine's date functions can do arithmetic on.
-      if (style?.numFmt === "date" && !f) {
-        const serial = Number.parseFloat(value);
-        if (Number.isFinite(serial)) value = String(excelSerialToDaySerial(serial));
-      }
-
+      // A date is a plain number in the file and only the format says otherwise,
+      // which is fine: the serial the file holds is the serial this engine holds.
       if (value !== "") cells[key] = value;
 
       // Only formulas get a cached value: for a literal the raw content already
       // is the value, and storing it twice would let the two disagree.
       if (f && v) {
         const text = textOf(v.inner);
-        if (text !== "") cachedValues[key] = cachedValue(text, type, style);
+        if (text !== "") cachedValues[key] = cachedValue(text, type);
       }
     }
 

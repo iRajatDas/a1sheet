@@ -5,8 +5,8 @@
  * the raw cell content, which stays exactly as the user typed it.
  */
 
-import { DAY_MS } from "../formula/values.js";
 import type { NumFmt, StyleObject } from "../model/types.js";
+import { serialToMs } from "../serial.js";
 import { applyFormatCode } from "./formatCode.js";
 
 export const NUM_FMTS: NumFmt[] = [
@@ -68,7 +68,7 @@ export function formatValue(
     case "currency":
       return n.toLocaleString(locale, { style: "currency", currency });
     case "date": {
-      const d = new Date(n * DAY_MS);
+      const d = new Date(serialToMs(n));
       return Number.isNaN(d.getTime())
         ? String(raw)
         : (d.toISOString().slice(0, 10) as string);

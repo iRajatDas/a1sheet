@@ -4,6 +4,7 @@
  * shown in parentheses.
  */
 import { describe, expect, test } from "bun:test";
+import { msToSerial } from "../serial.js";
 import { applyFormatCode, isDateFormat } from "./formatCode.js";
 
 describe("signs and sections", () => {
@@ -65,8 +66,8 @@ describe("numbers", () => {
 });
 
 describe("dates and times", () => {
-  /** 2024-08-16T20:00Z as a Unix day serial. */
-  const KICKOFF = Date.UTC(2024, 7, 16, 20, 0) / 86400000;
+  /** 2024-08-16T20:00Z as a day serial, which is 45520.833… in Excel too. */
+  const KICKOFF = msToSerial(Date.UTC(2024, 7, 16, 20, 0));
 
   test("a date-time format shows both halves", () => {
     // numFmtId 22, which the file states by id and carries no code of its own.

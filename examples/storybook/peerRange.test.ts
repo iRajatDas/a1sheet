@@ -6,8 +6,8 @@
  * green build, a broken site. This asserts the installed Vite is one the
  * builder claims to support.
  */
-import { dirname } from "node:path";
 import { expect, test } from "bun:test";
+import { dirname } from "node:path";
 
 const CARET_MAJOR = /^\^(\d+)\./;
 

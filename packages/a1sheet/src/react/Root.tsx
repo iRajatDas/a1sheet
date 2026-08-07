@@ -300,6 +300,13 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
               : "Add to selection: move to the next range. Shift+F8 again, or Escape to finish.",
           );
           return;
+        case "F9":
+          // Excel's recalculate. The only way to refresh RAND, TODAY, or NOW
+          // without editing something, since nothing else replaces the
+          // evaluator they are memoized in.
+          e.preventDefault();
+          api.recalculate();
+          return;
         case "Tab":
           e.preventDefault();
           api.move(0, e.shiftKey ? -1 : 1, numRows, numCols);

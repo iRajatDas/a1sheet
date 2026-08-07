@@ -20,8 +20,10 @@ function part(read: (parts: SerialParts) => number): FormulaFunction {
 }
 
 export const dateFunctions: Record<string, FormulaFunction> = {
-  TODAY: () => Math.floor(msToSerial(Date.now())),
-  NOW: () => msToSerial(Date.now()),
+  // Volatile: `host.now` is the cycle's instant, so every TODAY and NOW on the
+  // sheet agrees, and all of them move together on the next cycle.
+  TODAY: (_args, host) => Math.floor(msToSerial(host.now)),
+  NOW: (_args, host) => msToSerial(host.now),
 
   /** Month is 1-indexed on the way in, matching Excel. */
   DATE: (a) => {

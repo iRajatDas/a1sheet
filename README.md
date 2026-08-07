@@ -131,6 +131,7 @@ that needs a pointer is a grid some people cannot use.
 | Ctrl+Space / Shift+Space | The column / the row |
 | Shift+F8 | Add to selection — keep this range and start another |
 | Ctrl+D / Ctrl+R | Fill down / right |
+| F9 | Recalculate — refreshes `RAND`, `TODAY`, `NOW` |
 | Escape | Drop the extra ranges, the copy outline, and add mode |
 
 With the mouse: drag to select, Shift+click to extend, Ctrl/Cmd+click to add a
@@ -425,8 +426,15 @@ become dropdowns. Not read: charts, pivot tables, floating pictures and shapes.
 returning one spills into the cells beside it; `LET`, `LAMBDA`, `MAP`, `SORT`,
 `UNIQUE`, `FILTER`, `XLOOKUP` and the rest of the modern set work, as do
 structured table references, cross-sheet references, and defined names that hold
-a formula. About 90 functions against Excel's several hundred — no `OFFSET`,
-`INDIRECT`, or volatile functions.
+a formula. `OFFSET` and `INDIRECT` build a reference rather than read one, so
+they work too. About 90 functions against Excel's several hundred.
+
+The volatile functions — `RAND`, `RANDBETWEEN`, `TODAY`, `NOW` — depend on no
+cell, so nothing on the sheet can say when they are stale. As in Excel they are
+recomputed once per calculation cycle: every edit begins one, and **F9** begins
+one without changing the document. Within a cycle they hold still, so `=RAND()`
+in A1 and `=A1*2` in B1 always agree, and every `NOW()` reports the same instant.
+`useSheet().recalculate()` is the same trigger for your own button.
 
 Where evaluation still fails, the cell shows the value Excel last computed for
 it, from `Sheet.cachedValues`. Such a cell is effectively read-only: nothing here

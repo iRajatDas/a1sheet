@@ -8,6 +8,30 @@ backfilled.
 
 ## Unreleased
 
+### Added (volatile functions, and a way to recalculate)
+
+- `RAND()` and `RANDBETWEEN(bottom, top)`.
+- **F9 recalculates**, and `useSheet().recalculate()` is the same trigger for a
+  button of your own. Without it a volatile function is frozen until you happen
+  to edit something: the evaluator memoizes, and an edit was the only thing that
+  replaced it. A recalculation is not an edit — nothing enters the undo history
+  and `onChange` does not fire.
+
+### Fixed (volatility)
+
+- **Two `=NOW()` cells could report different instants**, because each called the
+  clock separately and they could land either side of a millisecond. A cycle now
+  has one instant and every `TODAY` and `NOW` on the sheet reads it.
+
+### Changed (BREAKING: two formula-engine types gained a field)
+
+Only affects code that constructs these directly; calling `createEvaluator` or
+registering an ordinary function is unaffected.
+
+- `EvalContext` gained `now`, and `FormulaHost` gained `now` — the instant the
+  calculation cycle began. `createEvaluator` takes an optional `now` to pin it,
+  which is what makes a sheet using `TODAY` or `NOW` testable.
+
 ### Changed (BREAKING: a day serial is now Excel's day serial)
 
 A date cell holds a number, and that number used to count days from the Unix

@@ -101,6 +101,15 @@ export interface UseSpreadsheetResult
   /** Transient user-facing message, e.g. "That cell is locked." */
   status: string;
   setStatus(message: string): void;
+  /**
+   * Runs a calculation cycle, refreshing the volatile functions — `RAND`,
+   * `RANDBETWEEN`, `TODAY`, `NOW`. Excel's F9.
+   *
+   * Every other formula is a function of cells that have not changed, so this
+   * cannot alter their results. It is not an edit: nothing enters the undo
+   * history and `onChange` does not fire.
+   */
+  recalculate(): void;
 }
 
 export function useSpreadsheet(
@@ -120,6 +129,27 @@ export function useSpreadsheet(
   const clearCopied = clipboard.clearCopied;
 
   /**
+   * Which calculation cycle the sheet is on, and the instant it began.
+   *
+   * An evaluator memoizes, so a volatile function — `RAND`, `TODAY`, `NOW` —
+   * holds its value for the life of one. That is what makes `=RAND()` in A1 and
+   * `=A1*2` in B1 agree, and it is why every volatile on the sheet has to move
+   * at the same time or none of them do.
+   *
+   * A cycle begins on an edit, as in Excel, or on an explicit `recalculate`.
+   * `serial` distinguishes two cycles that start in the same millisecond, which
+   * a timestamp alone cannot.
+   */
+  const [calculation, setCalculation] = useState(() => ({
+    serial: 0,
+    at: Date.now(),
+  }));
+  const beginCalculation = useCallback(
+    () => setCalculation((c) => ({ serial: c.serial + 1, at: Date.now() })),
+    [],
+  );
+
+  /**
    * Every sheet mutation, with the copy outline dropped first.
    *
    * The outline says "this is what a paste will bring in". Once the sheet has
@@ -130,9 +160,10 @@ export function useSpreadsheet(
   const updateSheet = useCallback<UseWorkbookResult["updateSheet"]>(
     (fn, addHistory) => {
       clearCopied();
+      beginCalculation();
       wb.updateSheet(fn, addHistory);
     },
-    [wb.updateSheet, clearCopied],
+    [wb.updateSheet, clearCopied, beginCalculation],
   );
 
   /**
@@ -179,6 +210,7 @@ export function useSpreadsheet(
         tables,
         sheets: sheetCells,
         spillRanges: wb.sheet.spillRanges,
+        now: calculation.at,
         ...(wb.workbook.namedFormulas
           ? { namedFormulas: wb.workbook.namedFormulas }
           : {}),
@@ -191,6 +223,10 @@ export function useSpreadsheet(
       wb.sheet.spillRanges,
       tables,
       sheetCells,
+      // The cycle, not just its instant: `serial` is what forces a rebuild when
+      // two cycles begin in the same millisecond, which is the only thing that
+      // refreshes RAND.
+      calculation,
     ],
   );
 
@@ -354,5 +390,6 @@ export function useSpreadsheet(
     ranges,
     status,
     setStatus,
+    recalculate: beginCalculation,
   };
 }

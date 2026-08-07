@@ -19,6 +19,7 @@ import { dateFunctions } from "./date.js";
 import { logicFunctions } from "./logic.js";
 import { lookupFunctions } from "./lookup.js";
 import { mathFunctions } from "./math.js";
+import { randomFunctions } from "./random.js";
 import { textFunctions } from "./text.js";
 
 /**
@@ -30,6 +31,14 @@ import { textFunctions } from "./text.js";
  */
 export interface FormulaHost {
   call(lambda: LambdaValue, args: readonly FormulaArg[]): FormulaArg;
+  /**
+   * The instant this calculation cycle began, in ms since the Unix epoch.
+   *
+   * `TODAY` and `NOW` read it rather than the clock so that every one of them on
+   * a sheet reports the same moment — two `=NOW()` cells calling `Date.now()`
+   * separately can land either side of a millisecond, and in Excel they cannot.
+   */
+  now: number;
 }
 
 /**
@@ -41,6 +50,7 @@ export type FormulaFunction = (args: FormulaArg[], host: FormulaHost) => Formula
 
 export const FUNCTIONS: Record<string, FormulaFunction> = {
   ...mathFunctions,
+  ...randomFunctions,
   ...textFunctions,
   ...logicFunctions,
   ...dateFunctions,

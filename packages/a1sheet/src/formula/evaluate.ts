@@ -120,6 +120,11 @@ export interface EvalContext {
    * this-row reference can resolve against.
    */
   currentRow: number;
+  /**
+   * The instant this calculation cycle began, in ms since the Unix epoch. Read
+   * by the volatile date functions; see `FormulaHost.now`.
+   */
+  now: number;
 }
 
 export interface Evaluator {
@@ -380,7 +385,10 @@ function evalCall(
     if (isErrorValue(arg)) return arg;
   }
 
-  return fn(argVals, { call: (lambda, args) => applyLambda(lambda, args, ctx) });
+  return fn(argVals, {
+    call: (lambda, args) => applyLambda(lambda, args, ctx),
+    now: ctx.now,
+  });
 }
 
 /**
@@ -615,6 +623,12 @@ export interface EvaluatorOptions {
    * recomputed result rather than shadowing it with a stale one.
    */
   spillRanges?: Readonly<Record<CellKey, Range>>;
+  /**
+   * The instant this calculation cycle began, in ms since the Unix epoch.
+   * Defaults to now. Pass it to pin `TODAY` and `NOW`, which is what makes a
+   * sheet that uses them testable.
+   */
+  now?: number;
 }
 
 export function createEvaluator(
@@ -925,6 +939,7 @@ export function createEvaluator(
     tables,
     scope: EMPTY_SCOPE,
     currentRow: -1,
+    now: opts.now ?? Date.now(),
 
     getCell: (row, col, sheet) => typedCell(row, col, sheet),
     getValue: (row, col) => toNumber(compute(row, col)),

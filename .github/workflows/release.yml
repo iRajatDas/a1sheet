@@ -46,7 +46,21 @@ jobs:
             exit 1
           fi
 
-      - run: npm publish --provenance --access public
+      # A tag pushed for a version already on the registry is not a failure —
+      # it happens whenever a release was published by hand — and a permanently
+      # red release history is worse than a skipped step.
+      - id: published
+        run: |
+          v=$(node -p "require('./packages/a1sheet/package.json').version")
+          if npm view "a1sheet@$v" version >/dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::a1sheet@$v is already on npm; nothing to publish"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.published.outputs.already == 'false'
+        run: npm publish --provenance --access public
         working-directory: packages/a1sheet
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

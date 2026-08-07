@@ -347,9 +347,10 @@ Everything from the POC is ported, typed, and under test.
   paste, TSV interchange with Excel and Sheets.
 - **Fill handle** — drag in any direction, linear series extrapolation, per-cell
   formula reference shifting.
-- **File I/O** — XLSX read and write (hand-written DEFLATE decoder, ZIP, OOXML,
-  shared strings, styles), CSV read and write. Verified against real files from
-  Excel and LibreOffice in `dataset/`.
+- **File I/O** — XLSX read and write (hand-written DEFLATE codec, ZIP, OOXML,
+  shared strings, styles, themes, tables, conditional formats, images), CSV read
+  and write. Verified against real files from Excel and LibreOffice in
+  `dataset/`.
 
 `.xlsb` and `.xls` are rejected with an actionable message rather than failing
 obscurely — both are binary formats, out of scope.

@@ -6,11 +6,12 @@
  * a time and yield to the event loop between them. Inflating a whole 38 MB archive
  * in one call would block for seconds with no way to cancel.
  *
- * Method 0 (stored) and method 8 (deflate, via ./inflate.ts) are supported.
- * `makeZip` writes method 0 only — see ./deflate.ts for why and how to change it.
+ * Method 0 (stored) and method 8 (deflate) are supported in both directions,
+ * through ./inflate.ts and ./deflate.ts.
  */
 import { NotAZipError } from "../../errors.js";
 import { crc32 } from "./crc32.js";
+import { deflateRaw } from "./deflate.js";
 import { inflateRaw } from "./inflate.js";
 
 export interface ZipEntry {
@@ -99,6 +100,8 @@ export function listZipEntries(bytes: Uint8Array): ZipMember[] {
   return members;
 }
 
+const METHOD_STORE = 0;
+
 /** ZIP compression method 8 — deflate. Anything else is treated as stored. */
 const METHOD_DEFLATE = 8;
 
@@ -109,7 +112,24 @@ export function readZipMember(member: ZipMember): Uint8Array {
     : member.compressed;
 }
 
-/** Writes entries into a ZIP archive. STORE (method 0) only. */
+/**
+ * Below this many bytes, compressing costs more than it saves.
+ *
+ * A ZIP member carries about 80 bytes of header either way, and DEFLATE's own
+ * framing plus a fixed-Huffman literal run can exceed the input on very short
+ * parts — the `.rels` files are a few hundred bytes and several of them are
+ * incompressible at this size.
+ */
+const MIN_COMPRESSED_SIZE = 256;
+
+/**
+ * Writes entries into a ZIP archive, compressing where it helps.
+ *
+ * Per member, whichever is smaller: STORE (method 0) or DEFLATE (method 8). The
+ * comparison is done rather than assumed, because a stored member that happens
+ * to be incompressible — an already-compressed PNG, which is most of the media
+ * in a workbook with images — would otherwise grow.
+ */
 export function makeZip(fileList: ZipEntry[]): Uint8Array {
   const encoder = new TextEncoder();
   const localParts: Uint8Array[] = [];
@@ -118,16 +138,21 @@ export function makeZip(fileList: ZipEntry[]): Uint8Array {
 
   for (const f of fileList) {
     const nameBytes = encoder.encode(f.name);
-    const data = f.data;
-    const crc = crc32(data);
-    const size = data.length;
+    const size = f.data.length;
+    const crc = crc32(f.data);
+
+    const deflated = size >= MIN_COMPRESSED_SIZE ? deflateRaw(f.data) : undefined;
+    const compress = deflated !== undefined && deflated.length < size;
+    const data = compress ? deflated : f.data;
+    const method = compress ? METHOD_DEFLATE : METHOD_STORE;
 
     const local = new Uint8Array(30 + nameBytes.length);
     const dv = new DataView(local.buffer);
     dv.setUint32(0, SIG_LOCAL, true);
     dv.setUint16(4, 20, true); // version needed
+    dv.setUint16(8, method, true);
     dv.setUint32(14, crc, true);
-    dv.setUint32(18, size, true); // compressed size == size, method 0
+    dv.setUint32(18, data.length, true);
     dv.setUint32(22, size, true);
     dv.setUint16(26, nameBytes.length, true);
     local.set(nameBytes, 30);
@@ -138,8 +163,9 @@ export function makeZip(fileList: ZipEntry[]): Uint8Array {
     cdv.setUint32(0, SIG_CENTRAL, true);
     cdv.setUint16(4, 20, true); // version made by
     cdv.setUint16(6, 20, true); // version needed
+    cdv.setUint16(10, method, true);
     cdv.setUint32(16, crc, true);
-    cdv.setUint32(20, size, true);
+    cdv.setUint32(20, data.length, true);
     cdv.setUint32(24, size, true);
     cdv.setUint16(28, nameBytes.length, true);
     cdv.setUint32(42, offset, true);

@@ -161,11 +161,11 @@ references costs one per cell.
 
 ## File I/O
 
-**ZIP export is STORE-only.** There is no DEFLATE *encoder*, only a decoder.
-Exported `.xlsx` files are valid and open everywhere; they are just larger than
-necessary.
-→ Implement `src/io/zip/deflate.ts`, then switch the `method` field in
-`src/io/zip/zip.ts` from 0 to 8 for the XML entries. Fixed-Huffman is sufficient.
+**The DEFLATE encoder uses fixed Huffman tables, not dynamic ones.** They are
+defined by the format and need no header, and on XML they cost a few percent over
+optimal tables. `MAX_CHAIN` bounds the match search, trading a little more size
+for speed.
+→ `deflateRaw` in `src/io/zip/deflate.ts`.
 
 **XLSX import ignores charts, pivot tables, and data validation** rather than
 erroring on them. It trusts well-formed output from Excel, Sheets, and LibreOffice

@@ -45,6 +45,17 @@ readable — it was a grid of `#NAME?` with its numbers thrown away.
 - **Array literals** (`{1,2;3,4}`), the `&` concatenation operator, and the `%`
   postfix operator, none of which the tokenizer previously recognized.
 
+### Added (compression)
+
+- **Exported archives are compressed.** There was a DEFLATE decoder and no
+  encoder, so every part was written STORE — valid, and several times larger than
+  it needed to be. A fixed-Huffman encoder with LZ77 matching takes a 20,000-row
+  workbook from 4.1 MB to 0.57 MB.
+- Each member is written whichever way is smaller. Already-compressed media —
+  which is most of an image-heavy workbook — stays stored, because compressing it
+  unconditionally makes the file bigger, and parts under a couple of hundred bytes
+  (the `.rels` files) cost more in framing than they save.
+
 ### Added (the remaining gaps)
 
 - **Colour scales, data bars, and icon sets.** Read, rendered, and written. They
@@ -80,8 +91,8 @@ readable — it was a grid of `#NAME?` with its numbers thrown away.
   and pictures gone. `XlsxSheetInput` gained `tables`, `condFormats`, and
   `images`.
 - One media part per distinct picture rather than per cell — the sample workbook
-  points 140 cells at 20 images, and a part each made a 4.7 MB file export as
-  64 MB.
+  points 140 cells at 20 images, and a part each turned a 9.2 MB file into a
+  64 MB export.
 
 Two traps found by round-tripping rather than by reading the spec: a cell style's
 solid fill names its colour `fgColor` while a differential format's names it

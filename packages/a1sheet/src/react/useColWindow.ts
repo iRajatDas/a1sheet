@@ -43,7 +43,7 @@ export function useColWindow(
   scrollLeft: number,
   viewportWidth: number,
 ): UseColWindowResult {
-  const { numCols, colWidths, merges } = sheet;
+  const { numCols, colWidths, merges, hiddenCols } = sheet;
   const frozenCols = sheet.frozenCols || 0;
 
   /** Prefix sums; `offsets[c]` is the left edge of column `c`, `offsets[numCols]` the total. */
@@ -51,15 +51,25 @@ export function useColWindow(
     const out: number[] = [0];
     let x = 0;
     for (let c = 0; c < numCols; c++) {
-      x += colWidths[c] ?? DEFAULT_COL_WIDTH;
+      x += hiddenCols.has(c) ? 0 : (colWidths[c] ?? DEFAULT_COL_WIDTH);
       out.push(x);
     }
     return out;
-  }, [numCols, colWidths]);
+  }, [numCols, colWidths, hiddenCols]);
 
+  /**
+   * A hidden column is zero-wide rather than absent.
+   *
+   * Everything downstream — the cumulative offsets, the CSS grid tracks, the
+   * sticky freeze positions, the hit test — is written in terms of a column's
+   * width. Giving a hidden one a width of zero makes all of them correct with no
+   * second notion of which column sits where, which is what a "visible columns"
+   * mapping would have introduced.
+   */
   const colWidth = useCallback(
-    (col: number) => colWidths[col] ?? DEFAULT_COL_WIDTH,
-    [colWidths],
+    (col: number) =>
+      hiddenCols.has(col) ? 0 : (colWidths[col] ?? DEFAULT_COL_WIDTH),
+    [colWidths, hiddenCols],
   );
 
   const colOffset = useCallback(

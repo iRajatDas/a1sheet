@@ -14,6 +14,8 @@ import { getMergeAt } from "../../model/sheet.js";
 import { cellCss } from "../cellStyle.js";
 import { useSheetContext } from "../context.js";
 import { useCaretBinding } from "../useCaretBinding.js";
+import { CondIcon } from "./CondIcon.js";
+import { ChevronDownIcon } from "./icons.js";
 
 export interface CellProps {
   row: number;
@@ -23,6 +25,8 @@ export interface CellProps {
   /** Sticky offsets for freeze panes, computed by the Grid. */
   stickyStyle: CSSProperties;
 }
+
+const PERCENT = 100;
 
 export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   const { api, theme, prefix, ui, focusRef } = useSheetContext("Sheet.Cell");
@@ -59,6 +63,11 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
   const style = conditional ? { ...base, ...conditional } : base;
   // An IMAGE() cell draws its picture instead of its value, which is a URL.
   const image = sheet.images[key];
+  // A colour scale, data bar, or icon set — painted rather than styled.
+  const decoration = api.condDecorationFor(row, col);
+  // A data-validation list makes the cell a dropdown.
+  const choices = api.choicesFor(row, col);
+  const listId = `${prefix}list-${row}-${col}`;
   const selected = api.isSelected(row, col);
   const active = row === api.active.row && col === api.active.col;
 
@@ -96,6 +105,7 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
         gridRow: merge ? `${gridRow} / span ${merge.r2 - merge.r1 + 1}` : gridRow,
         height: mergedHeight,
         ...cellCss(style, theme),
+        ...(decoration?.background ? { background: decoration.background } : {}),
       }}
       onMouseDown={(e) => {
         // Clicks inside the open editor are the caret's business, not ours.
@@ -141,6 +151,33 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
       }}
       title={style.locked ? "Locked cell" : undefined}
     >
+      {decoration?.barRatio !== undefined && (
+        // Behind the text rather than as a background, so the cell's own fill and
+        // the selection tint both still show. Not interactive.
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 2,
+            bottom: 2,
+            width: `${decoration.barRatio * PERCENT}%`,
+            background: decoration.barColor,
+            opacity: 0.45,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {decoration?.iconIndex !== undefined && (
+        <span
+          aria-hidden="true"
+          style={{ flex: "none", marginRight: 4, lineHeight: 1 }}
+        >
+          <CondIcon set={decoration.iconSet} index={decoration.iconIndex} />
+        </span>
+      )}
+
       {isEditing ? null : image ? (
         // Contained rather than stretched, so a crest keeps its proportions in a
         // cell whose size the user chose for the text beside it. The URL is the
@@ -181,9 +218,37 @@ export function Cell({ row, col, gridRow, stickyStyle }: CellProps): ReactNode {
             }
           }}
           onBlur={() => api.commitEdit()}
+          // A native datalist, so a validated cell can still be TYPED into —
+          // Excel allows both, and a <select> would take that away.
+          {...(choices ? { list: listId } : {})}
         />
       ) : image ? null : (
         api.getDisplay(row, col)
+      )}
+
+      {isEditing && choices && (
+        <datalist id={listId}>
+          {choices.map((choice) => (
+            <option key={choice} value={choice} />
+          ))}
+        </datalist>
+      )}
+
+      {choices && !isEditing && active && (
+        // The affordance. Only on the active cell: an arrow in every validated
+        // cell would be a column of chevrons competing with the values.
+        <button
+          type="button"
+          aria-label="Choose a value"
+          className={`${prefix}dropdown`}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            api.startEdit(sheet, row, col);
+          }}
+        >
+          <ChevronDownIcon />
+        </button>
       )}
 
       {showFillHandle && (

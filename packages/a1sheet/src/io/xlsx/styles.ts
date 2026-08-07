@@ -95,6 +95,8 @@ export function styleKey(style: StyleObject | undefined): string {
     style.gradient ?? "",
     style.numFmt ?? "general",
     style.numFmtCode ?? "",
+    style.indent ?? 0,
+    style.rotation ?? 0,
     style.align ?? "",
     style.valign ?? "",
     !!style.wrap,
@@ -135,6 +137,10 @@ export function numFmtToKey(
   if (/^\[?h/i.test(code) || /h+:mm/i.test(code)) return "date";
   return "general";
 }
+
+/** `textRotation="255"` is Excel's stacked-vertical mode rather than an angle. */
+const VERTICAL_TEXT = 255;
+const QUARTER_TURN = 90;
 
 const BORDER_LINES: readonly BorderLine[] = [
   "hair",
@@ -454,6 +460,20 @@ function buildStyle(parts: StyleParts): StyleObject | null {
   const valign = toVerticalAlign(alignment.vertical);
   if (valign) style.valign = valign;
   if (alignment.wrapText === "1") style.wrap = true;
+  const indent = Number.parseInt(alignment.indent ?? "", 10);
+  if (Number.isFinite(indent) && indent > 0) style.indent = indent;
+  const rotation = Number.parseInt(alignment.textRotation ?? "", 10);
+  if (Number.isFinite(rotation) && rotation !== 0) {
+    // The file counts anticlockwise from 0 to 90 and then encodes CLOCKWISE
+    // rotation as 91..180, meaning 1..90 degrees the other way. 255 is the
+    // stacked-vertical mode, which has no angle and is not represented here.
+    style.rotation =
+      rotation === VERTICAL_TEXT
+        ? 0
+        : rotation > QUARTER_TURN
+          ? QUARTER_TURN - rotation
+          : rotation;
+  }
 
   return Object.keys(style).length === 0 ? null : style;
 }

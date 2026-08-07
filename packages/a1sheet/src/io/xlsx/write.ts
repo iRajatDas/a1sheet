@@ -18,6 +18,7 @@ import type {
   CellKey,
   CellValue,
   CondFormat,
+  DataValidation,
   NamedRanges,
   Range,
   RawCell,
@@ -28,6 +29,7 @@ import { makeZip, type ZipEntry } from "../zip/zip.js";
 import { daySerialToExcelSerial } from "./dates.js";
 import { styleKey } from "./styles.js";
 import { pxToColWidth, pxToRowHeight } from "./units.js";
+import { validationXml } from "./validation.js";
 import {
   condFormatXml,
   dxfXml,
@@ -58,6 +60,11 @@ export interface XlsxSheetInput {
   rowHeights?: Record<number, number>;
   /** Named tables on this sheet. Written as `xl/tables/*.xml`. */
   tables?: readonly SheetTable[];
+  /** Columns and rows to mark hidden. */
+  hiddenCols?: ReadonlySet<number>;
+  hiddenRows?: ReadonlySet<number>;
+  /** Data-validation rules, which is what makes a cell a dropdown. */
+  validations?: readonly DataValidation[];
   /** Conditional formats. Their styles are written into `<dxfs>`. */
   condFormats?: readonly CondFormat[];
   /** In-cell images, written through the rich-value chain. */
@@ -201,8 +208,9 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
         height === undefined
           ? ""
           : ` ht="${pxToRowHeight(height)}" customHeight="1"`;
-      if (hasContent || heightAttr) {
-        rowsXml += `<row r="${r + 1}"${heightAttr}>${rowCells}</row>`;
+      const hiddenAttr = sheet.hiddenRows?.has(r) ? ` hidden="1"` : "";
+      if (hasContent || heightAttr || hiddenAttr) {
+        rowsXml += `<row r="${r + 1}"${heightAttr}${hiddenAttr}>${rowCells}</row>`;
       }
     }
 
@@ -240,16 +248,27 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
     // <cols> must precede <sheetData>; Excel rejects the file otherwise. One
     // element per column rather than per run — runs would need the widths
     // sorted and grouped for a saving that does not matter at this scale.
-    const widthEntries = Object.keys(colWidths)
-      .map(Number)
-      .filter((c) => Number.isFinite(c))
-      .sort((a, b) => a - b);
-    const colsXml = widthEntries.length
-      ? `<cols>${widthEntries
-          .map(
-            (c) =>
-              `<col min="${c + 1}" max="${c + 1}" width="${pxToColWidth(colWidths[c] as number)}" customWidth="1"/>`,
-          )
+    // A column needs an entry if it has a width OR is hidden; hiding is
+    // independent of sizing, and a hidden column at the default width has no
+    // width entry to hang off.
+    const hiddenColSet = sheet.hiddenCols ?? new Set<number>();
+    const colEntries = [
+      ...new Set([
+        ...Object.keys(colWidths).map(Number).filter(Number.isFinite),
+        ...hiddenColSet,
+      ]),
+    ].sort((a, b) => a - b);
+    const colsXml = colEntries.length
+      ? `<cols>${colEntries
+          .map((c) => {
+            const width = colWidths[c];
+            const widthAttr =
+              width === undefined
+                ? ""
+                : ` width="${pxToColWidth(width)}" customWidth="1"`;
+            const hidden = hiddenColSet.has(c) ? ` hidden="1"` : "";
+            return `<col min="${c + 1}" max="${c + 1}"${widthAttr}${hidden}/>`;
+          })
           .join("")}</cols>`
       : "";
 
@@ -258,7 +277,8 @@ export function writeXlsx(sheets: XlsxSheetInput[]): Uint8Array {
     return (
       `${XML_DECL}<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_REL}">` +
       `${colsXml}<sheetData>${rowsXml}</sheetData>${mergeXml}` +
-      `${conditional.sheet}${tablePartsXml}</worksheet>`
+      `${conditional.sheet}${validationXml(sheet.validations ?? [])}` +
+      `${tablePartsXml}</worksheet>`
     );
   });
 

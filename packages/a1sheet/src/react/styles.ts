@@ -69,6 +69,14 @@ export function buildCss(prefix: string, t: Theme): string {
 /* Square, so a row of icon buttons reads as a row rather than as a ragged
    set of differently-proportioned boxes. */
 .${p}iconbtn { padding: 6px; }
+/* The dropdown affordance on a cell with a data-validation list. Sits at the
+   right edge, inside the cell, and never over the fill handle's corner. */
+.${p}dropdown { position: absolute; right: 1px; top: 50%;
+  transform: translateY(-50%); display: flex; align-items: center;
+  justify-content: center; width: 16px; height: 16px; padding: 0;
+  border: 1px solid ${t.buttonBorder}; border-radius: 3px;
+  background: ${t.headerBg}; color: ${t.headerText}; cursor: pointer; z-index: 4; }
+.${p}dropdown:hover { background: ${t.toolbarBg}; }
 .${p}fillhandle { position: absolute; right: -4px; bottom: -4px; width: 7px; height: 7px;
   background: ${t.accent}; border: 1px solid #fff; cursor: crosshair; z-index: 5; }
 .${p}menu { position: fixed; background: ${t.toolbarBg}; border: 1px solid ${t.buttonBorder};

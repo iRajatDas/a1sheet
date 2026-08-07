@@ -341,10 +341,11 @@ Everything from the POC is ported, typed, and under test.
   formats by literal format code, conditional formatting, cell locking,
   Ctrl+B/I/U.
 - **Structure** — insert/delete row and column, merge/unmerge, freeze, sort,
-  per-column value filters, multiple sheets, undo/redo (50 levels).
+  per-column value filters, hidden rows and columns, data-validation dropdowns,
+  multiple sheets, undo/redo (50 levels).
 - **Clipboard** — copy/cut/paste with relative-reference shifting on internal
   paste, TSV interchange with Excel and Sheets.
-- **Fill handle** — drag down or right, linear series extrapolation, per-cell
+- **Fill handle** — drag in any direction, linear series extrapolation, per-cell
   formula reference shifting.
 - **File I/O** — XLSX read and write (hand-written DEFLATE decoder, ZIP, OOXML,
   shared strings, styles), CSV read and write. Verified against real files from
@@ -371,9 +372,8 @@ a cell inherits from a named style, a table's header and banding from
 not only for highlighting. In-cell `=IMAGE("…")` draws the picture the file
 embeds.
 
-Not read: indent, text rotation, data validation, charts, pivot tables, floating
-pictures and shapes. Conditional colour scales, data bars, and icon sets are
-dropped, being drawings rather than styles.
+Colour scales, data bars, and icon sets are drawn too, and data-validation lists
+become dropdowns. Not read: charts, pivot tables, floating pictures and shapes.
 
 **Formulas.** Kept as text and re-evaluated. Arrays are values, so a formula
 returning one spills into the cells beside it; `LET`, `LAMBDA`, `MAP`, `SORT`,

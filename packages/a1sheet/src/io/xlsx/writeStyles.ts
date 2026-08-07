@@ -110,6 +110,11 @@ function alignmentXml(s: StyleObject): string {
     parts.push(`vertical="${s.valign === "middle" ? "center" : s.valign}"`);
   }
   if (s.wrap) parts.push(`wrapText="1"`);
+  if (s.indent) parts.push(`indent="${s.indent}"`);
+  if (s.rotation) {
+    // Clockwise rotation is written as 90 + the angle; anticlockwise as itself.
+    parts.push(`textRotation="${s.rotation < 0 ? 90 - s.rotation : s.rotation}"`);
+  }
   return parts.length ? `<alignment ${parts.join(" ")}/>` : "";
 }
 

@@ -103,6 +103,10 @@ export interface StyleObject {
   valign?: VerticalAlign;
   /** Wraps text onto more lines instead of clipping it at the cell edge. */
   wrap?: boolean;
+  /** Indent steps from the cell's alignment edge. Excel's unit, not pixels. */
+  indent?: number;
+  /** Text rotation in degrees, -90 to 90. 255 in the file means vertical. */
+  rotation?: number;
   color?: HexColor;
   bg?: HexColor;
   /** Takes precedence over `bg` when both are set, as a gradient covers the box. */
@@ -165,7 +169,43 @@ export type CondRule =
       readonly text: string;
       readonly negate: boolean;
     }
-  | { readonly type: "containsBlanks"; readonly negate: boolean };
+  | { readonly type: "containsBlanks"; readonly negate: boolean }
+  /**
+   * A rule that paints rather than styles: a gradient across the range's values,
+   * a bar in proportion to them, or an icon per band.
+   *
+   * Carried as data rather than resolved to a style because the result depends on
+   * the whole range — the colour of one cell in a scale is a function of the
+   * minimum and maximum of every cell the rule covers.
+   */
+  | {
+      readonly type: "colorScale";
+      readonly stops: readonly CondScaleStop[];
+    }
+  | {
+      readonly type: "dataBar";
+      readonly color: HexColor;
+      readonly min: CondScalePoint;
+      readonly max: CondScalePoint;
+    }
+  | {
+      readonly type: "iconSet";
+      /** The set's name from the file, e.g. `"3TrafficLights1"`. */
+      readonly set: string;
+      /** Lower bounds, ascending. The first band needs no threshold. */
+      readonly thresholds: readonly CondScalePoint[];
+    };
+
+/** How one end of a scale is located: by a percentile, a number, or a formula. */
+export interface CondScalePoint {
+  readonly kind: "min" | "max" | "num" | "percent" | "percentile" | "formula";
+  /** The value or formula, when the kind needs one. */
+  readonly value?: string;
+}
+
+export interface CondScaleStop extends CondScalePoint {
+  readonly color: HexColor;
+}
 
 /**
  * An image drawn inside a cell, from `=IMAGE("…")`.
@@ -212,6 +252,29 @@ export interface SheetTable {
   headerRow: boolean;
 }
 
+/**
+ * A data-validation rule over a range.
+ *
+ * The one that matters in practice is `list`: it is what makes a cell a dropdown,
+ * and a workbook that uses them is unusable without them — the constraint is the
+ * interface, not a warning about it.
+ */
+export interface DataValidation {
+  range: Range;
+  kind: "list" | "whole" | "decimal" | "date" | "textLength" | "custom";
+  /**
+   * The rule's operands, as formula text. For a list this is one entry: either a
+   * range reference or a comma-separated set of literals in quotes.
+   */
+  formulas: readonly string[];
+  /** Excel's `allowBlank`. An empty cell passes any rule when set. */
+  allowBlank?: boolean;
+  /** Comparison for the numeric and date kinds. */
+  operator?: CondOperator;
+  /** Shown when the value is rejected. */
+  message?: string;
+}
+
 export interface Sheet {
   id: string;
   name: string;
@@ -243,6 +306,8 @@ export interface Sheet {
   images: Record<CellKey, CellImage>;
   /** Named tables on this sheet, for structured references. */
   tables: readonly SheetTable[];
+  /** Data-validation rules. A `list` rule renders the cell as a dropdown. */
+  validations: readonly DataValidation[];
   /**
    * Where an array formula declares that its result goes, keyed by the anchor.
    *
@@ -263,6 +328,12 @@ export interface Sheet {
   frozenCols: number;
   /** Manually hidden rows — distinct from rows hidden by an active filter. */
   hiddenRows: Set<number>;
+  /**
+   * Manually hidden columns. Rendered as zero-width rather than skipped, so
+   * offsets, sticky freeze positions, and hit-testing all keep working without
+   * a second notion of "which column is where".
+   */
+  hiddenCols: Set<number>;
   /** Display-only overrides for "A", "B", … Internal addressing is unaffected. */
   colLabels: Record<number, string>;
   /** Display-only overrides for "1", "2", … Internal addressing is unaffected. */

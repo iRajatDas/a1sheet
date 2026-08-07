@@ -51,6 +51,7 @@ export interface UseSheetOpsResult {
   setRowLabel(row: number, label: string): void;
   setColLabel(col: number, label: string): void;
   toggleRowHidden(row: number): void;
+  toggleColHidden(col: number): void;
   sort(col: number, dir: "asc" | "desc"): void;
   /** Passing null clears the filter for that column. */
   setFilter(col: number, allowed: Set<string> | null): void;
@@ -238,6 +239,16 @@ export function useSheetOps(
           s.colLabels[col] = label;
           return s;
         }, false),
+      [updateSheet],
+    ),
+
+    toggleColHidden: useCallback(
+      (col: number) =>
+        updateSheet((s) => {
+          if (s.hiddenCols.has(col)) s.hiddenCols.delete(col);
+          else s.hiddenCols.add(col);
+          return s;
+        }),
       [updateSheet],
     ),
 

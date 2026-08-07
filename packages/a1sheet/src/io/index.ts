@@ -86,6 +86,9 @@ export async function readWorkbookFile(
         // CSV carries no layout information at all.
         colWidths: {},
         rowHeights: {},
+        hiddenCols: [],
+        hiddenRows: [],
+        validations: [],
       },
     ],
   };

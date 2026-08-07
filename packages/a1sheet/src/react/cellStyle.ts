@@ -61,6 +61,9 @@ function gradientCss(gradient: GradientFill): string {
   return `linear-gradient(${gradient.degree + OOXML_TO_CSS_DEGREES}deg, ${stops})`;
 }
 
+/** Excel's indent step is about one character; this is that at the default size. */
+const INDENT_STEP_PX = 8;
+
 const JUSTIFY: Record<string, string> = {
   left: "flex-start",
   center: "center",
@@ -112,6 +115,21 @@ export function cellCss(style: StyleObject, theme: Theme): CSSProperties {
   if (style.wrap) {
     css.whiteSpace = "normal";
     css.overflowWrap = "anywhere";
+  }
+
+  if (style.indent) {
+    // Indent moves the text away from whichever edge it is aligned to, so a
+    // right-aligned cell indents from the right.
+    const space = style.indent * INDENT_STEP_PX;
+    if (style.align === "right") css.paddingRight = space;
+    else css.paddingLeft = space;
+  }
+
+  if (style.rotation) {
+    // The cell box does not rotate — only its text — so the transform needs an
+    // origin at the centre and the box needs to stop clipping on the short axis.
+    css.transform = `rotate(${-style.rotation}deg)`;
+    css.transformOrigin = "center";
   }
 
   const borders = style.borders;

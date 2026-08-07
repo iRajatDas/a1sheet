@@ -11,7 +11,11 @@
  * do not try to persist one across edits.
  */
 import { useCallback, useMemo, useState } from "react";
-import { condStyleFor as condStyleFor_ } from "../format/condFormat.js";
+import {
+  type CondDecoration,
+  condDecorationFor as condDecorationFor_,
+  condStyleFor as condStyleFor_,
+} from "../format/condFormat.js";
 import { formatValue } from "../format/numFmt.js";
 import { createEvaluator, type Evaluator } from "../formula/evaluate.js";
 import { imageUrlIn } from "../formula/imageCall.js";
@@ -19,6 +23,7 @@ import { tableIndex } from "../formula/tableRefs.js";
 import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
 import type { Range, StyleObject, Workbook } from "../model/types.js";
+import { listLiterals } from "../model/validation.js";
 import { type UseClipboardResult, useClipboard } from "./useClipboard.js";
 import { type UseColWindowResult, useColWindow } from "./useColWindow.js";
 import { type UseEditingResult, useEditing } from "./useEditing.js";
@@ -55,6 +60,16 @@ export interface UseSpreadsheetResult
    * Layered OVER the cell's own style by the renderer.
    */
   condStyleFor(row: number, col: number): StyleObject | undefined;
+  /**
+   * What a colour scale, data bar, or icon set paints on a cell. Not a style: a
+   * bar is drawn behind the text at a width, and an icon beside it.
+   */
+  condDecorationFor(row: number, col: number): CondDecoration | undefined;
+  /**
+   * The values a data-validation list allows in a cell, or undefined when it has
+   * no list rule. A cell with choices renders as a dropdown.
+   */
+  choicesFor(row: number, col: number): string[] | undefined;
   rowWindow: UseRowWindowResult;
   colWindow: UseColWindowResult;
   clipboard: UseClipboardResult;
@@ -183,6 +198,49 @@ export function useSpreadsheet(
     [wb.sheet.condFormats, evaluator],
   );
 
+  /**
+   * The choices a data-validation list offers for a cell, or undefined.
+   *
+   * A range-backed list is resolved through the evaluator, so `=$H$1:$H$9` and a
+   * literal `"a,b,c"` both come back as the same thing: the strings to offer.
+   */
+  const choicesFor = useCallback(
+    (row: number, col: number): string[] | undefined => {
+      for (const validation of wb.sheet.validations) {
+        if (validation.kind !== "list") continue;
+        const r = normalizeRange(validation.range);
+        if (row < r.r1 || row > r.r2 || col < r.c1 || col > r.c2) continue;
+
+        const literals = listLiterals(validation);
+        if (literals) return literals;
+
+        const source = validation.formulas[0];
+        if (!source) return undefined;
+        const value = evaluator.evaluateArray(source.replace(/^=/, ""));
+        if (!Array.isArray(value)) return undefined;
+        return value
+          .flat()
+          .map((v) => (v === undefined ? "" : String(v)))
+          .filter((v) => v !== "");
+      }
+      return undefined;
+    },
+    [wb.sheet.validations, evaluator],
+  );
+
+  /** Colour scales, data bars, and icon sets, which paint rather than style. */
+  const condDecorationFor = useCallback(
+    (row: number, col: number) =>
+      wb.sheet.condFormats.length === 0
+        ? undefined
+        : condDecorationFor_(
+            { condFormats: wb.sheet.condFormats, evaluator },
+            row,
+            col,
+          ),
+    [wb.sheet.condFormats, evaluator],
+  );
+
   const rowWindow = useRowWindow(wb.sheet, scrollTop, viewportHeight, getDisplay);
   const colWindow = useColWindow(wb.sheet, scrollLeft, viewportWidth);
 
@@ -245,6 +303,8 @@ export function useSpreadsheet(
     getValue,
     getRaw,
     condStyleFor,
+    condDecorationFor,
+    choicesFor,
     rowWindow,
     colWindow,
     clipboard,

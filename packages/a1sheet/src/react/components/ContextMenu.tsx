@@ -105,6 +105,9 @@ export function ContextMenu(): ReactNode {
       <button type="button" onClick={() => run(() => api.toggleRowHidden(row))}>
         {api.sheet.hiddenRows.has(row) ? "Unhide row" : "Hide row"}
       </button>
+      <button type="button" onClick={() => run(() => api.toggleColHidden(col))}>
+        {api.sheet.hiddenCols.has(col) ? "Unhide column" : "Hide column"}
+      </button>
     </div>
   );
 }

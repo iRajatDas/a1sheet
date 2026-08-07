@@ -170,20 +170,56 @@ function toHex(r: number, g: number, b: number): HexColor {
 /**
  * Lightens (`tint > 0`) or darkens (`tint < 0`) a colour.
  *
- * OOXML specifies this against HSL luminance. This is the RGB approximation every
- * other implementation uses; it differs from Excel by a shade or two on saturated
- * colours and not at all on greys, which is a better trade than carrying an
- * HSL round trip for the sake of the last few units.
+ * OOXML specifies this against HSL *luminance*, not against the RGB channels —
+ * `Lum' = Lum * (1 + tint)` when darkening and `Lum' = Lum * (1 - tint) + (1 -
+ * (1 - tint))` when lightening. The RGB approximation most implementations use
+ * agrees on greys and drifts on saturated colours, which is exactly where a
+ * theme's accents live, so this does the round trip properly.
  */
 export function applyTint(color: HexColor, tint: number): HexColor {
   if (!tint) return color;
-  const [r, g, b] = channels(color);
-  if (tint > 0) {
-    const toward = (c: number) => c + (RGB_MAX - c) * tint;
-    return toHex(toward(r), toward(g), toward(b));
-  }
-  const scale = 1 + tint;
-  return toHex(r * scale, g * scale, b * scale);
+  const [h, s, l] = toHsl(channels(color));
+  const lum =
+    tint < 0 ? l * (1 + tint) : l * (1 - tint) + (RGB_MAX - RGB_MAX * (1 - tint));
+  const [r, g, b] = fromHsl(h, s, Math.max(0, Math.min(RGB_MAX, lum)));
+  return toHex(r, g, b);
+}
+
+/** HSL with luminance on the same 0..255 scale as the channels, for symmetry. */
+function toHsl([r, g, b]: [number, number, number]): [number, number, number] {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+
+  const d = max - min;
+  const s = l > RGB_MAX / 2 ? d / (2 * RGB_MAX - max - min) : d / (max + min);
+  let h: number;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return [h, s, l];
+}
+
+function fromHsl(h: number, s: number, l: number): [number, number, number] {
+  if (s === 0) return [l, l, l];
+  const scaled = l / RGB_MAX;
+  const q = scaled < 0.5 ? scaled * (1 + s) : scaled + s - scaled * s;
+  const p = 2 * scaled - q;
+  const channel = (t: number) => {
+    let x = t;
+    if (x < 0) x += 1;
+    if (x > 1) x -= 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  };
+  return [
+    channel(h + 1 / 3) * RGB_MAX,
+    channel(h) * RGB_MAX,
+    channel(h - 1 / 3) * RGB_MAX,
+  ];
 }
 
 /** Blends two colours. `weight` is how much of `over` to use, 0..1. */

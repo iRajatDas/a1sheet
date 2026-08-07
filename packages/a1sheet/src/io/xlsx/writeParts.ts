@@ -16,6 +16,7 @@ import type {
   CellKey,
   CondFormat,
   CondRule,
+  CondScalePoint,
   Range,
   SheetTable,
   StyleObject,
@@ -86,6 +87,43 @@ const OPERATORS: Record<string, string> = {
   notBetween: "notBetween",
 };
 
+/** Points and stops, as `<cfvo>` and `<color>`. */
+function scalePoints(points: readonly CondScalePoint[]): string {
+  return points
+    .map(
+      (p) =>
+        `<cfvo type="${p.kind}"${p.value === undefined ? "" : ` val="${xmlEscape(p.value)}"`}/>`,
+    )
+    .join("");
+}
+
+/** The body a graphical rule carries instead of a formula. */
+function graphicalBody(rule: CondRule): string {
+  if (rule.type === "colorScale") {
+    return (
+      `<colorScale>${scalePoints(rule.stops)}` +
+      `${rule.stops.map((s) => `<color rgb="${colorToRgb(s.color)}"/>`).join("")}` +
+      `</colorScale>`
+    );
+  }
+  if (rule.type === "dataBar") {
+    return (
+      `<dataBar>${scalePoints([rule.min, rule.max])}` +
+      `<color rgb="${colorToRgb(rule.color)}"/></dataBar>`
+    );
+  }
+  if (rule.type === "iconSet") {
+    return `<iconSet iconSet="${xmlEscape(rule.set)}">${scalePoints(rule.thresholds)}</iconSet>`;
+  }
+  return "";
+}
+
+function isGraphical(rule: CondRule): boolean {
+  return (
+    rule.type === "colorScale" || rule.type === "dataBar" || rule.type === "iconSet"
+  );
+}
+
 function ruleAttrs(rule: CondRule): string {
   switch (rule.type) {
     case "expression":
@@ -98,12 +136,15 @@ function ruleAttrs(rule: CondRule): string {
         ` operator="${rule.negate ? "notContains" : "containsText"}"` +
         ` text="${xmlEscape(rule.text)}"`
       );
-    default:
+    case "containsBlanks":
       return ` type="${rule.negate ? "notContainsBlanks" : "containsBlanks"}"`;
+    default:
+      return ` type="${rule.type}"`;
   }
 }
 
 function ruleFormulas(rule: CondRule, range: Range): string {
+  if (isGraphical(rule)) return graphicalBody(rule);
   if (rule.type === "expression") {
     return `<formula>${xmlEscape(rule.formula)}</formula>`;
   }
@@ -117,7 +158,9 @@ function ruleFormulas(rule: CondRule, range: Range): string {
     const test = `NOT(ISERROR(SEARCH("${rule.text.replace(/"/g, '""')}",${anchor})))`;
     return `<formula>${xmlEscape(rule.negate ? `ISERROR(SEARCH("${rule.text}",${anchor}))` : test)}</formula>`;
   }
-  return `<formula>${xmlEscape(rule.negate ? `LEN(TRIM(${anchor}))>0` : `LEN(TRIM(${anchor}))=0`)}</formula>`;
+  if (rule.type !== "containsBlanks") return "";
+  const blank = rule.negate ? `LEN(TRIM(${anchor}))>0` : `LEN(TRIM(${anchor}))=0`;
+  return `<formula>${xmlEscape(blank)}</formula>`;
 }
 
 export interface CondFormatXml {
@@ -138,11 +181,14 @@ export function condFormatXml(
   const dxfs: StyleObject[] = [];
   const blocks = formats
     .map((format) => {
-      const dxfId = firstDxfId + dxfs.length;
-      dxfs.push(format.style);
+      // A graphical rule carries its own colours and needs no dxf; giving it one
+      // would leave an empty entry that shifts every later rule's index.
+      const graphical = isGraphical(format.rule);
+      const dxfId = graphical ? -1 : firstDxfId + dxfs.length;
+      if (!graphical) dxfs.push(format.style);
       return (
         `<conditionalFormatting sqref="${rangeRef(format.range)}">` +
-        `<cfRule${ruleAttrs(format.rule)} dxfId="${dxfId}"` +
+        `<cfRule${ruleAttrs(format.rule)}${graphical ? "" : ` dxfId="${dxfId}"`}` +
         ` priority="${format.priority}"` +
         `${format.stopIfTrue ? ` stopIfTrue="1"` : ""}>` +
         `${ruleFormulas(format.rule, format.range)}</cfRule>` +

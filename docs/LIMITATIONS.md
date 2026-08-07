@@ -93,18 +93,11 @@ now the largest cost in the grid by a wide margin.
 → `cloneSheet` in `src/model/sheet.ts` and `updateSheet` in
 `src/react/useWorkbook.ts` would need structural sharing rather than a spread.
 
-**No column hiding.** Rows can be hidden; columns cannot.
-→ Mirror the `visibleRows` compaction for columns, and make it interact with
-`frozenCols` the way `effectiveHiddenRows` interacts with `frozenRows`.
-
 **Frozen rows are assumed never hidden.** They render as a separate always-on
 band outside the virtualized mapping.
 → `src/react/useRowWindow.ts`.
 
 ## Editing
-
-**Fill handle extends down and right only.** Dragging up or left is a no-op.
-→ `commit` in `src/react/useFillHandle.ts`.
 
 **Multi-range selection (Ctrl+click) feeds the status bar only.** Copy, fill, and
 paste all act on the primary selection.
@@ -121,16 +114,16 @@ relative refs shift when they should not.
 
 ## Formatting
 
-**No indent or text rotation.** A style carries bold, italic, underline, colour,
-fill, gradient, borders, font family, font size, horizontal and vertical
-alignment, wrapping, and a number-format code.
-→ `StyleObject` in `src/model/types.ts`, then `cellCss` in
-`src/react/cellStyle.ts` and both directions of `src/io/xlsx/styles.ts`.
+**A rotated cell rotates its whole box, not just its text.** `transform` turns
+the element, so a rotated cell's borders and fill turn with it and it may overlap
+its neighbours. Excel rotates only the text within an upright box.
+→ `cellCss` in `src/react/cellStyle.ts` would need the text in an inner element,
+which means every cell gaining a wrapper.
 
-**Tint is approximated in RGB, not HSL.** OOXML specifies `tint` against HSL
-luminance; the RGB form every other implementation uses differs by a shade or two
-on saturated colours and not at all on greys.
-→ `applyTint` in `src/io/xlsx/palette.ts`.
+**Stacked-vertical text (`textRotation="255"`) is read as no rotation.** It is a
+layout mode rather than an angle — one character per line — and has no CSS
+equivalent short of `writing-mode`, which would also turn the box.
+→ `parseFont`'s alignment branch in `src/io/xlsx/styles.ts`.
 
 **Built-in table style recipes are approximated.** `TableStyleMedium4` resolves to
 the right theme accent, and the header is filled with it while the body is striped
@@ -138,12 +131,25 @@ with a wash of it. Excel's actual definitions are several hundred entries in its
 own resources, differing in border weight and stripe opacity per family.
 → `builtinRecipe` in `src/io/xlsx/tables.ts`.
 
-**Graphical conditional-format rules are dropped.** Colour scales, data bars, and
-icon sets are drawings rather than styles, and `top10`/`aboveAverage` need
-statistics over the whole range. Expression, `cellIs`, `containsText`, and
-`containsBlanks` rules all work.
-→ `parseRule` in `src/io/xlsx/condFormat.ts` and `matches` in
-`src/format/condFormat.ts`; a data bar also needs something drawn behind the text.
+**`top10` and `aboveAverage` conditional formats are dropped.** They need
+statistics over the whole range rather than a test on one cell. Colour scales,
+data bars, icon sets, expression, `cellIs`, `containsText`, and `containsBlanks`
+all work.
+→ `parseRule` in `src/io/xlsx/condFormat.ts`; `condDecorationFor` in
+`src/format/condFormat.ts` already gathers a range's numbers, which is what these
+would need.
+
+**Icon sets are drawn from a shape family, not Excel's own glyphs.** The twenty
+or so named sets are grouped by meaning — circle, arrow, flag, triangle, star —
+and coloured from one three-colour ramp, because what an icon set conveys is
+which band a value fell into.
+→ `CondIcon` in `src/react/components/CondIcon.tsx`.
+
+**Only `list` data validation is enforced in the UI.** The numeric, date, text
+length, and custom kinds are read, written, and exposed on `Sheet.validations`,
+but nothing rejects a value that breaks them.
+→ `setCell` in `src/react/useSpreadsheet.ts` would test the rule before writing,
+and needs somewhere to report the rejection.
 
 **Conditional formats are re-evaluated on every render** of the cells they cover.
 Each rule's formula is memoized per evaluator, so a rule over a thousand cells

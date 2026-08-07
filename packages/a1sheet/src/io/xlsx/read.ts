@@ -20,6 +20,7 @@ import type {
   CellKey,
   CellValue,
   CondFormat,
+  DataValidation,
   Range,
   RawCell,
   SheetTable,
@@ -43,6 +44,7 @@ import {
   type XlsxTable,
 } from "./tables.js";
 import { colWidthToPx, rowHeightToPx } from "./units.js";
+import { parseValidations } from "./validation.js";
 import { findElement, findElements, iterElements, textOf } from "./xml.js";
 
 /**
@@ -90,6 +92,12 @@ export interface XlsxSheetData {
   colWidths: Record<number, number>;
   /** Row index -> height in px, for rows the file marks as custom. */
   rowHeights: Record<number, number>;
+  /** Columns the file marks hidden. */
+  hiddenCols: number[];
+  /** Rows the file marks hidden. */
+  hiddenRows: number[];
+  /** Data-validation rules, for dropdowns and input limits. */
+  validations: DataValidation[];
 }
 
 const REF_RE = /^([A-Za-z]+)(\d+)$/;
@@ -432,7 +440,19 @@ export async function readXlsx(
     // is the flag that means "someone set this deliberately" — without it, a
     // file would import with every column pinned to a width nobody chose.
     const colWidths: Record<number, number> = {};
+    const hiddenCols: number[] = [];
     for (const col of iterElements(xml, "col")) {
+      // Hidden is independent of a custom width — a column can be hidden at the
+      // default width, and Excel writes `hidden="1"` with `width` present but
+      // `customWidth` absent.
+      if (col.attrs.hidden === "1") {
+        const from = Number.parseInt(col.attrs.min ?? "", 10);
+        const to = Number.parseInt(col.attrs.max ?? "", 10);
+        if (Number.isFinite(from)) {
+          const last = Number.isFinite(to) ? to : from;
+          for (let c = from; c <= last; c++) hiddenCols.push(c - 1);
+        }
+      }
       if (col.attrs.customWidth !== "1" || col.attrs.width === undefined) continue;
       const width = Number.parseFloat(col.attrs.width);
       const min = Number.parseInt(col.attrs.min ?? "", 10);
@@ -446,7 +466,12 @@ export async function readXlsx(
     }
 
     const rowHeights: Record<number, number> = {};
+    const hiddenRowList: number[] = [];
     for (const row of iterElements(xml, "row")) {
+      const rowIndex = Number.parseInt(row.attrs.r ?? "", 10);
+      if (row.attrs.hidden === "1" && Number.isFinite(rowIndex)) {
+        hiddenRowList.push(rowIndex - 1);
+      }
       if (row.attrs.customHeight !== "1" || row.attrs.ht === undefined) continue;
       const points = Number.parseFloat(row.attrs.ht);
       const index = Number.parseInt(row.attrs.r ?? "", 10);
@@ -498,6 +523,9 @@ export async function readXlsx(
       cols: maxC + 1,
       colWidths,
       rowHeights,
+      hiddenCols,
+      hiddenRows: hiddenRowList,
+      validations: parseValidations(xml),
     });
     await pacer.checkpoint("parsing", parsed / totalElements, name);
   }
@@ -522,6 +550,9 @@ export async function readXlsx(
           cols: 1,
           colWidths: {},
           rowHeights: {},
+          hiddenCols: [],
+          hiddenRows: [],
+          validations: [],
         },
       ];
 }

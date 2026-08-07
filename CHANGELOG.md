@@ -45,6 +45,32 @@ readable — it was a grid of `#NAME?` with its numbers thrown away.
 - **Array literals** (`{1,2;3,4}`), the `&` concatenation operator, and the `%`
   postfix operator, none of which the tokenizer previously recognized.
 
+### Added (the remaining gaps)
+
+- **Colour scales, data bars, and icon sets.** Read, rendered, and written. They
+  are not styles — a bar is drawn behind the text at a width computed from the
+  whole range's values — so they resolve through `api.condDecorationFor` rather
+  than through `condStyleFor`. Icons are drawn from a shape family grouped by
+  meaning rather than from Excel's own glyphs.
+- **Data validation.** `Sheet.validations`, read and written. A `list` rule makes
+  the cell a dropdown: an affordance on the active cell and a native `datalist`
+  on the editor, so a validated cell can still be typed into as Excel allows.
+  Both literal lists (`"a,b,c"`, which Excel writes as ONE quoted string) and
+  range-backed ones resolve.
+- **Column hiding.** `Sheet.hiddenCols` and `api.toggleColHidden`, with a context
+  menu entry, read and written as `<col hidden="1">`. A hidden column is
+  zero-wide rather than absent, so the offsets, the CSS grid tracks, the sticky
+  freeze positions, and the hit test all stay correct without a second notion of
+  where each column sits. Hidden rows round-trip too.
+- **The fill handle drags in all four directions.** Up and left were a no-op. A
+  series extrapolates the way it is read, so filling backwards reads the source
+  backwards — otherwise 1, 2, 3 dragged upward continues 4, 5, 6.
+- **Indent and text rotation** on `StyleObject`.
+- **`tint` is computed in HSL,** as OOXML specifies, rather than the RGB
+  approximation most implementations use. The two agree on greys and drift on
+  saturated colours — exactly where a theme's accents live. Excel's published
+  values for tinting an accent now come out exact.
+
 ### Added (XLSX export)
 
 - **Tables, conditional formats, and in-cell images are written,** not only read.

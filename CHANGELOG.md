@@ -11,7 +11,7 @@ honestly: breaking means major.
   even though `@storybook/builder-vite` only peers `^5 || ^6 || ^7`. The Vite 8
   build split the docs chunk so it ran before Storybook's preview globals existed
   (`__STORYBOOK_MODULE_CORE_EVENTS_PREVIEW_ERRORS__`), and the published docs
-  page stayed blank. Storybook now pins Vite 7; a peer-range test and a headless
+  page stayed blank. Storybook now pins Vite 7; a peer-range test and a static
   smoke of `site/dist` gate the Pages deploy so a green suite cannot ship a dead
   Storybook again.
 

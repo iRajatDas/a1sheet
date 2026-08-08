@@ -23,7 +23,9 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # Pin: newer Bun has emitted a bare `export {…}` root barrel with no
+          # implementations when bundling this package (broke a1sheet@0.3.0).
+          bun-version: 1.3.9
 
       # npm, not bun, does the publishing — provenance is an npm CLI feature.
       - uses: actions/setup-node@v4

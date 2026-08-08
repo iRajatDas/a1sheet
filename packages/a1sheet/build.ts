@@ -111,6 +111,9 @@ if (
   console.error(
     "dist/index.js is a bare export list with no implementations — refusing to finish the build",
   );
+  console.error("--- dist/index.js (first 500 chars) ---");
+  console.error(rootJs.slice(0, 500));
+  console.error("--- bun", Bun.version, "---");
   process.exit(1);
 }
 

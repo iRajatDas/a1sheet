@@ -5,6 +5,16 @@ honestly: breaking means major.
 
 ## Unreleased
 
+## 0.3.1
+
+### Fixed
+
+- **Root `"a1sheet"` entry is loadable again.** `0.3.0` shipped `dist/index.js` as a
+  bare `export { … }` list with no module bodies (and no shared chunk), so
+  `import { readWorkbookFile, makeSheet, … } from "a1sheet"` threw
+  `Export '…' is not defined in module`. The build now emits self-contained
+  entry bundles and refuses to finish if the root barrel is empty.
+
 ## 0.3.0
 
 ### Breaking

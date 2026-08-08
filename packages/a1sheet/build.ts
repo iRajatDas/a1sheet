@@ -5,8 +5,11 @@
  *   src/index.ts       -> dist/index.js        (model + formula + io + format)
  *   src/react/index.ts -> dist/react/index.js  (hooks + <Spreadsheet />)
  *
- * `splitting` keeps shared model/formula code in one chunk so a consumer
- * importing both entrypoints does not get two copies.
+ * Splitting is OFF on purpose. With `splitting: true`, some Bun versions emit a
+ * root `dist/index.js` that is only `export { … }` with no imports and omit the
+ * shared chunk from the publishable tree — which made a1sheet@0.3.0's "." entry
+ * unloadable. Self-contained entry bundles are slightly larger when both are
+ * imported, but the root package must work alone.
  *
  * It also copies the repository README and LICENSE into the package, because npm
  * reads the ones beside package.json. Kept generated rather than checked in: two
@@ -44,7 +47,7 @@ const result = await Bun.build({
   root: "src",
   target: "browser",
   format: "esm",
-  splitting: true,
+  splitting: false,
   sourcemap: "linked",
   minify: false,
   external: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
@@ -75,12 +78,37 @@ for (const name of COPIED) await copyFile(`../../${name}`, name);
  * without this an App Router consumer importing `a1sheet/react` from a server
  * component gets hooks treated as server code.
  *
- * Only this entry gets it. The shared chunk holds the framework-agnostic model,
- * which the "." entry also imports and which must stay usable on a server.
+ * Only this entry gets it. The root entry stays free of the directive so it can
+ * load on a server or in a Worker.
  */
 const REACT_ENTRY = `${OUT}/react/index.js`;
 const entry = await Bun.file(REACT_ENTRY).text();
 await Bun.write(REACT_ENTRY, `"use client";\n${entry}`);
+
+/**
+ * Refuse to ship a root barrel that only re-exports unbound names — that is the
+ * a1sheet@0.3.0 failure mode (`Export 'A1SheetError' is not defined in module`).
+ */
+const rootJs = await Bun.file(`${OUT}/index.js`).text();
+const rootTrim = rootJs.trimStart();
+if (
+  rootTrim.startsWith("export {") &&
+  !/^\s*import\b/m.test(rootJs) &&
+  !/\bfunction\b|\bclass\b|\bconst\b|\blet\b|\bvar\b/.test(rootJs)
+) {
+  console.error(
+    "dist/index.js is a bare export list with no implementations — refusing to finish the build",
+  );
+  process.exit(1);
+}
+
+const probe = await import(`./${OUT}/index.js`);
+for (const name of ["A1SheetError", "readWorkbookFile", "makeSheet"] as const) {
+  if (typeof probe[name] !== "function" && typeof probe[name] !== "object") {
+    console.error(`dist/index.js is missing a usable export: ${name}`);
+    process.exit(1);
+  }
+}
 
 const bytes = result.outputs
   .filter((o) => o.path.endsWith(".js"))

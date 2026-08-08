@@ -95,4 +95,21 @@ describe("the built bundles", () => {
     if (js === null) return;
     expect(js.split("\n")[0]).not.toBe('"use client";');
   });
+
+  test("the root entry ships real bindings, not a bare export list", async () => {
+    const js = await built("index.js");
+    if (js === null) return;
+    const trim = js.trimStart();
+    const bareExportOnly =
+      trim.startsWith("export {") &&
+      !/^\s*import\b/m.test(js) &&
+      !/\bfunction\b|\bclass\b|\bconst\b|\blet\b|\bvar\b/.test(js);
+    expect(bareExportOnly).toBe(false);
+
+    const mod = await import(join(DIST, "index.js"));
+    expect(typeof mod.A1SheetError).toBe("function");
+    expect(typeof mod.readWorkbookFile).toBe("function");
+    expect(typeof mod.makeSheet).toBe("function");
+    expect(typeof mod.findAll).toBe("function");
+  });
 });

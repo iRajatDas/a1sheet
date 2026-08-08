@@ -93,4 +93,31 @@ describe("compensateScrollForTrackResize", () => {
       }),
     ).toBe(0);
   });
+
+  test("compares in content-space when a sticky lead is present", () => {
+    // Scroller offset 40 with a 44px row header → content offset 0. Column 0
+    // (start 0, width 100) intersects the content origin — do not compensate.
+    expect(
+      compensateScrollForTrackResize({
+        offset: 40,
+        trackStart: 0,
+        prevSize: 100,
+        nextSize: 180,
+        lead: 44,
+      }),
+    ).toBe(40);
+  });
+
+  test("still compensates a leading track past the sticky header", () => {
+    // scrollLeft 200, lead 44 → content 156. Track ending at 100 is fully left.
+    expect(
+      compensateScrollForTrackResize({
+        offset: 200,
+        trackStart: 0,
+        prevSize: 100,
+        nextSize: 180,
+        lead: 44,
+      }),
+    ).toBe(280);
+  });
 });

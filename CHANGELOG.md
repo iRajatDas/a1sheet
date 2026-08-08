@@ -5,6 +5,17 @@ honestly: breaking means major.
 
 ## Unreleased
 
+## 0.3.5
+
+### Fixed
+
+- **Resize scroll compensation accounts for sticky header lead**
+  (`ROW_HEADER_WIDTH` / `HEADER_HEIGHT`), so comparing content-space track
+  starts to scroller offsets no longer false-positives near the left/top edge
+  and accumulates jumps mid-drag. Compensated scrolls also **sync React
+  `scrollLeft`/`scrollTop`** (and again on mouseup) so virtualization and
+  custom scrollbars stay aligned instead of painting blank cells.
+
 ## 0.3.4
 
 ### Fixed

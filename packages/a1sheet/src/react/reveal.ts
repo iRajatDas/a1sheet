@@ -38,14 +38,20 @@ export function revealOffset({
 }
 
 export interface TrackResizeScrollInput {
-  /** Current scroll offset along this axis. */
+  /** Current scroll offset along this axis (scroller space, may include lead). */
   offset: number;
-  /** Content start of the resized track. */
+  /** Content start of the resized track (`colOffset` / `rowTop`). */
   trackStart: number;
   /** Track size before the edit. */
   prevSize: number;
   /** Track size after the edit. */
   nextSize: number;
+  /**
+   * Sticky header thickness along this axis (`ROW_HEADER_WIDTH` /
+   * `HEADER_HEIGHT`). `trackStart` is content-space; `offset` is scroller-space
+   * — subtract lead before comparing, same as virtualization.
+   */
+  lead?: number;
 }
 
 /**
@@ -59,10 +65,13 @@ export function compensateScrollForTrackResize({
   trackStart,
   prevSize,
   nextSize,
+  lead = 0,
 }: TrackResizeScrollInput): number {
   const delta = nextSize - prevSize;
   if (delta === 0) return offset;
-  if (trackStart + prevSize <= offset) {
+  // trackStart is content-space; offset includes the sticky header track.
+  const contentOffset = Math.max(0, offset - lead);
+  if (trackStart + prevSize <= contentOffset) {
     return Math.max(0, offset + delta);
   }
   return offset;

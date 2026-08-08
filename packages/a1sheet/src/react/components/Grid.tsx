@@ -289,10 +289,16 @@ export function Grid({
         trackStart: start,
         prevSize: prev,
         nextSize: next,
+        lead: ROW_HEADER_WIDTH,
       });
-      if (compensated !== el.scrollLeft) el.scrollLeft = compensated;
+      if (compensated !== el.scrollLeft) {
+        el.scrollLeft = compensated;
+        // Keep virtualization / custom scrollbars in lockstep — writing the DOM
+        // alone does not always fire `onScroll` in time for the next paint.
+        setScrollLeft(compensated);
+      }
     },
-    [setColWidth],
+    [setColWidth, setScrollLeft],
   );
 
   const applyRowHeight = useCallback(
@@ -309,10 +315,14 @@ export function Grid({
         trackStart: start,
         prevSize: prev,
         nextSize: next,
+        lead: HEADER_HEIGHT,
       });
-      if (compensated !== el.scrollTop) el.scrollTop = compensated;
+      if (compensated !== el.scrollTop) {
+        el.scrollTop = compensated;
+        setScrollTop(compensated);
+      }
     },
-    [setRowHeight],
+    [setRowHeight, setScrollTop],
   );
 
   useEffect(() => {
@@ -372,6 +382,11 @@ export function Grid({
       if (row) applyRowHeight(row.row, row.startH + (e.clientY - row.startY));
     }
     function onUp() {
+      const el = containerRef.current;
+      if (el) {
+        setScrollLeft(el.scrollLeft);
+        setScrollTop(el.scrollTop);
+      }
       resizeRef.current = null;
       resizeRowRef.current = null;
     }
@@ -381,7 +396,7 @@ export function Grid({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [applyColWidth, applyRowHeight]);
+  }, [applyColWidth, applyRowHeight, setScrollLeft, setScrollTop]);
 
   /**
    * Auto-fit a column to the widest thing in it, as double-clicking the divider
@@ -450,10 +465,14 @@ export function Grid({
         trackStart: start,
         prevSize: prev,
         nextSize: ROW_HEIGHT,
+        lead: HEADER_HEIGHT,
       });
-      if (compensated !== el.scrollTop) el.scrollTop = compensated;
+      if (compensated !== el.scrollTop) {
+        el.scrollTop = compensated;
+        setScrollTop(compensated);
+      }
     },
-    [api],
+    [api, setScrollTop],
   );
 
   /**

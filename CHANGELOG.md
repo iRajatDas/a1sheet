@@ -5,6 +5,14 @@ honestly: breaking means major.
 
 ## Unreleased
 
+## 0.3.0
+
+### Breaking
+
+- **`Sheet.filters` values are `ColumnFilter` objects**, not bare `Set<string>`.
+  A value-only filter is `{ values: new Set([...]) }`. Colour filters use
+  `background` / `foreground` sets on the same object.
+
 ### Added
 
 - **Composable toolbar atoms** — `Sheet.Toolbar.Undo`, `.Bold`, `.Merge`, and the

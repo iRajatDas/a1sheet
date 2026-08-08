@@ -98,6 +98,42 @@ describe("paste modes", () => {
     expect(get().status).toContain("Pasted formulas");
   });
 
+  test("trailing clipboard newline still shifts like Excel", () => {
+    const { get, run } = api({
+      cells: { "0_0": "3", "0_1": "=A1+1" } as Record<CellKey, string>,
+    });
+    let text = "";
+    run((a) => {
+      text = a.clipboard.copy(a.sheet, [{ r1: 0, c1: 1, r2: 0, c2: 1 }]) ?? "";
+    });
+    run((a) => pasteAt(a, `${text}\n`, { row: 0, col: 3 }, "all"));
+    expect(get().getRaw(0, 3)).toBe("=C1+1");
+  });
+
+  test("column paste shifts relative refs across columns", () => {
+    const { get, run } = api({
+      cells: { "0_0": "10", "1_0": "=A1*2" } as Record<CellKey, string>,
+    });
+    let text = "";
+    run((a) => {
+      text = a.clipboard.copy(a.sheet, [{ r1: 1, c1: 0, r2: 1, c2: 0 }]) ?? "";
+    });
+    run((a) => pasteAt(a, text, { row: 1, col: 2 }, "all"));
+    expect(get().getRaw(1, 2)).toBe("=C1*2");
+  });
+
+  test("absolute refs stay put on paste", () => {
+    const { get, run } = api({
+      cells: { "0_0": "10", "1_0": "=$A$1*2" } as Record<CellKey, string>,
+    });
+    let text = "";
+    run((a) => {
+      text = a.clipboard.copy(a.sheet, [{ r1: 1, c1: 0, r2: 1, c2: 0 }]) ?? "";
+    });
+    run((a) => pasteAt(a, text, { row: 5, col: 3 }, "all"));
+    expect(get().getRaw(5, 3)).toBe("=$A$1*2");
+  });
+
   test("transpose swaps rows and columns", () => {
     const { get, run } = api({
       cells: {

@@ -425,7 +425,7 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
               api.select(
                 api.clipboard.paste(
                   text,
-                  { row: selection.r2, col: selection.c2 },
+                  { row: api.active.row, col: api.active.col },
                   api.updateSheet,
                   {
                     evaluator: api.evaluator,

@@ -71,6 +71,10 @@ honestly: breaking means major.
 
 ### Fixed
 
+- **Formula paste matches Excel relative-ref rules more closely** — internal
+  paste still shifts after a trailing clipboard newline; sheet-qualified refs
+  keep their sheet name while the address moves; keyboard paste lands on the
+  active cell (not the selection’s far corner).
 - **Storybook on the docs site loads again.** Vite 8 was installed under Storybook
   even though `@storybook/builder-vite` only peers `^5 || ^6 || ^7`. The Vite 8
   build split the docs chunk so it ran before Storybook's preview globals existed

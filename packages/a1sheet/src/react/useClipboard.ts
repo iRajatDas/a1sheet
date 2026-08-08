@@ -8,9 +8,12 @@
  *
  * Internal-paste detection:
  * `lastCopied` stores the copied grid, its origin, and the exact serialized text.
- * On paste the incoming clipboard text is compared against that stored text — a
- * match means internal, so relative refs get shifted; anything else is treated as
- * external and pastes values only.
+ * On paste the incoming clipboard text is compared against that stored text
+ * after normalizing line endings and trailing newlines (browsers often append a
+ * trailing `\n` that Excel-style paste still treats as the same copy). A match
+ * means internal, so relative refs get shifted; anything else is external —
+ * formulas paste as written with no shift (same as pasting `=A1` from a text
+ * editor into Excel).
  *
  * Known edge case: copying identical text from another application between an
  * internal copy and paste is misread as internal. Accepted.
@@ -26,7 +29,7 @@ import type { SheetPatcher, SheetUpdater } from "./useWorkbook.js";
 
 /**
  * What a paste writes. `"all"` is the default keyboard path — values with
- * internal formula shifting. Modes map to Sheets' paste-special set.
+ * internal formula shifting. Modes map to common paste-special sets.
  */
 export type PasteMode =
   | "all"
@@ -82,9 +85,17 @@ export interface UseClipboardResult {
   clearCopied(): void;
 }
 
-/** TSV: tab between columns, newline between rows — what Excel and Sheets use. */
+/** TSV: tab between columns, newline between rows — what Excel uses. */
 function serialize(grid: string[][]): string {
   return grid.map((row) => row.join("\t")).join("\n");
+}
+
+/**
+ * Browsers and OS clipboards disagree on trailing newlines and `\r\n`.
+ * Normalize before deciding whether a paste is our own copy.
+ */
+export function normalizeClipboardText(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n+$/u, "");
 }
 
 function joinBlocks(
@@ -288,7 +299,11 @@ export function useClipboard(): UseClipboardResult {
     ) => {
       setCopiedRanges([]);
       const mode: PasteMode = options?.mode ?? "all";
-      const internal = !!(last.current && last.current.text === text);
+      const internal = !!(
+        last.current &&
+        normalizeClipboardText(last.current.text) ===
+          normalizeClipboardText(text)
+      );
       let grid = internal ? (last.current as CopiedGrid).grid : deserialize(text);
       let styles = internal
         ? (last.current as CopiedGrid).styles

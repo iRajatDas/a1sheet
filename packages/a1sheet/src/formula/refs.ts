@@ -10,10 +10,17 @@
 import { colToLetters, parseCellRef } from "../model/address.js";
 import { tokenize } from "./tokenize.js";
 
+/** Re-emit a sheet qualifier the way the lexer accepts it. */
+function formatSheetQualifier(sheet: string): string {
+  if (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(sheet)) return `${sheet}!`;
+  return `'${sheet.replace(/'/g, "''")}'!`;
+}
+
 /**
  * Shifts every non-`$` reference by (dRow, dCol) — what Excel does when a formula
  * is dragged or copy-pasted elsewhere. A ref that would move off the sheet
- * becomes "#REF!".
+ * becomes "#REF!". Sheet qualifiers are kept (Excel keeps `Sheet2!` and only
+ * moves the A1 part).
  *
  * Takes the formula body WITHOUT the leading "=".
  */
@@ -31,12 +38,14 @@ export function shiftFormulaRefs(
         if (newCol < 0 || newRow < 0) return "#REF!";
         const colPart = (t.colAbs ? "$" : "") + colToLetters(newCol);
         const rowPart = (t.rowAbs ? "$" : "") + (newRow + 1);
-        return colPart + rowPart;
+        const sheet = t.sheet ? formatSheetQualifier(t.sheet) : "";
+        return sheet + colPart + rowPart;
       }
       if (t.type === "num") return String(t.value);
       if (t.type === "str") return `"${t.value}"`;
       if (t.type === "name") return t.value;
       if (t.type === "cmp") return t.value;
+      if (t.type === "tableRef") return `${t.table}[${t.spec}]`;
       return t.type;
     })
     .join("");

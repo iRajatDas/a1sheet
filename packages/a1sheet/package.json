@@ -1,6 +1,6 @@
 {
   "name": "a1sheet",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "React spreadsheet component with Excel (XLSX) and CSV import/export, a formula engine, and a virtualized editable grid. Zero runtime dependencies.",
   "keywords": [
     "react",

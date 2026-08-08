@@ -368,8 +368,18 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
     [api, sheet, selection],
   );
 
+  const rootRef = useRef<HTMLDivElement>(null);
+
   const contextValue = useMemo(
-    () => ({ api, theme, prefix, ui, focusRef, components: components ?? {} }),
+    () => ({
+      api,
+      theme,
+      prefix,
+      ui,
+      focusRef,
+      rootRef,
+      components: components ?? {},
+    }),
     [api, theme, prefix, ui, components],
   );
 
@@ -377,6 +387,7 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
     <SheetContextProvider {...contextValue}>
       <StylePreviewProvider>
         <div
+          ref={rootRef}
           className={mergeClass(`${prefix}root`, className)}
           style={{
             ...themeCssVars(theme),

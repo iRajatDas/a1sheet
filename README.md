@@ -162,7 +162,9 @@ import { Sheet, darkTheme, sheetsTheme } from "a1sheet/react";
 Every chrome primitive accepts `className` and `style`. Toolbar and context-menu
 controls are atoms you compose — there are no `show*` props. Use `asChild` on
 `Sheet.Toolbar.IconButton` (or any atom built on it) to slot in your own button
-component.
+component. Context and column menus portal to `document.body` and clamp against
+the sheet root’s client rect (clipped to the visual viewport), so split-pane
+hosts with `overflow: hidden` do not need custom positioning.
 
 See **Composition → Showcase → Full application shell** in Storybook for a
 complete example: Q3 report data, composed toolbar atoms, `renderCellContent`,

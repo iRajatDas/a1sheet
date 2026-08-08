@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { getUsedBounds } from "../../io/csv/write.js";
 import { useSheetContext } from "../context.js";
 import { mergeClass } from "../primitives/mergeClass.js";
@@ -78,7 +79,9 @@ function ColumnMenuPanel({ col, x, y, className, style }: PanelProps): ReactNode
     });
   }
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       ref={ref}
       className={mergeClass(`${prefix}menu`, className)}
@@ -161,6 +164,7 @@ function ColumnMenuPanel({ col, x, y, className, style }: PanelProps): ReactNode
       >
         Clear filter
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 }

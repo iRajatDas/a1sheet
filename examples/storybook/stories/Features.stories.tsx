@@ -304,3 +304,36 @@ function HistoryReadout() {
     </Panel>
   );
 }
+
+/**
+ * Short clipped host pane — right-click the last visible row and the menu
+ * should flip above the cursor instead of disappearing under the pane edge.
+ */
+export const ContextMenuAtBottomOfScrollport: Story = {
+  name: "Context menu at bottom of scrollport",
+  render: () => (
+    <div
+      style={{
+        height: 280,
+        overflow: "hidden",
+        border: "1px solid #cbd5e1",
+        borderRadius: 8,
+        resize: "vertical",
+      }}
+    >
+      <Sheet.Root defaultWorkbook={budget()} height="100%">
+        <Sheet.Grid style={{ flex: 1, minHeight: 0 }} />
+        <Sheet.Tabs />
+        <Sheet.ContextMenu />
+      </Sheet.Root>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Host the sheet in a short overflow:hidden pane and right-click a cell on the last visible row. The menu portals to document.body and clamps against the sheet root, so it flips above the cursor instead of clipping under the pane chrome.",
+      },
+    },
+  },
+};

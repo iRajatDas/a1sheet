@@ -49,6 +49,11 @@ export interface SheetContextValue {
    * `.focus()` on it after an interaction that should return focus to the sheet.
    */
   focusRef: RefObject<HTMLTextAreaElement | null>;
+  /**
+   * The sheet root DOM node — menus use its client rect (clipped to the visual
+   * viewport) as collision bounds so a short split pane flips correctly.
+   */
+  rootRef: RefObject<HTMLDivElement | null>;
 }
 
 /** Per-grid overrides; `Grid.renderCellContent` wins over `components.CellContent`. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useSheetContext } from "../context.js";
 import { mergeClass } from "../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../primitives/types.js";
@@ -30,9 +31,9 @@ function ContextMenuRoot({
 
   useMenuKeyboard(!!state, onClose, ref);
 
-  if (!state) return null;
+  if (!state || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
       ref={ref}
       role="menu"
@@ -41,7 +42,8 @@ function ContextMenuRoot({
       onClick={(e) => e.stopPropagation()}
     >
       {children ?? <parts.ContextMenuDefaultContent />}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

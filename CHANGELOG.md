@@ -5,6 +5,17 @@ honestly: breaking means major.
 
 ## Unreleased
 
+## 0.3.3
+
+### Fixed
+
+- **Context and column menus use the sheet root (clipped to the visual viewport)
+  as collision bounds**, not only `window.innerHeight`/`innerWidth`. In a short
+  split pane the menu flips above the cursor when there is no room below the
+  host edge. Menus also **portal to `document.body`** so host `overflow: hidden`
+  cannot clip them, and **re-clamp via ResizeObserver** when the menu size
+  changes.
+
 ## 0.3.2
 
 ### Fixed

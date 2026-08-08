@@ -6,7 +6,20 @@
  * workbook state directly.
  */
 import { useCallback, useMemo } from "react";
-import { cellKey, normalizeRange } from "../model/address.js";
+import { cellKey, colToLetters, normalizeRange } from "../model/address.js";
+import {
+  activateFilterView,
+  colorMovedToTopMessage,
+  createFilterView,
+  deleteFilterView,
+  FILTER_VIEW_MISSING,
+  type FilterInput,
+  filteredColumnSortedMessage,
+  isColumnFilterEmpty,
+  normalizeColumnFilter,
+} from "../model/filters.js";
+import { isGridError, mergeSingleton } from "../model/gridErrors.js";
+import { checkFilterMerge, checkSortMerge } from "../model/mergeGuards.js";
 import {
   deleteCol,
   deleteRow,
@@ -14,6 +27,7 @@ import {
   insertRow,
   sortByColumn,
 } from "../model/sheet.js";
+import { sortByColor } from "../model/sortByColor.js";
 import type { Range, Sheet, StyleObject } from "../model/types.js";
 import { MIN_COL_WIDTH, MIN_ROW_HEIGHT } from "./constants.js";
 import type { SheetPatcher, SheetUpdater } from "./useWorkbook.js";
@@ -61,8 +75,27 @@ export interface UseSheetOpsResult {
   toggleRowHidden(row: number): void;
   toggleColHidden(col: number): void;
   sort(col: number, dir: "asc" | "desc"): void;
-  /** Passing null clears the filter for that column. */
-  setFilter(col: number, allowed: Set<string> | null): void;
+  /**
+   * Sets or clears a column filter. Pass a value `Set` (legacy) or a
+   * `ColumnFilter` with values / background / foreground criteria. Null clears.
+   */
+  setFilter(col: number, criteria: FilterInput | null): void;
+  /** Snapshot current filters under `id`. Throws `FILTER_ID_EXISTS` on clash. */
+  createFilterView(options: { id: string; name: string }): void;
+  /** Apply a named view, or report that it is missing. */
+  activateFilterView(id: string): void;
+  deleteFilterView(id: string): void;
+  /** Physically move matching fill/text colour rows to the top of the used range. */
+  sortByColor(options: {
+    col: number;
+    kind: "background" | "foreground";
+    color: string;
+  }): void;
+}
+
+export interface UseSheetOpsOptions {
+  /** Status / rejection messages for guarded ops (sort, filter). */
+  onStatus?: (message: string) => void;
 }
 
 /**
@@ -115,7 +148,9 @@ export function useSheetOps(
   ranges: readonly Range[],
   mutateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
   patchSurface: (fn: SheetPatcher, addHistory?: boolean) => void,
+  options: UseSheetOpsOptions = {},
 ): UseSheetOpsResult {
+  const onStatus = options.onStatus;
   const selection = ranges[0] ?? { r1: 0, c1: 0, r2: 0, c2: 0 };
   const bounds = useMemo(() => normalizeRange(selection), [selection]);
 
@@ -196,9 +231,12 @@ export function useSheetOps(
     clearFormatting,
 
     mergeSelection: useCallback(() => {
-      if (bounds.r1 === bounds.r2 && bounds.c1 === bounds.c2) return;
+      if (bounds.r1 === bounds.r2 && bounds.c1 === bounds.c2) {
+        onStatus?.(mergeSingleton(`${bounds.r1},${bounds.c1}`).message);
+        return;
+      }
       patchSurface((s) => ({ merges: [...s.merges, { ...bounds }] }));
-    }, [bounds, patchSurface]),
+    }, [bounds, patchSurface, onStatus]),
 
     unmergeSelection: useCallback(() => {
       patchSurface((s) => ({
@@ -214,15 +252,31 @@ export function useSheetOps(
 
     // Freezes up through the active cell, which is what the toolbar means by it.
     freezeToSelection: useCallback(() => {
-      patchSurface(
-        () => ({ frozenRows: selection.r2 + 1, frozenCols: selection.c2 + 1 }),
-        false,
-      );
-    }, [selection.r2, selection.c2, patchSurface]),
+      const rows = selection.r2 + 1;
+      const cols = selection.c2 + 1;
+      patchSurface(() => ({ frozenRows: rows, frozenCols: cols }), false);
+      if (rows > 0 && cols > 0) onStatus?.("Freeze rows. Freeze columns.");
+      else if (rows > 0) onStatus?.("Freeze rows");
+      else if (cols > 0) onStatus?.("Freeze columns");
+    }, [selection.r2, selection.c2, patchSurface, onStatus]),
 
     unfreeze: useCallback(() => {
+      const rowMsg =
+        sheet.frozenRows === 1
+          ? "Unfreeze row"
+          : sheet.frozenRows > 1
+            ? "Unfreeze rows"
+            : null;
+      const colMsg =
+        sheet.frozenCols === 1
+          ? "Unfreeze column"
+          : sheet.frozenCols > 1
+            ? "Unfreeze columns"
+            : null;
       patchSurface(() => ({ frozenRows: 0, frozenCols: 0 }), false);
-    }, [patchSurface]),
+      const parts = [rowMsg, colMsg].filter((m): m is string => m !== null);
+      if (parts.length > 0) onStatus?.(`${parts.join(". ")}.`);
+    }, [patchSurface, sheet.frozenRows, sheet.frozenCols, onStatus]),
 
     insertRowAt: useCallback(
       (row: number) => mutateSheet((s) => insertRow(s, row)),
@@ -293,12 +347,18 @@ export function useSheetOps(
 
     setRowLabel: useCallback(
       (row: number, label: string) =>
-        patchSurface((s) => ({ rowLabels: { ...s.rowLabels, [row]: label } }), false),
+        patchSurface(
+          (s) => ({ rowLabels: { ...s.rowLabels, [row]: label } }),
+          false,
+        ),
       [patchSurface],
     ),
     setColLabel: useCallback(
       (col: number, label: string) =>
-        patchSurface((s) => ({ colLabels: { ...s.colLabels, [col]: label } }), false),
+        patchSurface(
+          (s) => ({ colLabels: { ...s.colLabels, [col]: label } }),
+          false,
+        ),
       [patchSurface],
     ),
 
@@ -315,19 +375,170 @@ export function useSheetOps(
     ),
 
     sort: useCallback(
-      (col: number, dir: "asc" | "desc") =>
-        mutateSheet((s) => sortByColumn(s, col, dir)),
-      [mutateSheet],
+      (col: number, dir: "asc" | "desc") => {
+        let maxRow = -1;
+        for (const key of Object.keys(sheet.cells)) {
+          if (sheet.cells[key as keyof typeof sheet.cells] === "") continue;
+          const r = Number(key.slice(0, key.indexOf("_")));
+          if (r > maxRow) maxRow = r;
+        }
+        if (maxRow >= 1) {
+          const guard = checkSortMerge(sheet, {
+            r1: 0,
+            c1: 0,
+            r2: maxRow,
+            c2: sheet.numCols - 1,
+          });
+          if (!guard.ok) {
+            onStatus?.(guard.message);
+            return;
+          }
+        }
+        mutateSheet((s) => sortByColumn(s, col, dir));
+        onStatus?.(
+          filteredColumnSortedMessage({
+            colLabel: sheet.colLabels[col] ?? colToLetters(col),
+            ascending: dir === "asc",
+          }),
+        );
+      },
+      [mutateSheet, sheet, onStatus],
     ),
 
     setFilter: useCallback(
-      (col: number, allowed: Set<string> | null) =>
+      (col: number, criteria: FilterInput | null) => {
+        if (criteria !== null) {
+          const normalized = normalizeColumnFilter(criteria);
+          if (isColumnFilterEmpty(normalized)) {
+            patchSurface(
+              (s) =>
+                col in s.filters
+                  ? {
+                      filters: without(s.filters, col),
+                      activeFilterViewId: null,
+                    }
+                  : null,
+              false,
+            );
+            return;
+          }
+          let maxRow = -1;
+          for (const key of Object.keys(sheet.cells)) {
+            const r = Number(key.slice(0, key.indexOf("_")));
+            if (r > maxRow) maxRow = r;
+          }
+          if (maxRow >= 0) {
+            const guard = checkFilterMerge(sheet, {
+              r1: 0,
+              c1: col,
+              r2: maxRow,
+              c2: col,
+            });
+            if (!guard.ok) {
+              onStatus?.(guard.message);
+              return;
+            }
+          }
+          patchSurface(
+            (s) => ({
+              filters: { ...s.filters, [col]: normalized },
+              activeFilterViewId: null,
+            }),
+            false,
+          );
+          return;
+        }
         patchSurface((s) => {
-          if (allowed !== null)
-            return { filters: { ...s.filters, [col]: allowed } };
-          return col in s.filters ? { filters: without(s.filters, col) } : null;
-        }, false),
+          if (!(col in s.filters)) return null;
+          return {
+            filters: without(s.filters, col),
+            activeFilterViewId: null,
+          };
+        }, false);
+      },
+      [patchSurface, sheet, onStatus],
+    ),
+
+    createFilterView: useCallback(
+      (options: { id: string; name: string }) => {
+        try {
+          patchSurface((s) => {
+            const next = createFilterView(s, options);
+            return {
+              filterViews: next.filterViews,
+              activeFilterViewId: next.activeFilterViewId,
+            };
+          });
+        } catch (e) {
+          if (isGridError(e) && e.code === "FILTER_ID_EXISTS") {
+            onStatus?.(e.message);
+            return;
+          }
+          throw e;
+        }
+      },
+      [patchSurface, onStatus],
+    ),
+
+    activateFilterView: useCallback(
+      (id: string) => {
+        if (!(id in sheet.filterViews)) {
+          onStatus?.(FILTER_VIEW_MISSING);
+          return;
+        }
+        patchSurface((s) => {
+          const next = activateFilterView(s, id);
+          if (!next) return null;
+          return {
+            filters: next.filters,
+            activeFilterViewId: next.activeFilterViewId,
+          };
+        }, false);
+      },
+      [patchSurface, sheet.filterViews, onStatus],
+    ),
+
+    deleteFilterView: useCallback(
+      (id: string) => {
+        patchSurface((s) => {
+          const next = deleteFilterView(s, id);
+          return {
+            filterViews: next.filterViews,
+            activeFilterViewId: next.activeFilterViewId,
+          };
+        });
+      },
       [patchSurface],
+    ),
+
+    sortByColor: useCallback(
+      (options: {
+        col: number;
+        kind: "background" | "foreground";
+        color: string;
+      }) => {
+        let maxRow = -1;
+        for (const key of Object.keys(sheet.cells)) {
+          if (sheet.cells[key as keyof typeof sheet.cells] === "") continue;
+          const r = Number(key.slice(0, key.indexOf("_")));
+          if (r > maxRow) maxRow = r;
+        }
+        if (maxRow >= 1) {
+          const guard = checkSortMerge(sheet, {
+            r1: 0,
+            c1: 0,
+            r2: maxRow,
+            c2: sheet.numCols - 1,
+          });
+          if (!guard.ok) {
+            onStatus?.(guard.message);
+            return;
+          }
+        }
+        mutateSheet((s) => sortByColor(s, options));
+        onStatus?.(colorMovedToTopMessage(options));
+      },
+      [mutateSheet, sheet, onStatus],
     ),
   };
 }

@@ -333,6 +333,15 @@ export const arrayFunctions: Record<string, FormulaFunction> = {
   TOROW: (a) => (a[0] === undefined ? "#VALUE!" : [flatten([a[0]])]),
   TOCOL: (a) => (a[0] === undefined ? "#VALUE!" : flatten([a[0]]).map((v) => [v])),
 
+  /**
+   * FLATTEN(range, …). Sheets alias: every argument, row-major, into one column.
+   * Prefer TOCOL for Excel-shaped workbooks.
+   */
+  FLATTEN: (a) => {
+    if (a.length === 0) return "#VALUE!";
+    return flatten(a).map((v) => [v]);
+  },
+
   /** MAKEARRAY(rows, cols, lambda(row, col)). Indices are 1-based. */
   MAKEARRAY: (a, host) => {
     const rows = Math.round(toNumber(a[0]));

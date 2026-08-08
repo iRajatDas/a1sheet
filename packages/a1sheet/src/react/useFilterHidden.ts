@@ -3,11 +3,11 @@
 /**
  * Which rows an active column filter excludes.
  *
- * A row is filter-hidden when any filtered column's allowed-value set does not
- * contain that row's displayed value for the column. That is a whole-sheet
- * question, and an edit can change the answer for the row it touched, so the
- * naive implementation re-evaluates every row on every keystroke — 97 ms at
- * 100k rows, which is a visible stall on each committed edit.
+ * A row is filter-hidden when any filtered column's criteria reject that row's
+ * displayed value and/or colours. That is a whole-sheet question, and an edit
+ * can change the answer for the row it touched, so the naive implementation
+ * re-evaluates every row on every keystroke — 97 ms at 100k rows, which is a
+ * visible stall on each committed edit.
  *
  * So this hook caches the verdict and re-tests only the rows whose raw content
  * in a filtered column actually changed. Detecting those is two object lookups
@@ -17,7 +17,9 @@
  * The cache is only sound while a displayed value cannot change without its raw
  * text changing, which fails for a formula — `=B1*2` reads the same after B1
  * moves. A filtered column containing one is marked volatile and always fully
- * rescanned.
+ * rescanned. Colour-only criteria still invalidate via the per-key `styles`
+ * comparison, so a fill change re-filters without a full rescan when the
+ * column has no formulas.
  *
  * A display also depends on the cell's number format, so `styles` is compared
  * per key alongside `cells`. Comparing whole maps by identity does NOT work
@@ -28,7 +30,8 @@
  */
 import { useRef } from "react";
 import { cellKey } from "../model/address.js";
-import type { Sheet } from "../model/types.js";
+import { rowMatchesColumnFilter } from "../model/filters.js";
+import type { ColumnFilter, Sheet } from "../model/types.js";
 
 const NONE: ReadonlySet<number> = new Set();
 
@@ -49,8 +52,9 @@ interface RowVerdict {
 }
 
 /**
- * Same columns filtered, each by the same set. The `filters` map is a fresh
- * object after every write, but an untouched column's `Set` is the same one.
+ * Same columns filtered, each by the same criteria object identity. The
+ * `filters` map is a fresh object after every write, but an untouched column's
+ * entry is the same one.
  */
 function sameFilters(
   previous: Sheet["filters"],
@@ -62,6 +66,10 @@ function sameFilters(
     if (previous[col] !== next[col]) return false;
   }
   return true;
+}
+
+function criteriaNeedsDisplay(filter: ColumnFilter): boolean {
+  return filter.values !== undefined && filter.values.size > 0;
 }
 
 export function useFilterHidden(
@@ -100,25 +108,34 @@ export function useFilterHidden(
 
   const test = (row: number): RowVerdict => {
     for (const col of filterCols) {
-      const allowed = sheet.filters[col];
-      if (!allowed) continue;
+      const filter = sheet.filters[col];
+      if (!filter) continue;
       const key = cellKey(row, col);
       const raw = sheet.cells[key];
-      let display: string;
-      if (raw === undefined && sheet.styles[key] === undefined) {
-        let cached = emptyDisplay.get(col);
-        if (cached === undefined) {
-          cached = getDisplay(row, col);
-          emptyDisplay.set(col, cached);
+      const style = sheet.styles[key];
+      let display = "";
+      if (criteriaNeedsDisplay(filter)) {
+        if (raw === undefined && style === undefined) {
+          let cached = emptyDisplay.get(col);
+          if (cached === undefined) {
+            cached = getDisplay(row, col);
+            emptyDisplay.set(col, cached);
+          }
+          display = cached;
+        } else {
+          display = getDisplay(row, col);
         }
-        display = cached;
-      } else {
-        display = getDisplay(row, col);
       }
-      if (raw?.startsWith("=")) {
-        return { hidden: !allowed.has(display), formula: true };
+      const matches = rowMatchesColumnFilter({
+        filter,
+        display,
+        background: style?.bg,
+        foreground: style?.color,
+      });
+      if (raw?.startsWith("=") && criteriaNeedsDisplay(filter)) {
+        return { hidden: !matches, formula: true };
       }
-      if (!allowed.has(display)) return { hidden: true, formula: false };
+      if (!matches) return { hidden: true, formula: false };
     }
     return { hidden: false, formula: false };
   };

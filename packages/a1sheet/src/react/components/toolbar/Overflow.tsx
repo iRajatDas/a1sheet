@@ -79,7 +79,13 @@ export function ToolbarOverflow({
         <div
           className={`${prefix}menu`}
           role="menu"
-          style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 1000 }}
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 4,
+            zIndex: 1000,
+          }}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             if (e.key === "Escape") setOpen(false);

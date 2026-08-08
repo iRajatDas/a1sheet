@@ -2,15 +2,15 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useSheetContext } from "../../context.js";
-import { useMenuKeyboard } from "../menu/primitives.js";
 import { ChevronDownIcon } from "../icons.js";
+import { useMenuKeyboard } from "../menu/primitives.js";
 import {
+  type FontFace,
   fontById,
   noteRecentFont,
   recentFonts,
   SHEET_FONTS,
   THEME_FONT,
-  type FontFace,
 } from "./fonts.js";
 
 function quoteFamily(name: string): string {
@@ -136,9 +136,7 @@ function FontMenuItem({
       aria-selected={selected}
       className={`${prefix}fontmenu-item${selected ? ` ${prefix}on` : ""}`}
       style={{
-        fontFamily: face.id
-          ? `${quoteFamily(face.id)}, ${themeFont}`
-          : themeFont,
+        fontFamily: face.id ? `${quoteFamily(face.id)}, ${themeFont}` : themeFont,
       }}
       onClick={onPick}
     >

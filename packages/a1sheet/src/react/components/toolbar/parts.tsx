@@ -24,10 +24,10 @@ import {
   UnlockIcon,
   UnmergeIcon,
 } from "../icons.js";
-import { IconButton, type IconButtonProps } from "./IconButton.js";
 import { ColorWell } from "./ColorWell.js";
-import { FontFamilyMenu } from "./FontFamilyMenu.js";
 import { ToolbarSeparator } from "./chrome.js";
+import { FontFamilyMenu } from "./FontFamilyMenu.js";
+import { IconButton, type IconButtonProps } from "./IconButton.js";
 
 const NUM_FMT_LABELS: Record<NumFmt, string> = {
   general: "General",
@@ -164,16 +164,12 @@ export function ToolbarFontFamily(): ReactNode {
 
 export function ToolbarTextColor(): ReactNode {
   const { theme } = useSheetContext("Sheet.Toolbar.TextColor");
-  return (
-    <ColorWell field="color" label="Text color" fallback={theme.cellText} />
-  );
+  return <ColorWell field="color" label="Text color" fallback={theme.cellText} />;
 }
 
 export function ToolbarFillColor(): ReactNode {
   const { theme } = useSheetContext("Sheet.Toolbar.FillColor");
-  return (
-    <ColorWell field="bg" label="Fill color" fallback={theme.cellBg} />
-  );
+  return <ColorWell field="bg" label="Fill color" fallback={theme.cellBg} />;
 }
 
 export function ToolbarNumFmt(): ReactNode {

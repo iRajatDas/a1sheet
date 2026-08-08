@@ -39,7 +39,10 @@ let recentFontIds: string[] = [];
 
 export function noteRecentFont(id: string): void {
   if (!id) return;
-  recentFontIds = [id, ...recentFontIds.filter((f) => f !== id)].slice(0, RECENT_LIMIT);
+  recentFontIds = [id, ...recentFontIds.filter((f) => f !== id)].slice(
+    0,
+    RECENT_LIMIT,
+  );
 }
 
 export function recentFonts(): readonly FontFace[] {

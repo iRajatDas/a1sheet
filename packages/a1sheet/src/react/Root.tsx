@@ -26,11 +26,17 @@ import { dataEdge, lastUsedCell, lastUsedInRow } from "../model/navigate.js";
 import type { Workbook } from "../model/types.js";
 import { HEADER_HEIGHT } from "./constants.js";
 import { SheetContextProvider, useSheetUiState } from "./context.js";
-import { buildCss } from "./styles.js";
-import { resolveTheme, type Theme, themeCellFont, themeColorScheme, themeCssVars } from "./theme.js";
-import type { SheetComponents } from "./primitives/types.js";
 import { mergeClass } from "./primitives/mergeClass.js";
+import type { SheetComponents } from "./primitives/types.js";
 import { StylePreviewProvider } from "./stylePreview.js";
+import { buildCss } from "./styles.js";
+import {
+  resolveTheme,
+  type Theme,
+  themeCellFont,
+  themeColorScheme,
+  themeCssVars,
+} from "./theme.js";
 import { type UseSpreadsheetResult, useSpreadsheet } from "./useSpreadsheet.js";
 
 /**
@@ -361,87 +367,87 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
   return (
     <SheetContextProvider {...contextValue}>
       <StylePreviewProvider>
-      <div
-        className={mergeClass(`${prefix}root`, className)}
-        style={{
-          ...themeCssVars(theme),
-          colorScheme: themeColorScheme(theme),
-          fontFamily: theme.fontFamily,
-          fontSize: theme.fontSize,
-          color: theme.cellText,
-          background: theme.cellBg,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 8,
-          display: "flex",
-          flexDirection: "column",
-          height,
-          overflow: "hidden",
-          position: "relative",
-          ...style,
-        }}
-      >
-        <style>{buildCss(prefix, theme)}</style>
-
-        <textarea
-          ref={focusRef}
-          aria-hidden="true"
-          tabIndex={-1}
-          value=""
-          onChange={() => {}}
-          onKeyDown={onKeyDown}
-          onCopy={(e) => {
-            e.preventDefault();
-            const text = api.clipboard.copy(sheet, api.ranges);
-            if (text === null) {
-              api.setStatus(MULTI_COPY_REFUSED);
-              return;
-            }
-            e.clipboardData.setData("text/plain", text);
-          }}
-          onCut={(e) => {
-            e.preventDefault();
-            const text = api.clipboard.copy(sheet, api.ranges);
-            if (text === null) {
-              api.setStatus(MULTI_COPY_REFUSED);
-              return;
-            }
-            e.clipboardData.setData("text/plain", text);
-            api.clearCells();
-          }}
-          onPaste={(e) => {
-            e.preventDefault();
-            const text = e.clipboardData.getData("text/plain");
-            if (!text) return;
-            // Pasting into several ranges at once has no defined meaning, so
-            // the extra ranges are dropped and the paste lands where the
-            // active range is — the same thing Excel does.
-            api.clearExtraRanges();
-            api.select(
-              api.clipboard.paste(
-                text,
-                { row: selection.r2, col: selection.c2 },
-                api.updateSheet,
-                {
-                  evaluator: api.evaluator,
-                  onReject: api.setStatus,
-                  selection: api.selection,
-                },
-              ),
-            );
-          }}
+        <div
+          className={mergeClass(`${prefix}root`, className)}
           style={{
-            position: "absolute",
-            width: 1,
-            height: 1,
-            opacity: 0,
-            border: 0,
-            padding: 0,
-            resize: "none",
+            ...themeCssVars(theme),
+            colorScheme: themeColorScheme(theme),
+            fontFamily: theme.fontFamily,
+            fontSize: theme.fontSize,
+            color: theme.cellText,
+            background: theme.cellBg,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 8,
+            display: "flex",
+            flexDirection: "column",
+            height,
+            overflow: "hidden",
+            position: "relative",
+            ...style,
           }}
-        />
+        >
+          <style>{buildCss(prefix, theme)}</style>
 
-        {children}
-      </div>
+          <textarea
+            ref={focusRef}
+            aria-hidden="true"
+            tabIndex={-1}
+            value=""
+            onChange={() => {}}
+            onKeyDown={onKeyDown}
+            onCopy={(e) => {
+              e.preventDefault();
+              const text = api.clipboard.copy(sheet, api.ranges);
+              if (text === null) {
+                api.setStatus(MULTI_COPY_REFUSED);
+                return;
+              }
+              e.clipboardData.setData("text/plain", text);
+            }}
+            onCut={(e) => {
+              e.preventDefault();
+              const text = api.clipboard.copy(sheet, api.ranges);
+              if (text === null) {
+                api.setStatus(MULTI_COPY_REFUSED);
+                return;
+              }
+              e.clipboardData.setData("text/plain", text);
+              api.clearCells();
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              const text = e.clipboardData.getData("text/plain");
+              if (!text) return;
+              // Pasting into several ranges at once has no defined meaning, so
+              // the extra ranges are dropped and the paste lands where the
+              // active range is — the same thing Excel does.
+              api.clearExtraRanges();
+              api.select(
+                api.clipboard.paste(
+                  text,
+                  { row: selection.r2, col: selection.c2 },
+                  api.updateSheet,
+                  {
+                    evaluator: api.evaluator,
+                    onReject: api.setStatus,
+                    selection: api.selection,
+                  },
+                ),
+              );
+            }}
+            style={{
+              position: "absolute",
+              width: 1,
+              height: 1,
+              opacity: 0,
+              border: 0,
+              padding: 0,
+              resize: "none",
+            }}
+          />
+
+          {children}
+        </div>
       </StylePreviewProvider>
     </SheetContextProvider>
   );

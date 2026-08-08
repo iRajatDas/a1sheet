@@ -20,8 +20,7 @@ import {
   useState,
 } from "react";
 import { MissingProviderError } from "../errors.js";
-import type { SheetComponents } from "./primitives/types.js";
-import type { CellContentProps } from "./primitives/types.js";
+import type { CellContentProps, SheetComponents } from "./primitives/types.js";
 import type { Theme } from "./theme.js";
 import type { ColumnMenuState, ContextMenuState, RenamingState } from "./types.js";
 import type { UseSpreadsheetResult } from "./useSpreadsheet.js";
@@ -67,7 +66,9 @@ export function GridRenderProvider({
   children: ReactNode;
 }) {
   return (
-    <GridRenderContext.Provider value={value}>{children}</GridRenderContext.Provider>
+    <GridRenderContext.Provider value={value}>
+      {children}
+    </GridRenderContext.Provider>
   );
 }
 

@@ -196,7 +196,7 @@ export function large(rows: number, cols = 40): Workbook {
 export function filtered(): Workbook {
   const wb = large(5_000);
   const sheet = wb.sheets[0];
-  if (sheet) sheet.filters = { 2: new Set(["Blocked", "Done"]) };
+  if (sheet) sheet.filters = { 2: { values: new Set(["Blocked", "Done"]) } };
   return wb;
 }
 
@@ -480,6 +480,139 @@ export function salesReport(): Workbook {
         ],
         numRows: 200,
         numCols: 12,
+      },
+    ],
+  );
+}
+
+/** Coloured rows for background/foreground filter demos. */
+export function colourFilterDemo(): Workbook {
+  return build(
+    ["Colours"],
+    [
+      {
+        cells: {
+          "0_0": "Status",
+          "0_1": "Owner",
+          "1_0": "Open",
+          "1_1": "Ada",
+          "2_0": "Done",
+          "2_1": "Grace",
+          "3_0": "Open",
+          "3_1": "Alan",
+          "4_0": "Blocked",
+          "4_1": "Katherine",
+          "5_0": "Done",
+          "5_1": "Ada",
+        },
+        styles: {
+          "0_0": { bold: true },
+          "0_1": { bold: true },
+          "1_0": { bg: "#fecaca", color: "#7f1d1d" },
+          "2_0": { bg: "#bbf7d0", color: "#14532d" },
+          "3_0": { bg: "#fecaca", color: "#7f1d1d" },
+          "4_0": { bg: "#fde68a", color: "#78350f" },
+          "5_0": { bg: "#bbf7d0", color: "#14532d" },
+        },
+        frozenRows: 1,
+        numRows: 40,
+        numCols: 6,
+      },
+    ],
+  );
+}
+
+/** Weekday / month sequences for the fill handle. */
+export function sequencesDemo(): Workbook {
+  return build(
+    ["Sequences"],
+    [
+      {
+        cells: {
+          "0_0": "Weekdays",
+          "0_1": "Months",
+          "0_2": "Numbers",
+          "1_0": "Mon",
+          "2_0": "Tue",
+          "1_1": "Jan",
+          "2_1": "Feb",
+          "1_2": "10",
+          "2_2": "20",
+        },
+        styles: {
+          "0_0": { bold: true },
+          "0_1": { bold: true },
+          "0_2": { bold: true },
+        },
+        frozenRows: 1,
+      },
+    ],
+  );
+}
+
+/** Checkboxes, a hyperlink, rotated text, and a FLATTEN sample. */
+export function interactiveCellsDemo(): Workbook {
+  return build(
+    ["Interactive", "Archive"],
+    [
+      {
+        cells: {
+          "0_0": "Task",
+          "0_1": "Done",
+          "0_2": "Link",
+          "0_3": "Angle",
+          "1_0": "Ship docs",
+          "1_1": "FALSE",
+          "1_2": "Docs",
+          "1_3": "Tilted",
+          "2_0": "Write tests",
+          "2_1": "TRUE",
+          "3_0": "FLATTEN sample",
+          "3_1": "=FLATTEN(A2:A3)",
+        },
+        styles: {
+          "0_0": { bold: true },
+          "0_1": { bold: true },
+          "0_2": { bold: true },
+          "0_3": { bold: true },
+          "1_1": { checkbox: true },
+          "2_1": { checkbox: true },
+          "1_2": {
+            hyperlink: "https://example.com/docs",
+            color: "#1d4ed8",
+            underline: true,
+          },
+          "1_3": { rotation: 45 },
+        },
+        frozenRows: 1,
+      },
+      {
+        cells: { "0_0": "Archived notes" },
+      },
+    ],
+  );
+}
+
+/** Sparse sheet with find/replace targets. */
+export function findReplaceDemo(): Workbook {
+  return build(
+    ["Find"],
+    [
+      {
+        cells: {
+          "0_0": "Code",
+          "0_1": "Note",
+          "1_0": "ALPHA",
+          "1_1": "first alpha row",
+          "2_0": "BETA",
+          "2_1": "skip",
+          "3_0": "ALPHA",
+          "3_1": '=CONCAT("alpha-", A4)',
+          "5_0": "GAMMA",
+          "5_1": "alpha appears in text",
+        },
+        frozenRows: 1,
+        numRows: 100,
       },
     ],
   );

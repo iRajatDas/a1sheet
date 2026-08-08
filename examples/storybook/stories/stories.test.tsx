@@ -15,6 +15,7 @@ import { createElement, type ReactElement } from "react";
 import * as Composition from "./Composition.stories.js";
 import * as DataAndFiles from "./DataAndFiles.stories.js";
 import * as Features from "./Features.stories.js";
+import * as FeaturesRecent from "./FeaturesRecent.stories.js";
 import * as Hooks from "./Hooks.stories.js";
 import * as Preset from "./Preset.stories.js";
 import * as Recipes from "./Recipes.stories.js";
@@ -43,6 +44,7 @@ const MODULES: StoryModule[] = [
   State as unknown as StoryModule,
   Hooks as unknown as StoryModule,
   Features as unknown as StoryModule,
+  FeaturesRecent as unknown as StoryModule,
   DataAndFiles as unknown as StoryModule,
   Scale as unknown as StoryModule,
   Theming as unknown as StoryModule,

@@ -26,6 +26,20 @@ export type { FormatOptions } from "./format/numFmt.js";
 export { formatValue, NUM_FMTS } from "./format/numFmt.js";
 // -------------------------------------------------------------- formula
 export type { BinaryOp, CompareOp, Node, RefToken, Token } from "./formula/ast.js";
+export type {
+  FormulaArgMeta,
+  FormulaArgType,
+  FormulaCategory,
+  FormulaMeta,
+} from "./formula/catalog.js";
+export {
+  FORMULA_ARG_TYPES,
+  FORMULA_CATALOG,
+  FORMULA_CATEGORIES,
+  formulaMeta,
+  isImplementedFormula,
+  suggestFormulas,
+} from "./formula/catalog.js";
 export { explainErrorValue } from "./formula/errorText.js";
 export type { EvalContext, Evaluator } from "./formula/evaluate.js";
 export {
@@ -46,6 +60,12 @@ export {
   isFormulaSource,
 } from "./formula/refEditing.js";
 export { shiftFormulaRefs } from "./formula/refs.js";
+export type { Sequence } from "./formula/sequences.js";
+export {
+  extendSequence,
+  matchSequence,
+  SEQUENCES,
+} from "./formula/sequences.js";
 export { extrapolateSeries } from "./formula/series.js";
 export { tokenize } from "./formula/tokenize.js";
 export type { FormulaArg, FormulaValue } from "./formula/values.js";
@@ -74,6 +94,52 @@ export {
   rangeContains,
   toA1,
 } from "./model/address.js";
+export type { AutofillCode, FillCheckResult } from "./model/autofill.js";
+export {
+  AUTOFILL_CODES,
+  fillDestination,
+  previewFillCheck,
+} from "./model/autofill.js";
+export type { FilterInput } from "./model/filters.js";
+export {
+  activateFilterView,
+  cloneColumnFilter,
+  cloneFilters,
+  colorMovedToTopMessage,
+  createFilterView,
+  deleteFilterView,
+  FILTER_VIEW_MISSING,
+  filteredColumnSortedMessage,
+  isColumnFilterEmpty,
+  normalizeColumnFilter,
+  rowMatchesColumnFilter,
+} from "./model/filters.js";
+export type {
+  FindHit,
+  FindReplaceOptions,
+  ReplaceAllResult,
+} from "./model/findReplace.js";
+export {
+  findAll,
+  findNext,
+  replaceAll,
+  replacedStatus,
+} from "./model/findReplace.js";
+export type { GridErrorCode } from "./model/gridErrors.js";
+export {
+  filterIdExists,
+  filterRangeUnbounded,
+  formulaParseError,
+  formulaParseStart,
+  GRID_ERROR_CODES,
+  GridError,
+  groupIntervalUnbounded,
+  isGridError,
+  mergeSingleton,
+  rangesDifferentSheet,
+  rowUnboundedRange,
+  unboundedRange,
+} from "./model/gridErrors.js";
 export type { History } from "./model/history.js";
 export {
   canRedo,
@@ -84,6 +150,14 @@ export {
   redo,
   undo,
 } from "./model/history.js";
+export type { MergeGuardCode, MergeGuardResult } from "./model/mergeGuards.js";
+export {
+  checkFilterMerge,
+  checkPasteMerge,
+  checkSortMerge,
+  MERGE_GUARD_CODES,
+  rangePartiallyIntersectsMerge,
+} from "./model/mergeGuards.js";
 export {
   cloneSheet,
   DEFAULT_NUM_COLS,
@@ -98,12 +172,15 @@ export {
   sortByColumn,
   uid,
 } from "./model/sheet.js";
+export { sortByColor } from "./model/sortByColor.js";
 // ---------------------------------------------------------------- model
 export type {
   Align,
   CellKey,
   CellPos,
   CellValue,
+  ColumnFilter,
+  FilterView,
   HexColor,
   NamedRanges,
   NumFmt,
@@ -120,6 +197,9 @@ export {
   defineName,
   deleteName,
   deleteSheet,
+  duplicateSheet,
+  moveSheet,
+  namedRangeAddedStatus,
   renameSheet,
 } from "./model/workbook.js";
 // --------------------------------------------------------------- serials

@@ -45,6 +45,8 @@ export function makeSheet(name: string): Sheet {
     colLabels: {},
     rowLabels: {},
     filters: {},
+    filterViews: {},
+    activeFilterViewId: null,
     namedRanges: {},
     namedFormulas: {},
     numRows: DEFAULT_NUM_ROWS,
@@ -79,6 +81,7 @@ export function cloneSheet(sheet: Sheet): Sheet {
     colLabels: { ...sheet.colLabels },
     rowLabels: { ...sheet.rowLabels },
     filters: { ...sheet.filters },
+    filterViews: { ...sheet.filterViews },
   };
 }
 

@@ -107,6 +107,13 @@ export interface StyleObject {
   indent?: number;
   /** Text rotation in degrees, -90 to 90. 255 in the file means vertical. */
   rotation?: number;
+  /**
+   * When set, the grid renders an interactive checkbox. Cell raw text is
+   * `TRUE` / `FALSE` (or empty → unchecked).
+   */
+  checkbox?: boolean;
+  /** Absolute or relative URL; rendered as a link when present. */
+  hyperlink?: string;
   color?: HexColor;
   bg?: HexColor;
   /** Takes precedence over `bg` when both are set, as a gradient covers the box. */
@@ -356,11 +363,18 @@ export interface Sheet {
   /** Display-only overrides for "1", "2", … Internal addressing is unaffected. */
   rowLabels: Record<number, string>;
   /**
-   * Column index -> set of allowed display values. A row is filter-hidden when
-   * its value for that column is not in the set. Never mutates `cells`, so
-   * clearing a filter always restores the original order and content.
+   * Column index -> filter criteria (values and/or fill/text colours). A row is
+   * filter-hidden when it fails any criterion on any filtered column. Never
+   * mutates `cells`, so clearing a filter always restores the original order.
    */
-  filters: Record<number, Set<string>>;
+  filters: Record<number, ColumnFilter>;
+  /**
+   * Named snapshots of `filters`. Activating one replaces the live filters;
+   * deleting/creating does not mutate cells.
+   */
+  filterViews: Record<string, FilterView>;
+  /** Id of the view currently applied, or null when filters are ad hoc. */
+  activeFilterViewId: string | null;
   /**
    * Defined names scoped to THIS sheet, which shadow the workbook's of the same
    * name. Excel writes them with a `localSheetId`, and two sheets are free to
@@ -379,6 +393,27 @@ export interface Sheet {
  * one sheet, on the sheet — where they shadow the workbook's.
  */
 export type NamedRanges = Record<string, Range>;
+
+/**
+ * Per-column filter criteria. Absent fields are unrestricted. Within one
+ * column every present field must match (AND); across columns every column
+ * must match (AND).
+ */
+export interface ColumnFilter {
+  /** Allowed displayed values. */
+  values?: ReadonlySet<string>;
+  /** Allowed background colours (`StyleObject.bg`). */
+  background?: ReadonlySet<string>;
+  /** Allowed text colours (`StyleObject.color`). */
+  foreground?: ReadonlySet<string>;
+}
+
+/** A named snapshot of column filters that can be re-applied later. */
+export interface FilterView {
+  id: string;
+  name: string;
+  filters: Record<number, ColumnFilter>;
+}
 
 export interface Workbook {
   sheets: Sheet[];

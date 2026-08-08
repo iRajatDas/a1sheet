@@ -768,6 +768,14 @@ export function createEvaluator(
       return spilled;
     }
 
+    // A leading apostrophe is Excel's "store as text" marker — the cell shows
+    // everything after it, and a formula-looking string is not evaluated.
+    if (raw[0] === "'") {
+      const literal = raw.slice(1);
+      cache.set(key, literal);
+      return literal;
+    }
+
     if (raw[0] !== "=") {
       cache.set(key, raw);
       return raw;

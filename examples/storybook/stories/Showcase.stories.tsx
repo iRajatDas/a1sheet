@@ -4,12 +4,7 @@
  */
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { toA1 } from "a1sheet";
-import {
-  darkTheme,
-  type CellContentProps,
-  Sheet,
-  useSheet,
-} from "a1sheet/react";
+import { type CellContentProps, darkTheme, Sheet, useSheet } from "a1sheet/react";
 import { type ReactNode, useState } from "react";
 import { budget, large, salesReport } from "./fixtures.js";
 
@@ -107,20 +102,36 @@ function LiveInspector() {
       </h3>
       <dl style={{ margin: 0, display: "grid", gap: 8 }}>
         <InspectorRow label="Sheet" value={api.sheet.name} />
-        <InspectorRow label="Dimensions" value={`${api.sheet.numRows} × ${api.sheet.numCols}`} />
+        <InspectorRow
+          label="Dimensions"
+          value={`${api.sheet.numRows} × ${api.sheet.numCols}`}
+        />
         <InspectorRow label="Active" value={toA1(row, col)} />
-        <InspectorRow label="Selection" value={`${count} cell${count === 1 ? "" : "s"}`} />
+        <InspectorRow
+          label="Selection"
+          value={`${count} cell${count === 1 ? "" : "s"}`}
+        />
         <InspectorRow label="Display" value={api.getDisplay(row, col) || "—"} />
         <InspectorRow label="Raw" value={api.getRaw(row, col) || "—"} mono />
         <InspectorRow
           label="History"
           value={`${api.canUndo ? "undo" : "—"} / ${api.canRedo ? "redo" : "—"}`}
         />
-        <InspectorRow label="Filled cells" value={String(Object.keys(api.sheet.cells).length)} />
+        <InspectorRow
+          label="Filled cells"
+          value={String(Object.keys(api.sheet.cells).length)}
+        />
       </dl>
-      <p style={{ margin: "14px 0 0", fontSize: 12, color: "var(--a1s-header-text)" }}>
-        This panel is not a library primitive — it is a child of <code>Sheet.Root</code> calling{" "}
-        <code>useSheet()</code>, the same hook the toolbar uses.
+      <p
+        style={{
+          margin: "14px 0 0",
+          fontSize: 12,
+          color: "var(--a1s-header-text)",
+        }}
+      >
+        This panel is not a library primitive — it is a child of{" "}
+        <code>Sheet.Root</code> calling <code>useSheet()</code>, the same hook the
+        toolbar uses.
       </p>
     </aside>
   );
@@ -198,9 +209,10 @@ export const FullApplication: Story = {
         style={{ border: "1px solid var(--a1s-border)" }}
       >
         <FeatureCallout>
-          <strong>Toolbar</strong> is composed atom-by-atom (<code>Sheet.Toolbar.Undo</code>,{" "}
-          <code>.Bold</code>, <code>.Overflow</code>, …) plus <code>Sheet.FileMenu</code> and a
-          custom Save button. Try formatting, freeze, merge, import/export.
+          <strong>Toolbar</strong> is composed atom-by-atom (
+          <code>Sheet.Toolbar.Undo</code>, <code>.Bold</code>,{" "}
+          <code>.Overflow</code>, …) plus <code>Sheet.FileMenu</code> and a custom
+          Save button. Try formatting, freeze, merge, import/export.
         </FeatureCallout>
 
         <Sheet.Toolbar style={{ flexWrap: "wrap" }}>
@@ -250,11 +262,18 @@ export const FullApplication: Story = {
         <Sheet.FormulaBar />
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
             <FeatureCallout>
               <strong>Grid</strong> — scroll frozen Q3 data; attainment column uses{" "}
-              <code>renderCellContent</code>. Column header menu sorts/filters. Right-click or
-              long-press for context menu.
+              <code>renderCellContent</code>. Column header menu sorts/filters.
+              Right-click or long-press for context menu.
             </FeatureCallout>
             <Sheet.Grid
               className="flex-1 min-h-0"
@@ -271,6 +290,11 @@ export const FullApplication: Story = {
         <Sheet.ContextMenu>
           <Sheet.ContextMenu.Copy />
           <Sheet.ContextMenu.Paste />
+          <Sheet.ContextMenu.PasteValues />
+          <Sheet.ContextMenu.PasteFormats />
+          <Sheet.ContextMenu.PasteFormulas />
+          <Sheet.ContextMenu.PasteTranspose />
+          <Sheet.ContextMenu.PasteText />
           <Sheet.ContextMenu.Separator />
           <Sheet.ContextMenu.ClearContents />
           <Sheet.ContextMenu.Separator />
@@ -312,8 +336,8 @@ export const AtScale: Story = {
         }}
       >
         <header style={{ font: "600 15px/1.4 system-ui", color: "#0f172a" }}>
-          {rows.toLocaleString()} rows × {wb.sheets[0]?.numCols ?? 0} columns — only ~300 cells
-          exist in the DOM at once
+          {rows.toLocaleString()} rows × {wb.sheets[0]?.numCols ?? 0} columns — only
+          ~300 cells exist in the DOM at once
         </header>
         <Sheet.Root
           defaultWorkbook={wb}
@@ -350,7 +374,11 @@ export const AtScale: Story = {
 export const GridOnlyMinimal: Story = {
   name: "Grid only (minimal chrome)",
   render: () => (
-    <Sheet.Root defaultWorkbook={salesReport()} height={480} className="rounded-lg shadow">
+    <Sheet.Root
+      defaultWorkbook={salesReport()}
+      height={480}
+      className="rounded-lg shadow"
+    >
       <Sheet.Grid renderCellContent={(p) => <AttainmentBadge {...p} />} />
     </Sheet.Root>
   ),

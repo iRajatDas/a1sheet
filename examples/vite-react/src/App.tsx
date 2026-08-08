@@ -1,14 +1,32 @@
-import { toA1 } from "a1sheet";
-import {
-  darkTheme,
-  type CellContentProps,
-  Sheet,
-  useSheet,
-} from "a1sheet/react";
+import { suggestFormulas, toA1 } from "a1sheet";
+import { type CellContentProps, darkTheme, Sheet, useSheet } from "a1sheet/react";
 import { type ReactNode, useMemo, useState } from "react";
-import { large, salesReport } from "./fixtures.js";
+import {
+  formatActive,
+  LabButton,
+  LabField,
+  LabIntro,
+  LabMeta,
+  LabRow,
+  LabSection,
+  LabSegmented,
+  LabStatusBar,
+  LabSteps,
+  LabSwatch,
+  LabToolbar,
+  scrollHitIntoView,
+} from "../../storybook/stories/labChrome.js";
+import {
+  colourFilterDemo,
+  findReplaceDemo,
+  interactiveCellsDemo,
+  large,
+  salesReport,
+  sequencesDemo,
+} from "./fixtures.js";
 
-type Mode = "full" | "scale";
+type Mode = "full" | "scale" | "lab";
+type LabSheet = "colour" | "find" | "interactive" | "sequences";
 
 function AttainmentBadge({ row, col, display }: CellContentProps): ReactNode {
   if (col !== 4 || row < 3 || row > 8 || !display.includes("%")) {
@@ -104,6 +122,7 @@ function LiveInspector() {
           label="Filled cells"
           value={String(Object.keys(api.sheet.cells).length)}
         />
+        <InspectorRow label="Status" value={api.status || "—"} />
       </dl>
     </aside>
   );
@@ -166,23 +185,26 @@ function ModeSwitch({
         gap: 8,
         alignItems: "center",
         font: "13px system-ui",
+        flexWrap: "wrap",
       }}
     >
       <span style={{ fontWeight: 600 }}>a1sheet playground</span>
-      <button
-        type="button"
-        onClick={() => onModeChange("full")}
-        style={tabStyle(mode === "full")}
-      >
-        Full shell
-      </button>
-      <button
-        type="button"
-        onClick={() => onModeChange("scale")}
-        style={tabStyle(mode === "scale")}
-      >
-        25k rows
-      </button>
+      {(
+        [
+          ["full", "Full shell"],
+          ["lab", "Feature lab"],
+          ["scale", "25k rows"],
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onModeChange(id)}
+          style={tabStyle(mode === id)}
+        >
+          {label}
+        </button>
+      ))}
     </nav>
   );
 }
@@ -199,6 +221,7 @@ function tabStyle(active: boolean): React.CSSProperties {
     font: "inherit",
   };
 }
+
 
 function FullShell() {
   return (
@@ -217,8 +240,10 @@ function FullShell() {
       }}
     >
       <FeatureCallout>
-        Composed toolbar atoms, <code>renderCellContent</code>, file I/O, context
-        menu, column filters, and a custom <code>useSheet()</code> sidebar.
+        Composed toolbar, paste special (context menu), column filters, freeze,
+        and a <code>useSheet()</code> sidebar. Open{" "}
+        <strong>Feature lab</strong> for colour filters, find/replace, tabs, and
+        checkboxes.
       </FeatureCallout>
 
       <Sheet.Toolbar style={{ flexWrap: "wrap" }}>
@@ -291,6 +316,11 @@ function FullShell() {
       <Sheet.ContextMenu>
         <Sheet.ContextMenu.Copy />
         <Sheet.ContextMenu.Paste />
+        <Sheet.ContextMenu.PasteValues />
+        <Sheet.ContextMenu.PasteFormats />
+        <Sheet.ContextMenu.PasteFormulas />
+        <Sheet.ContextMenu.PasteTranspose />
+        <Sheet.ContextMenu.PasteText />
         <Sheet.ContextMenu.Separator />
         <Sheet.ContextMenu.ClearContents />
         <Sheet.ContextMenu.Separator />
@@ -344,9 +374,372 @@ function AtScaleShell() {
   );
 }
 
+function LabPanel({ sheetKind }: { sheetKind: LabSheet }): ReactNode {
+  const api = useSheet();
+  const tone = "dark" as const;
+  const [needle, setNeedle] = useState("alpha");
+  const [replacement, setReplacement] = useState("OMEGA");
+  const [prefix, setPrefix] = useState("XL");
+  const [last, setLast] = useState("");
+  const catalogHits = suggestFormulas(prefix);
+  const green = "#bbf7d0";
+  const redText = "#7f1d1d";
+
+  if (sheetKind === "colour") {
+    return (
+      <>
+        <LabIntro
+          tone={tone}
+          title="Colour filters & views"
+          body="Filter by fill or text colour. Save a named view, reopen it, or sort matching fills to the top — status confirms each step."
+        />
+        <LabToolbar tone={tone}>
+          <LabSection tone={tone} label="Filter" hint="Column A">
+            <LabRow>
+              <LabSwatch
+                tone={tone}
+                color={green}
+                label="Green fills"
+                selected={api.sheet.filters[0]?.background?.has(green) === true}
+                onClick={() =>
+                  api.setFilter(0, { background: new Set([green]) })
+                }
+              />
+              <LabSwatch
+                tone={tone}
+                color={redText}
+                label="Red text"
+                selected={
+                  api.sheet.filters[0]?.foreground?.has(redText) === true
+                }
+                onClick={() =>
+                  api.setFilter(0, { foreground: new Set([redText]) })
+                }
+              />
+              <LabButton
+                tone={tone}
+                kind="ghost"
+                onClick={() => api.setFilter(0, null)}
+              >
+                Clear
+              </LabButton>
+            </LabRow>
+          </LabSection>
+          <LabSection tone={tone} label="Views & sort">
+            <LabRow>
+              <LabButton
+                tone={tone}
+                kind="primary"
+                onClick={() =>
+                  api.createFilterView({ id: "greens", name: "Greens" })
+                }
+              >
+                Save “Greens”
+              </LabButton>
+              <LabButton
+                tone={tone}
+                onClick={() => api.activateFilterView("greens")}
+              >
+                Open “Greens”
+              </LabButton>
+              <LabButton
+                tone={tone}
+                onClick={() =>
+                  api.sortByColor({
+                    col: 0,
+                    kind: "background",
+                    color: green,
+                  })
+                }
+              >
+                Greens to top
+              </LabButton>
+            </LabRow>
+          </LabSection>
+          <LabStatusBar tone={tone} />
+        </LabToolbar>
+      </>
+    );
+  }
+
+  if (sheetKind === "find") {
+    return (
+      <>
+        <LabIntro
+          tone={tone}
+          title="Find & replace"
+          body="Find next wraps the sheet. Replace all rewrites raw cells and formulas, then reports a count."
+        />
+        <LabToolbar tone={tone}>
+          <LabSection tone={tone} label="Search">
+            <LabRow>
+              <LabField
+                tone={tone}
+                label="Find"
+                value={needle}
+                onChange={setNeedle}
+                width={180}
+              />
+              <LabField
+                tone={tone}
+                label="Replace with"
+                value={replacement}
+                onChange={setReplacement}
+                width={140}
+              />
+              <div style={{ display: "flex", gap: 8, paddingTop: 16 }}>
+                <LabButton
+                  tone={tone}
+                  kind="primary"
+                  onClick={() => {
+                    const hit = api.findNext({
+                      find: needle,
+                      after: api.active,
+                    });
+                    if (!hit) {
+                      setLast("No match");
+                      return;
+                    }
+                    api.selectCell(hit.row, hit.col);
+                    scrollHitIntoView(api, hit.row);
+                    setLast(`At ${toA1(hit.row, hit.col)}`);
+                  }}
+                >
+                  Find next
+                </LabButton>
+                <LabButton
+                  tone={tone}
+                  onClick={() => {
+                    const n = api.replaceAll({
+                      find: needle,
+                      replace: replacement,
+                    });
+                    setLast(`Replaced ${n}`);
+                  }}
+                >
+                  Replace all
+                </LabButton>
+              </div>
+            </LabRow>
+          </LabSection>
+          <LabStatusBar tone={tone} />
+          <LabMeta
+            tone={tone}
+            items={[
+              { label: "Cursor", value: formatActive(api) },
+              { label: "Last", value: last || "—" },
+            ]}
+          />
+        </LabToolbar>
+      </>
+    );
+  }
+
+  if (sheetKind === "interactive") {
+    const i = api.workbook.activeSheetIndex;
+    return (
+      <>
+        <LabIntro
+          tone={tone}
+          title="Tabs, checkboxes, links"
+          body="Duplicate sheets, insert checkboxes, attach links, rotate text — status and meta update as you go."
+        />
+        <LabToolbar tone={tone}>
+          <LabSection tone={tone} label="Sheet tabs">
+            <LabRow>
+              <LabButton
+                tone={tone}
+                kind="primary"
+                onClick={() => api.duplicateSheetAt(i)}
+              >
+                Duplicate “{api.sheet.name}”
+              </LabButton>
+              <LabButton
+                tone={tone}
+                disabled={i === 0}
+                onClick={() => api.moveSheetAt(i, i - 1)}
+              >
+                Move left
+              </LabButton>
+              <LabButton
+                tone={tone}
+                disabled={i >= api.workbook.sheets.length - 1}
+                onClick={() => api.moveSheetAt(i, i + 1)}
+              >
+                Move right
+              </LabButton>
+            </LabRow>
+          </LabSection>
+          <LabSection tone={tone} label="Cell chrome">
+            <LabRow>
+              <LabButton
+                tone={tone}
+                onClick={() => {
+                  api.select({ r1: 3, c1: 1, r2: 3, c2: 1 });
+                  api.insertCheckboxes();
+                }}
+              >
+                Checkbox B4
+              </LabButton>
+              <LabButton
+                tone={tone}
+                onClick={() => {
+                  api.selectCell(2, 2);
+                  api.setCell(2, 2, "Home");
+                  api.setHyperlink("https://example.com");
+                }}
+              >
+                Link C3
+              </LabButton>
+              <LabButton
+                tone={tone}
+                onClick={() => {
+                  api.selectCell(2, 3);
+                  api.setCell(2, 3, "Tilt");
+                  api.setTextRotation(-45);
+                }}
+              >
+                Rotate D3
+              </LabButton>
+            </LabRow>
+          </LabSection>
+          <LabSection tone={tone} label="Catalog">
+            <LabRow>
+              <LabField
+                tone={tone}
+                label="Prefix"
+                value={prefix}
+                onChange={setPrefix}
+                width={100}
+              />
+              <span style={{ color: "#94a3b8", paddingTop: 16 }}>
+                {catalogHits.map((h) => h.name).join(" · ") || "No matches"}
+              </span>
+            </LabRow>
+          </LabSection>
+          <LabStatusBar tone={tone} />
+          <LabMeta
+            tone={tone}
+            items={[
+              {
+                label: "Sheets",
+                value: api.workbook.sheets.map((s) => s.name).join(" → "),
+              },
+            ]}
+          />
+        </LabToolbar>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <LabIntro
+        tone={tone}
+        title="Fill & paste special"
+        body="Drag the fill handle on weekday or month series. Right-click for paste values, formats, formulas, transposed, or as text."
+      />
+      <LabToolbar tone={tone}>
+        <LabSteps
+          tone={tone}
+          steps={[
+            "Select A2:A3 (Mon → Tue) and drag the fill handle down.",
+            "Copy a block, select a destination, right-click → Paste transposed.",
+            "Watch the status line for paste-mode confirmation.",
+          ]}
+        />
+        <LabStatusBar tone={tone} />
+      </LabToolbar>
+    </>
+  );
+}
+
+function LabShell() {
+  const [sheetKind, setSheetKind] = useState<LabSheet>("colour");
+  const workbook = useMemo(() => {
+    switch (sheetKind) {
+      case "colour":
+        return colourFilterDemo();
+      case "find":
+        return findReplaceDemo();
+      case "interactive":
+        return interactiveCellsDemo();
+      case "sequences":
+        return sequencesDemo();
+    }
+  }, [sheetKind]);
+
+  return (
+    <Sheet.Root
+      key={sheetKind}
+      defaultWorkbook={workbook}
+      theme={darkTheme}
+      height="100%"
+      style={{
+        border: "1px solid var(--a1s-border)",
+        borderRadius: 12,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+      }}
+    >
+      <div
+        style={{
+          padding: "10px 16px",
+          borderBottom: "1px solid var(--a1s-border)",
+          background: "var(--a1s-header-bg)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <LabSegmented
+          tone="dark"
+          value={sheetKind}
+          onChange={setSheetKind}
+          options={[
+            { id: "colour", label: "Colour filters" },
+            { id: "find", label: "Find / replace" },
+            { id: "interactive", label: "Tabs & cells" },
+            { id: "sequences", label: "Fill & paste" },
+          ]}
+        />
+      </div>
+      <LabPanel sheetKind={sheetKind} />
+      <Sheet.Toolbar>
+        <Sheet.Toolbar.Undo />
+        <Sheet.Toolbar.Redo />
+        <Sheet.Toolbar.Separator />
+        <Sheet.Toolbar.Freeze />
+        <Sheet.Toolbar.Unfreeze />
+        <Sheet.Toolbar.Separator />
+        <Sheet.Toolbar.Status />
+      </Sheet.Toolbar>
+      <Sheet.FormulaBar />
+      <Sheet.Grid style={{ flex: 1, minHeight: 0 }} />
+      <Sheet.Tabs />
+      <Sheet.StatusBar />
+      <Sheet.ContextMenu>
+        <Sheet.ContextMenu.Copy />
+        <Sheet.ContextMenu.Paste />
+        <Sheet.ContextMenu.PasteValues />
+        <Sheet.ContextMenu.PasteFormats />
+        <Sheet.ContextMenu.PasteFormulas />
+        <Sheet.ContextMenu.PasteTranspose />
+        <Sheet.ContextMenu.PasteText />
+      </Sheet.ContextMenu>
+      <Sheet.ColumnMenu />
+    </Sheet.Root>
+  );
+}
+
 function readMode(): Mode {
   const value = new URLSearchParams(window.location.search).get("mode");
-  return value === "scale" ? "scale" : "full";
+  if (value === "scale" || value === "lab") return value;
+  return "full";
 }
 
 export function App() {
@@ -355,15 +748,12 @@ export function App() {
   const selectMode = (next: Mode) => {
     setMode(next);
     const url = new URL(window.location.href);
-    if (next === "full") {
-      url.searchParams.delete("mode");
-    } else {
-      url.searchParams.set("mode", next);
-    }
+    if (next === "full") url.searchParams.delete("mode");
+    else url.searchParams.set("mode", next);
     window.history.replaceState(null, "", url);
   };
 
-  const isFull = mode === "full";
+  const dark = mode === "full" || mode === "lab";
 
   return (
     <div
@@ -374,12 +764,18 @@ export function App() {
         display: "flex",
         flexDirection: "column",
         gap: 12,
-        background: isFull ? "#0b1220" : "#f8fafc",
-        color: isFull ? "#e2e8f0" : "#0f172a",
+        background: dark ? "#0b1220" : "#f8fafc",
+        color: dark ? "#e2e8f0" : "#0f172a",
       }}
     >
       <ModeSwitch mode={mode} onModeChange={selectMode} />
-      {isFull ? <FullShell /> : <AtScaleShell />}
+      {mode === "full" ? (
+        <FullShell />
+      ) : mode === "lab" ? (
+        <LabShell />
+      ) : (
+        <AtScaleShell />
+      )}
     </div>
   );
 }

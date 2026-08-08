@@ -1,9 +1,9 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useRef } from "react";
-import { Slot } from "../../Slot.js";
 import { mergeClass } from "../../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../../primitives/types.js";
+import { Slot } from "../../Slot.js";
 
 export interface MenuItemProps extends PrimitiveProps {
   disabled?: boolean;
@@ -40,7 +40,10 @@ export function MenuItem({
 
 export interface MenuSeparatorProps extends PrimitiveProps {}
 
-export function MenuSeparator({ className, style }: MenuSeparatorProps = {}): ReactNode {
+export function MenuSeparator({
+  className,
+  style,
+}: MenuSeparatorProps = {}): ReactNode {
   return <hr className={className} style={style} />;
 }
 
@@ -54,8 +57,9 @@ export function useMenuKeyboard(
     const root = containerRef.current;
     if (!root) return;
 
-    const items = () =>
-      [...root.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')];
+    const items = () => [
+      ...root.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'),
+    ];
 
     const focusAt = (index: number) => {
       const list = items();

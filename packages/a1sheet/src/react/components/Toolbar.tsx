@@ -26,11 +26,7 @@ export interface ToolbarProps extends PrimitiveProps {
   children?: ReactNode;
 }
 
-function ToolbarRoot({
-  children,
-  className,
-  style,
-}: ToolbarProps = {}): ReactNode {
+function ToolbarRoot({ children, className, style }: ToolbarProps = {}): ReactNode {
   const { theme, prefix } = useSheetContext("Sheet.Toolbar");
   const body = children ?? <toolbar.ToolbarDefaultContent />;
 

@@ -30,7 +30,7 @@ interface SheetOverrides {
   numCols?: number;
   frozenCols?: number;
   hiddenRows?: Set<number>;
-  filters?: Record<number, Set<string>>;
+  filters?: Record<number, { values: Set<string> }>;
   merges?: Range[];
   rowHeights?: Record<number, number>;
 }
@@ -263,7 +263,7 @@ describe("filtering", () => {
     const { cellAt, grid } = setup({
       numRows: 100,
       cells: { "0_0": "keep", "1_0": "drop", "2_0": "keep" },
-      filters: { 0: new Set(["keep"]) },
+      filters: { 0: { values: new Set(["keep"]) } },
     });
 
     expect(cellAt(0, 0)).not.toBeNull();
@@ -276,7 +276,7 @@ describe("filtering", () => {
     const { cellAt } = setup({
       numRows: 100,
       cells: { "0_0": "keep", "1_0": "drop" },
-      filters: { 0: new Set(["keep", ""]) },
+      filters: { 0: { values: new Set(["keep", ""]) } },
     });
 
     expect(cellAt(0, 0)).not.toBeNull();

@@ -15,7 +15,7 @@ import { Spreadsheet } from "./Spreadsheet.js";
 
 interface Fixture {
   cells?: Record<string, string>;
-  filters?: Record<number, Set<string>>;
+  filters?: Record<number, { values: Set<string> }>;
   numRows?: number;
 }
 
@@ -54,7 +54,7 @@ describe("an edit re-filters the row it changed", () => {
   test("a row edited out of the allowed set disappears", () => {
     const { cellAt, type } = setup({
       cells: { "0_0": "keep", "1_0": "keep", "2_0": "keep" },
-      filters: { 0: new Set(["keep"]) },
+      filters: { 0: { values: new Set(["keep"]) } },
     });
     expect(cellAt(1, 0)).not.toBeNull();
 
@@ -68,7 +68,7 @@ describe("an edit re-filters the row it changed", () => {
   test("a row edited to another allowed value stays", () => {
     const { cellAt, type } = setup({
       cells: { "0_0": "a", "1_0": "b", "2_0": "a" },
-      filters: { 0: new Set(["a", "b"]) },
+      filters: { 0: { values: new Set(["a", "b"]) } },
     });
 
     type(1, 0, "a");
@@ -81,7 +81,7 @@ describe("an edit re-filters the row it changed", () => {
   test("an edit in an unfiltered column leaves the filter alone", () => {
     const { cellAt, visibleRows, type } = setup({
       cells: { "0_0": "keep", "1_0": "drop", "2_0": "keep" },
-      filters: { 0: new Set(["keep"]) },
+      filters: { 0: { values: new Set(["keep"]) } },
     });
     const before = visibleRows();
 
@@ -103,7 +103,7 @@ describe("cases the raw-text shortcut cannot cover", () => {
     // changes, so a cache keyed on raw text alone would leave row 1 showing.
     const { cellAt, type } = setup({
       cells: { "0_0": "5", "0_1": "5", "1_0": "=B1" },
-      filters: { 0: new Set(["5"]) },
+      filters: { 0: { values: new Set(["5"]) } },
     });
     expect(cellAt(1, 0)).not.toBeNull();
 
@@ -116,7 +116,7 @@ describe("cases the raw-text shortcut cannot cover", () => {
   test("a formula that starts passing the filter reappears", () => {
     const { cellAt, type } = setup({
       cells: { "1_0": "=B6", "5_0": "5", "5_1": "9" },
-      filters: { 0: new Set(["5"]) },
+      filters: { 0: { values: new Set(["5"]) } },
     });
     expect(cellAt(1, 0)).toBeNull();
     expect(cellAt(5, 1)).not.toBeNull();
@@ -129,7 +129,7 @@ describe("cases the raw-text shortcut cannot cover", () => {
   test("typing a formula into a filtered column marks it volatile from then on", () => {
     const { cellAt, type } = setup({
       cells: { "0_0": "5", "0_1": "5", "1_0": "5" },
-      filters: { 0: new Set(["5"]) },
+      filters: { 0: { values: new Set(["5"]) } },
     });
 
     // Until this edit the column is plain text and takes the fast path.
@@ -149,7 +149,7 @@ describe("changing the filter itself", () => {
     Object.assign(wb.sheets[0] as object, {
       numRows: 20,
       cells: { "0_0": "a", "1_0": "b" },
-      filters: { 0: new Set(["a"]) },
+      filters: { 0: { values: new Set(["a"]) } },
     });
     const { container } = render(<Spreadsheet defaultWorkbook={wb} />);
     const cellAt = (row: number, col: number) =>
@@ -198,7 +198,7 @@ describe("the header lays its label and its menu out side by side", () => {
     const wb = createWorkbook(["Sheet1"]);
     Object.assign(wb.sheets[0] as object, {
       cells: { "0_0": "a" },
-      filters: { 0: new Set(["a"]) },
+      filters: { 0: { values: new Set(["a"]) } },
     });
     const { container } = render(<Spreadsheet defaultWorkbook={wb} />);
 

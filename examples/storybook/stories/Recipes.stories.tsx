@@ -15,6 +15,16 @@ import {
 import { Sheet, useSheet } from "a1sheet/react";
 import { useMemo, useState } from "react";
 import { budget, large } from "./fixtures.js";
+import {
+  LabButton,
+  LabField,
+  LabMeta,
+  LabRow,
+  LabSection,
+  LabStatusBar,
+  LabToolbar,
+  scrollHitIntoView,
+} from "./labChrome.js";
 import { Panel, Problem, Row } from "./ui.js";
 
 const meta = {
@@ -226,18 +236,24 @@ export const Validation: Story = {
 // -------------------------------------------------------------------- search
 
 export const FindAndSelect: Story = {
-  name: "Search a large sheet",
+  name: "Find and replace",
   render: function SearchStory() {
     const [wb] = useState(() => large(20_000));
     const [needle, setNeedle] = useState("ROW-19999");
+    const [replacement, setReplacement] = useState("FOUND");
     return (
       <div>
         <Problem
-          problem="There is no built-in find and replace, and a 20,000-row sheet is not something to scroll through."
-          solution="cells is a plain object. Scan it yourself and call selectCell — a full pass over a million cells is about 30ms."
+          problem="You need find-next and replace-all on a large sheet without shipping a dialog."
+          solution="useSheet().findNext / replaceAll — headless, with match-case and entire-cell options. Scroll with rowWindow.rowTop on the scroller."
         />
         <Sheet.Root defaultWorkbook={wb} height={420}>
-          <SearchBar needle={needle} onNeedle={setNeedle} />
+          <FindReplaceBar
+            needle={needle}
+            onNeedle={setNeedle}
+            replacement={replacement}
+            onReplacement={setReplacement}
+          />
           <Sheet.Grid />
           <Sheet.StatusBar />
         </Sheet.Root>
@@ -248,57 +264,76 @@ export const FindAndSelect: Story = {
     docs: {
       description: {
         story:
-          "Press Find and the sheet scrolls to the hit and selects it. Search is a genuine gap in the library rather than something hidden — but the data is plain and the API is public, so it is about fifteen lines.",
+          "Find next walks then wraps. Replace all rewrites raw cells (including formulas) and sets status to `Replaced N occurrence(s).`",
       },
     },
   },
 };
 
-function SearchBar({
+function FindReplaceBar({
   needle,
   onNeedle,
+  replacement,
+  onReplacement,
 }: {
   needle: string;
   onNeedle: (value: string) => void;
+  replacement: string;
+  onReplacement: (value: string) => void;
 }) {
   const api = useSheet();
   const [result, setResult] = useState("");
 
   const find = () => {
-    const target = needle.toLowerCase();
-    for (const [key, raw] of Object.entries(api.sheet.cells)) {
-      if (!raw.toLowerCase().includes(target)) continue;
-      const [row, col] = key.split("_").map(Number) as [number, number];
-      api.selectCell(row, col);
-
-      // Scroll the container itself, not `api.setScrollTop`. That setter only
-      // tells virtualization where to draw; moving the element is what makes
-      // its own onScroll fire and keeps the two in step. `rowTop` is the same
-      // coordinate mapping the grid lays out with, so it lands exactly.
-      const top = api.rowWindow.rowTop(row);
-      const scroller = document.querySelector(".a1s-scroller");
-      if (top !== null && scroller) scroller.scrollTop = top;
-
-      setResult(`found at ${toA1(row, col)}`);
+    const hit = api.findNext({ find: needle, after: api.active });
+    if (!hit) {
+      setResult("no match");
       return;
     }
-    setResult("no match");
+    api.selectCell(hit.row, hit.col);
+    scrollHitIntoView(api, hit.row);
+    setResult(`found at ${toA1(hit.row, hit.col)}`);
+  };
+
+  const replace = () => {
+    const n = api.replaceAll({ find: needle, replace: replacement });
+    setResult(`replaced ${n}`);
   };
 
   return (
-    <Panel title="Find">
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          className="a1s-input"
-          aria-label="Search term"
-          value={needle}
-          onChange={(e) => onNeedle(e.target.value)}
-        />
-        <button type="button" className="a1s-btn" onClick={find}>
-          Find
-        </button>
-        <span style={{ alignSelf: "center", color: "#475569" }}>{result}</span>
-      </div>
-    </Panel>
+    <LabToolbar>
+      <LabSection label="Find & replace" hint="20,000-row sheet">
+        <LabRow>
+          <LabField
+            label="Find"
+            value={needle}
+            onChange={onNeedle}
+            width={200}
+          />
+          <LabField
+            label="Replace with"
+            value={replacement}
+            onChange={onReplacement}
+            width={140}
+          />
+          <div style={{ display: "flex", gap: 8, paddingTop: 16 }}>
+            <LabButton kind="primary" onClick={find}>
+              Find next
+            </LabButton>
+            <LabButton onClick={replace}>Replace all</LabButton>
+          </div>
+        </LabRow>
+      </LabSection>
+      <LabStatusBar />
+      <LabMeta
+        items={[
+          { label: "Last", value: result || "—" },
+          {
+            label: "Hits",
+            value: String(api.findAll({ find: needle }).length),
+          },
+        ]}
+      />
+    </LabToolbar>
   );
 }

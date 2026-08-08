@@ -36,7 +36,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { colToLetters, cellKey, normalizeRange } from "../../model/address.js";
+import { cellKey, colToLetters, normalizeRange } from "../../model/address.js";
 import type { Range } from "../../model/types.js";
 import {
   AUTOFIT_SAMPLE_LIMIT,
@@ -47,11 +47,11 @@ import {
   ROW_HEADER_WIDTH,
   SCROLLBAR_SIZE,
 } from "../constants.js";
-import { useSheetContext, GridRenderProvider } from "../context.js";
-import { useStylePreview } from "../stylePreview.js";
+import { GridRenderProvider, useSheetContext } from "../context.js";
 import { mergeClass } from "../primitives/mergeClass.js";
 import type { CellContentProps, PrimitiveProps } from "../primitives/types.js";
 import { revealOffset } from "../reveal.js";
+import { useStylePreview } from "../stylePreview.js";
 import { useAutoScroll } from "../useAutoScroll.js";
 import { useTextMeasurer } from "../useTextMeasurer.js";
 import { Cell } from "./Cell.js";
@@ -512,7 +512,12 @@ export function Grid({
     else api.extendTo(hit.row, hit.col);
   };
   dragEndRef.current = () => {
-    if (dragRef.current === "fill") fill.commit(api.updateSheet);
+    if (dragRef.current === "fill") {
+      fill.commit(api.updateSheet, {
+        sheet: api.sheet,
+        onReject: api.setStatus,
+      });
+    }
   };
 
   /**
@@ -655,297 +660,299 @@ export function Grid({
 
   return (
     <GridRenderProvider value={gridRender}>
-    <div
-      // Four areas: the sheet, a channel per axis, and the corner between them.
-      // The bars are siblings of the scroll container rather than inside it, so
-      // they can never be scrolled away from or drawn over the cells.
-      className={mergeClass(`${prefix}frame`, className)}
-      style={{
-        flex: 1,
-        minHeight: 0,
-        display: "grid",
-        gridTemplateColumns: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
-        gridTemplateRows: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
-        ...style,
-      }}
-    >
       <div
-        ref={containerRef}
-        id={scrollerId}
-        role="grid"
-        aria-rowcount={sheet.numRows}
-        aria-colcount={sheet.numCols}
-        aria-label={sheet.name}
-        className={mergeClass(`${prefix}scroller`, scrollerClassName)}
+        // Four areas: the sheet, a channel per axis, and the corner between them.
+        // The bars are siblings of the scroll container rather than inside it, so
+        // they can never be scrolled away from or drawn over the cells.
+        className={mergeClass(`${prefix}frame`, className)}
         style={{
-          overflow: "auto",
-          position: "relative",
-          cursor: fill.dragging ? "crosshair" : undefined,
-          ...scrollerStyle,
-        }}
-        onScroll={(e) => {
-          const el = e.target as HTMLDivElement;
-          setScrollTop(el.scrollTop);
-          setScrollLeft(el.scrollLeft);
-        }}
-        // A mousedown that landed on a cell begins a selection drag. The cell
-        // itself has already set the anchor by the time this bubbles up; all
-        // that is left is to say a drag is running, so the window listeners
-        // start extending. The fill handle stops propagation, so it never
-        // arrives here — that drag announces itself through `fill.dragging`.
-        onMouseDown={(e) => {
-          if (e.button !== 0) return;
-          const cell = (e.target as HTMLElement).closest?.("[data-row][data-col]");
-          if (cell) dragRef.current = "select";
+          flex: 1,
+          minHeight: 0,
+          display: "grid",
+          gridTemplateColumns: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
+          gridTemplateRows: `minmax(0, 1fr) ${SCROLLBAR_SIZE}px`,
+          ...style,
         }}
       >
         <div
+          ref={containerRef}
+          id={scrollerId}
+          role="grid"
+          aria-rowcount={sheet.numRows}
+          aria-colcount={sheet.numCols}
+          aria-label={sheet.name}
+          className={mergeClass(`${prefix}scroller`, scrollerClassName)}
           style={{
-            display: "grid",
-            gridTemplateColumns,
-            gridTemplateRows,
-            // `min-content`, not a fixed height: each row now carries its own,
-            // and the track has to take it from the items in it.
-            gridAutoRows: "min-content",
-            // The real extent of the sheet on both axes, not of the window into
-            // it. Vertically, implicit tracks stop at the last rendered row, so
-            // the scrollbar would report a few hundred pixels for a hundred
-            // thousand rows. Horizontally the cause differs: this div is
-            // block-level, so it takes the scroller's width and the column tracks
-            // overflow it — which makes the scrollable width follow whichever
-            // cells happen to be rendered. Both tracks are fixed-size, so the
-            // surplus collects at the edges instead of stretching them.
-            minHeight: rowWindow.contentHeight,
-            minWidth: ROW_HEADER_WIDTH + colWindow.totalWidth,
+            overflow: "auto",
             position: "relative",
+            cursor: fill.dragging ? "crosshair" : undefined,
+            ...scrollerStyle,
+          }}
+          onScroll={(e) => {
+            const el = e.target as HTMLDivElement;
+            setScrollTop(el.scrollTop);
+            setScrollLeft(el.scrollLeft);
+          }}
+          // A mousedown that landed on a cell begins a selection drag. The cell
+          // itself has already set the anchor by the time this bubbles up; all
+          // that is left is to say a drag is running, so the window listeners
+          // start extending. The fill handle stops propagation, so it never
+          // arrives here — that drag announces itself through `fill.dragging`.
+          onMouseDown={(e) => {
+            if (e.button !== 0) return;
+            const cell = (e.target as HTMLElement).closest?.(
+              "[data-row][data-col]",
+            );
+            if (cell) dragRef.current = "select";
           }}
         >
-          {/* corner */}
           <div
-            className={`${prefix}head`}
             style={{
-              gridColumn: 1,
-              gridRow: 1,
-              height: HEADER_HEIGHT,
-              ...stickyStyleFor(true, true),
+              display: "grid",
+              gridTemplateColumns,
+              gridTemplateRows,
+              // `min-content`, not a fixed height: each row now carries its own,
+              // and the track has to take it from the items in it.
+              gridAutoRows: "min-content",
+              // The real extent of the sheet on both axes, not of the window into
+              // it. Vertically, implicit tracks stop at the last rendered row, so
+              // the scrollbar would report a few hundred pixels for a hundred
+              // thousand rows. Horizontally the cause differs: this div is
+              // block-level, so it takes the scroller's width and the column tracks
+              // overflow it — which makes the scrollable width follow whichever
+              // cells happen to be rendered. Both tracks are fixed-size, so the
+              // surplus collects at the edges instead of stretching them.
+              minHeight: rowWindow.contentHeight,
+              minWidth: ROW_HEADER_WIDTH + colWindow.totalWidth,
+              position: "relative",
             }}
-          />
+          >
+            {/* corner */}
+            <div
+              className={`${prefix}head`}
+              style={{
+                gridColumn: 1,
+                gridRow: 1,
+                height: HEADER_HEIGHT,
+                ...stickyStyleFor(true, true),
+              }}
+            />
 
-          {/* column headers */}
-          {windowCols.map((c) => {
-            const isRenaming = renaming?.type === "col" && renaming.index === c;
-            const filtered = sheet.filters[c] !== undefined;
-            const inSelection = c >= bounds.c1 && c <= bounds.c2;
-            return (
-              <div
-                key={`ch${c}`}
-                className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
-                data-col={c}
-                style={{
-                  gridColumn: c + 2,
-                  gridRow: 1,
-                  height: HEADER_HEIGHT,
-                  ...stickyStyleFor(
-                    true,
-                    false,
-                    undefined,
-                    c < frozenCols ? c : undefined,
-                  ),
-                }}
-                onMouseDown={(e) => {
-                  if ((e.target as HTMLElement).tagName === "INPUT") return;
-                  if (e.button !== 0) return;
-                  e.preventDefault();
-                  focusRef.current?.focus();
-                  selectBand("col", c, e);
-                }}
-                onDoubleClick={() =>
-                  setRenaming({
-                    type: "col",
-                    index: c,
-                    value: sheet.colLabels[c] ?? colToLetters(c),
-                  })
-                }
-              >
-                {isRenaming ? (
-                  <input
-                    // biome-ignore lint/a11y/noAutofocus: inline rename must take the caret
-                    autoFocus
-                    value={renaming.value}
-                    style={{ width: "100%" }}
-                    onChange={(e) =>
-                      setRenaming({ ...renaming, value: e.target.value })
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        api.setColLabel(c, renaming.value);
-                        setRenaming(null);
+            {/* column headers */}
+            {windowCols.map((c) => {
+              const isRenaming = renaming?.type === "col" && renaming.index === c;
+              const filtered = sheet.filters[c] !== undefined;
+              const inSelection = c >= bounds.c1 && c <= bounds.c2;
+              return (
+                <div
+                  key={`ch${c}`}
+                  className={`${prefix}head${inSelection ? ` ${prefix}headon` : ""}`}
+                  data-col={c}
+                  style={{
+                    gridColumn: c + 2,
+                    gridRow: 1,
+                    height: HEADER_HEIGHT,
+                    ...stickyStyleFor(
+                      true,
+                      false,
+                      undefined,
+                      c < frozenCols ? c : undefined,
+                    ),
+                  }}
+                  onMouseDown={(e) => {
+                    if ((e.target as HTMLElement).tagName === "INPUT") return;
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    focusRef.current?.focus();
+                    selectBand("col", c, e);
+                  }}
+                  onDoubleClick={() =>
+                    setRenaming({
+                      type: "col",
+                      index: c,
+                      value: sheet.colLabels[c] ?? colToLetters(c),
+                    })
+                  }
+                >
+                  {isRenaming ? (
+                    <input
+                      // biome-ignore lint/a11y/noAutofocus: inline rename must take the caret
+                      autoFocus
+                      value={renaming.value}
+                      style={{ width: "100%" }}
+                      onChange={(e) =>
+                        setRenaming({ ...renaming, value: e.target.value })
                       }
-                      if (e.key === "Escape") setRenaming(null);
-                    }}
-                    onBlur={() => setRenaming(null)}
-                  />
-                ) : (
-                  <>
-                    <span className={`${prefix}headlabel`}>
-                      {sheet.colLabels[c] ?? colToLetters(c)}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Sort and filter column ${colToLetters(c)}`}
-                      className={`${prefix}headmenu${filtered ? ` ${prefix}headfiltered` : ""}`}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // currentTarget, not target: a click landing on the SVG
-                        // would otherwise place the menu against the icon's box.
-                        const box = e.currentTarget.getBoundingClientRect();
-                        ui.setColumnMenu({ col: c, x: box.left, y: box.bottom });
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          api.setColLabel(c, renaming.value);
+                          setRenaming(null);
+                        }
+                        if (e.key === "Escape") setRenaming(null);
                       }}
-                    >
-                      <ChevronDownIcon />
-                    </button>
-                    <div
-                      className={`${prefix}resize`}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        resizeRef.current = {
-                          col: c,
-                          startX: e.clientX,
-                          startW: colWidth(c),
-                        };
-                      }}
-                      onDoubleClick={(e) => {
-                        // Without this the header's own double-click starts a
-                        // rename, which is not what aiming at the divider meant.
-                        e.stopPropagation();
-                        autoFitCol(c);
-                      }}
+                      onBlur={() => setRenaming(null)}
                     />
-                  </>
-                )}
-              </div>
-            );
-          })}
+                  ) : (
+                    <>
+                      <span className={`${prefix}headlabel`}>
+                        {sheet.colLabels[c] ?? colToLetters(c)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Sort and filter column ${colToLetters(c)}`}
+                        className={`${prefix}headmenu${filtered ? ` ${prefix}headfiltered` : ""}`}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // currentTarget, not target: a click landing on the SVG
+                          // would otherwise place the menu against the icon's box.
+                          const box = e.currentTarget.getBoundingClientRect();
+                          ui.setColumnMenu({ col: c, x: box.left, y: box.bottom });
+                        }}
+                      >
+                        <ChevronDownIcon />
+                      </button>
+                      <div
+                        className={`${prefix}resize`}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          resizeRef.current = {
+                            col: c,
+                            startX: e.clientX,
+                            startW: colWidth(c),
+                          };
+                        }}
+                        onDoubleClick={(e) => {
+                          // Without this the header's own double-click starts a
+                          // rename, which is not what aiming at the divider meant.
+                          e.stopPropagation();
+                          autoFitCol(c);
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+              );
+            })}
 
-          {/* frozen band, always rendered */}
-          {rowWindow.frozenRowsList.map(({ absRow, gridRow }) =>
-            renderRow(absRow, gridRow, true),
-          )}
+            {/* frozen band, always rendered */}
+            {rowWindow.frozenRowsList.map(({ absRow, gridRow }) =>
+              renderRow(absRow, gridRow, true),
+            )}
 
-          {/* One item standing in for every row scrolled off the top. Rows can
+            {/* One item standing in for every row scrolled off the top. Rows can
             differ in height, so the window cannot be placed by grid line — an
             absent row has no track and nothing to size it. This carries the
             whole distance in a single track instead. */}
-          <div
-            aria-hidden="true"
-            className={`${prefix}spacer`}
-            style={{
-              gridColumn: "1 / -1",
-              gridRow: frozenRows + 2,
-              height: rowWindow.leadingSpace,
-              pointerEvents: "none",
-            }}
-          />
+            <div
+              aria-hidden="true"
+              className={`${prefix}spacer`}
+              style={{
+                gridColumn: "1 / -1",
+                gridRow: frozenRows + 2,
+                height: rowWindow.leadingSpace,
+                pointerEvents: "none",
+              }}
+            />
 
-          {/* virtualized band */}
-          {rowWindow.windowRows.map(({ absRow, gridRow }) =>
-            renderRow(absRow, gridRow, false),
-          )}
+            {/* virtualized band */}
+            {rowWindow.windowRows.map(({ absRow, gridRow }) =>
+              renderRow(absRow, gridRow, false),
+            )}
 
-          {/* An outline around each selected range. The tint on the cells says
+            {/* An outline around each selected range. The tint on the cells says
             which cells; this says where each range begins and ends, which is the
             difference between a multi-range selection and a scattering of
             shaded cells. The primary range is drawn heavier. */}
-          {api.ranges.map((range, index) => {
-            const box = rectFor(normalizeRange(range));
-            if (!box) return null;
-            return (
-              <div
-                // The identity of a range IS its position in the list: two of
-                // them can cover the same cells, and reordering is not a thing
-                // that happens — a range is appended or the lot is cleared.
-                // biome-ignore lint/suspicious/noArrayIndexKey: see above
-                key={index}
-                aria-hidden="true"
-                className={`${prefix}selbox`}
-                style={{ position: "absolute", ...box }}
-              />
-            );
-          })}
+            {api.ranges.map((range, index) => {
+              const box = rectFor(normalizeRange(range));
+              if (!box) return null;
+              return (
+                <div
+                  // The identity of a range IS its position in the list: two of
+                  // them can cover the same cells, and reordering is not a thing
+                  // that happens — a range is appended or the lot is cleared.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: see above
+                  key={index}
+                  aria-hidden="true"
+                  className={`${prefix}selbox`}
+                  style={{ position: "absolute", ...box }}
+                />
+              );
+            })}
 
-          {/* What was copied, dashed, until it is pasted or dismissed. The only
+            {/* What was copied, dashed, until it is pasted or dismissed. The only
             thing on screen that says a copy happened at all — and, once the
             selection has moved to the paste target, the only thing saying where
             the content is coming from. */}
-          {api.clipboard.copiedRanges.map((range, index) => {
-            const box = rectFor(normalizeRange(range));
-            if (!box) return null;
-            return (
-              <div
-                // biome-ignore lint/suspicious/noArrayIndexKey: as above
-                key={index}
-                aria-hidden="true"
-                className={`${prefix}marquee`}
-                style={{ position: "absolute", ...box }}
-              />
-            );
-          })}
+            {api.clipboard.copiedRanges.map((range, index) => {
+              const box = rectFor(normalizeRange(range));
+              if (!box) return null;
+              return (
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: as above
+                  key={index}
+                  aria-hidden="true"
+                  className={`${prefix}marquee`}
+                  style={{ position: "absolute", ...box }}
+                />
+              );
+            })}
 
-          {/* Reference outlines for the formula being typed. Rendered inside the
+            {/* Reference outlines for the formula being typed. Rendered inside the
             grid element so they scroll with it, and as siblings of the cells so
             a cell's own borders are not disturbed. */}
-          {api.formulaRefs.spans.map((span) => {
-            const box = rectFor(span.range);
-            if (!box) return null;
-            const color = theme.refColors[
-              span.group % Math.max(1, theme.refColors.length)
-            ] as string;
-            return (
-              <div
-                key={`${span.start}-${span.end}`}
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  ...box,
-                  border: `2px solid ${color}`,
-                  background: `${color}14`,
-                  pointerEvents: "none",
-                  // Below the sticky headers and the frozen bands, like every
-                  // other overlay — see the layer note in styles.ts.
-                  zIndex: 1,
-                }}
-              />
-            );
-          })}
-        </div>
+            {api.formulaRefs.spans.map((span) => {
+              const box = rectFor(span.range);
+              if (!box) return null;
+              const color = theme.refColors[
+                span.group % Math.max(1, theme.refColors.length)
+              ] as string;
+              return (
+                <div
+                  key={`${span.start}-${span.end}`}
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    ...box,
+                    border: `2px solid ${color}`,
+                    background: `${color}14`,
+                    pointerEvents: "none",
+                    // Below the sticky headers and the frozen bands, like every
+                    // other overlay — see the layer note in styles.ts.
+                    zIndex: 1,
+                  }}
+                />
+              );
+            })}
+          </div>
 
-        {/* End-of-sheet slot. Outside the grid element so it is not a grid item
+          {/* End-of-sheet slot. Outside the grid element so it is not a grid item
             competing for a track, but inside the scroller so it sits after the
             last row and scrolls with it. */}
-        {children}
-      </div>
+          {children}
+        </div>
 
-      <Scrollbar
-        orientation="vertical"
-        viewport={api.viewportHeight}
-        content={rowWindow.contentHeight}
-        offset={api.scrollTop}
-        controls={scrollerId}
-        onScrollTo={scrollToTop}
-        prefix={prefix}
-      />
-      <Scrollbar
-        orientation="horizontal"
-        viewport={api.viewportWidth}
-        content={ROW_HEADER_WIDTH + colWindow.totalWidth}
-        offset={api.scrollLeft}
-        controls={scrollerId}
-        onScrollTo={scrollToLeft}
-        prefix={prefix}
-      />
-      <div className={`${prefix}sbcorner`} />
-    </div>
+        <Scrollbar
+          orientation="vertical"
+          viewport={api.viewportHeight}
+          content={rowWindow.contentHeight}
+          offset={api.scrollTop}
+          controls={scrollerId}
+          onScrollTo={scrollToTop}
+          prefix={prefix}
+        />
+        <Scrollbar
+          orientation="horizontal"
+          viewport={api.viewportWidth}
+          content={ROW_HEADER_WIDTH + colWindow.totalWidth}
+          offset={api.scrollLeft}
+          controls={scrollerId}
+          onScrollTo={scrollToLeft}
+          prefix={prefix}
+        />
+        <div className={`${prefix}sbcorner`} />
+      </div>
     </GridRenderProvider>
   );
 }

@@ -14,24 +14,49 @@
  *
  * Known edge case: copying identical text from another application between an
  * internal copy and paste is misread as internal. Accepted.
- *
- * Paste aligns from the target's top-left corner with NO shape validation
- * against the source.
  */
 import { useCallback, useRef, useState } from "react";
-import { shiftFormulaRefs } from "../formula/refs.js";
-import { cellKey, normalizeRange } from "../model/address.js";
-import { rejectCellValue } from "../model/cellValidation.js";
 import type { Evaluator } from "../formula/evaluate.js";
-import type { Range, Sheet } from "../model/types.js";
-import type { SheetUpdater } from "./useWorkbook.js";
+import { shiftFormulaRefs } from "../formula/refs.js";
+import { checkPasteMerge } from "../model/mergeGuards.js";
+import { cellKey, normalizeRange, toA1 } from "../model/address.js";
+import { rejectCellValue } from "../model/cellValidation.js";
+import type { Range, Sheet, StyleObject } from "../model/types.js";
+import type { SheetPatcher, SheetUpdater } from "./useWorkbook.js";
+
+/**
+ * What a paste writes. `"all"` is the default keyboard path — values with
+ * internal formula shifting. Modes map to Sheets' paste-special set.
+ */
+export type PasteMode =
+  | "all"
+  | "values"
+  | "formats"
+  | "formulas"
+  | "transpose"
+  | "text";
 
 export interface CopiedGrid {
   /** Raw cell contents, row-major, from the copied range. */
   grid: string[][];
+  /** Parallel style grid; undefined cells mean no style was copied. */
+  styles: (StyleObject | undefined)[][];
   origin: { row: number; col: number };
   /** Exact serialized text placed on the clipboard. */
   text: string;
+}
+
+export interface PasteOptions {
+  mode?: PasteMode;
+  evaluator?: Evaluator;
+  onReject?: (message: string) => void;
+  selection?: Range;
+  /**
+   * Prefer this over `updateSheet` for large pastes — shallow-copies only the
+   * maps that change. Falls back to cloning via the third paste argument when
+   * omitted.
+   */
+  patchSheet?: (fn: SheetPatcher, addHistory?: boolean) => void;
 }
 
 export interface UseClipboardResult {
@@ -50,23 +75,10 @@ export interface UseClipboardResult {
     text: string,
     target: { row: number; col: number },
     updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
-    options?: {
-      evaluator?: Evaluator;
-      onReject?: (message: string) => void;
-      selection?: Range;
-    },
+    options?: PasteOptions,
   ): Range;
   lastCopied(): CopiedGrid | null;
-  /**
-   * The ranges the last copy came from, for the dashed outline the grid draws
-   * around them. Empty once the copy has been used or dismissed.
-   *
-   * State rather than a ref, unlike `lastCopied`: this one is rendered, so a
-   * copy has to re-render the grid. What it marks is the SOURCE, which is why it
-   * survives the selection moving away to wherever the paste is going.
-   */
   copiedRanges: readonly Range[];
-  /** Clears the outline — on paste, on Escape, or when an edit invalidates it. */
   clearCopied(): void;
 }
 
@@ -75,18 +87,6 @@ function serialize(grid: string[][]): string {
   return grid.map((row) => row.join("\t")).join("\n");
 }
 
-/**
- * Lays several selected blocks out as the one grid a clipboard can hold.
- *
- * Two shapes work and no others: blocks in the same columns, stacked in row
- * order, and blocks in the same rows, placed side by side in column order.
- * Anything else — an L, two overlapping rectangles, blocks of differing widths —
- * has no single sensible flattening, and inventing one would silently paste a
- * shape the user never selected. Excel refuses these too.
- *
- * Returns null on refusal, and the origin of the topmost-leftmost block on
- * success, which is what relative references shift against.
- */
 function joinBlocks(
   blocks: readonly Range[],
   read: (block: Range) => string[][],
@@ -100,7 +100,6 @@ function joinBlocks(
   const sameCols = blocks.every((b) => b.c1 === first.c1 && b.c2 === first.c2);
   if (sameCols) {
     const ordered = [...blocks].sort((a, b) => a.r1 - b.r1);
-    // Overlapping blocks would repeat their shared rows.
     for (let i = 1; i < ordered.length; i++) {
       if ((ordered[i] as Range).r1 <= (ordered[i - 1] as Range).r2) return null;
     }
@@ -137,6 +136,84 @@ function deserialize(text: string): string[][] {
     .map((line) => line.split("\t"));
 }
 
+function transposeGrid<T>(grid: T[][]): T[][] {
+  const rows = grid.length;
+  const cols = Math.max(...grid.map((r) => r.length), 0);
+  const out: T[][] = [];
+  for (let c = 0; c < cols; c++) {
+    const row: T[] = [];
+    for (let r = 0; r < rows; r++) {
+      row.push(grid[r]![c] as T);
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+function emptyStyles(grid: string[][]): (StyleObject | undefined)[][] {
+  return grid.map((row) => row.map(() => undefined));
+}
+
+function statusFor(mode: PasteMode, range: Range): string {
+  const label =
+    range.r1 === range.r2 && range.c1 === range.c2
+      ? toA1(range.r1, range.c1)
+      : `${toA1(range.r1, range.c1)}:${toA1(range.r2, range.c2)}`;
+  switch (mode) {
+    case "values":
+      return `Pasted values into ${label}`;
+    case "formats":
+      return `Pasted formats into ${label}`;
+    case "formulas":
+      return `Pasted formulas into ${label}`;
+    case "transpose":
+      return `Pasted transposed data into ${label}`;
+    case "text":
+      return `Pasted as text into ${label}`;
+    default:
+      return `Pasted into ${label}`;
+  }
+}
+
+function resolveValue(options: {
+  raw: string;
+  mode: PasteMode;
+  internal: boolean;
+  dRow: number;
+  dCol: number;
+  evaluator?: Evaluator;
+  originRow: number;
+  originCol: number;
+  ri: number;
+  ci: number;
+}): string {
+  const { raw, mode, internal, dRow, dCol, evaluator, originRow, originCol, ri, ci } =
+    options;
+
+  if (mode === "text") {
+    return raw.startsWith("=") ? `'${raw}` : raw.startsWith("'") ? raw : raw;
+  }
+
+  if (mode === "values") {
+    if (internal && evaluator) {
+      const shown = evaluator.getCellDisplay(originRow + ri, originCol + ci);
+      if (typeof shown === "boolean") return shown ? "TRUE" : "FALSE";
+      if (shown === undefined || shown === "") return "";
+      return String(shown);
+    }
+    return raw;
+  }
+
+  if (mode === "formulas" || mode === "all" || mode === "transpose") {
+    if (internal && raw.startsWith("=")) {
+      return `=${shiftFormulaRefs(raw.slice(1), dRow, dCol)}`;
+    }
+    return raw;
+  }
+
+  return raw;
+}
+
 export function useClipboard(): UseClipboardResult {
   const last = useRef<CopiedGrid | null>(null);
   const [copiedRanges, setCopiedRanges] = useState<readonly Range[]>([]);
@@ -158,11 +235,46 @@ export function useClipboard(): UseClipboardResult {
       return grid;
     };
 
+    const readStyles = (b: Range) => {
+      const grid: (StyleObject | undefined)[][] = [];
+      for (let r = b.r1; r <= b.r2; r++) {
+        const row: (StyleObject | undefined)[] = [];
+        for (let c = b.c1; c <= b.c2; c++) {
+          row.push(sheet.styles[cellKey(r, c)]);
+        }
+        grid.push(row);
+      }
+      return grid;
+    };
+
     const joined = joinBlocks(blocks, read);
     if (!joined) return null;
 
+    const styleJoined = joinBlocks(blocks, (b) =>
+      readStyles(b).map((row) =>
+        row.map((s) => (s ? JSON.stringify(s) : "")),
+      ),
+    );
+    const styles: (StyleObject | undefined)[][] = styleJoined
+      ? styleJoined.grid.map((row) =>
+          row.map((raw) => {
+            if (!raw) return undefined;
+            try {
+              return JSON.parse(raw) as StyleObject;
+            } catch {
+              return undefined;
+            }
+          }),
+        )
+      : emptyStyles(joined.grid);
+
     const text = serialize(joined.grid);
-    last.current = { grid: joined.grid, origin: joined.origin, text };
+    last.current = {
+      grid: joined.grid,
+      styles,
+      origin: joined.origin,
+      text,
+    };
     setCopiedRanges(blocks);
     return text;
   }, []);
@@ -172,20 +284,26 @@ export function useClipboard(): UseClipboardResult {
       text: string,
       target: { row: number; col: number },
       updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
-      options?: {
-        evaluator?: Evaluator;
-        onReject?: (message: string) => void;
-        selection?: Range;
-      },
+      options?: PasteOptions,
     ) => {
       setCopiedRanges([]);
-      const internal = last.current && last.current.text === text;
-      const grid = internal ? (last.current as CopiedGrid).grid : deserialize(text);
+      const mode: PasteMode = options?.mode ?? "all";
+      const internal = !!(last.current && last.current.text === text);
+      let grid = internal ? (last.current as CopiedGrid).grid : deserialize(text);
+      let styles = internal
+        ? (last.current as CopiedGrid).styles
+        : emptyStyles(grid);
       const origin = internal ? (last.current as CopiedGrid).origin : target;
+
+      if (mode === "transpose") {
+        grid = transposeGrid(grid);
+        styles = transposeGrid(styles);
+      }
+
       const dRow = target.row - origin.row;
       const dCol = target.col - origin.col;
 
-      if (options?.selection) {
+      if (options?.selection && mode !== "formats") {
         const sel = normalizeRange(options.selection);
         const selRows = sel.r2 - sel.r1 + 1;
         const selCols = sel.c2 - sel.c1 + 1;
@@ -201,43 +319,112 @@ export function useClipboard(): UseClipboardResult {
         }
       }
 
-      updateSheet((s) => {
+      const write = (s: Sheet) => {
+        const cells = { ...s.cells };
+        const nextStyles = { ...s.styles };
+        const cachedValues = { ...s.cachedValues };
+        let touched = false;
+
         grid.forEach((row, ri) => {
           row.forEach((raw, ci) => {
             const r = target.row + ri;
             const c = target.col + ci;
             if (r >= s.numRows || c >= s.numCols) return;
             const key = cellKey(r, c);
-            if (s.styles[key]?.locked) return;
-            if (options?.evaluator) {
-              const rejection = rejectCellValue(s, r, c, raw, options.evaluator);
+            const locked = !!s.styles[key]?.locked;
+
+            if (mode === "formats") {
+              const style = styles[ri]?.[ci];
+              if (!style) return;
+              const { locked: _ignored, ...rest } = style;
+              nextStyles[key] = { ...(nextStyles[key] ?? {}), ...rest };
+              touched = true;
+              return;
+            }
+
+            if (locked) return;
+
+            const value = resolveValue({
+              raw,
+              mode,
+              internal,
+              dRow,
+              dCol,
+              evaluator: options?.evaluator,
+              originRow: origin.row,
+              originCol: origin.col,
+              ri,
+              ci,
+            });
+
+            if (options?.evaluator && mode !== "text") {
+              const rejection = rejectCellValue(
+                s,
+                r,
+                c,
+                value,
+                options.evaluator,
+              );
               if (rejection) {
                 options.onReject?.(rejection.message);
                 return;
               }
             }
-            if (raw === "") {
-              delete s.cells[key];
-              return;
+
+            if (value === "") delete cells[key];
+            else cells[key] = value;
+            delete cachedValues[key];
+
+            if (mode === "all" || mode === "transpose") {
+              const style = styles[ri]?.[ci];
+              if (style) {
+                const { locked: _ignored, ...rest } = style;
+                nextStyles[key] = { ...(nextStyles[key] ?? {}), ...rest };
+              }
             }
-            // Only an internal paste shifts formula references.
-            s.cells[key] =
-              internal && raw.startsWith("=")
-                ? `=${shiftFormulaRefs(raw.slice(1), dRow, dCol)}`
-                : raw;
+            touched = true;
           });
         });
-        return s;
-      });
 
-      const rows = grid.length;
+        if (!touched) return null;
+        return { cells, styles: nextStyles, cachedValues };
+      };
+
+      const rows = Math.max(grid.length, 1);
       const cols = Math.max(...grid.map((r) => r.length), 1);
-      return {
+      const result = {
         r1: target.row,
         c1: target.col,
         r2: target.row + rows - 1,
         c2: target.col + cols - 1,
       };
+
+      // Merge check needs the live sheet — read via a no-op patch peek.
+      let blocked = false;
+      const guardWrite = (s: Sheet) => {
+        const guard = checkPasteMerge(s, result);
+        if (!guard.ok) {
+          options?.onReject?.(guard.message);
+          blocked = true;
+          return null;
+        }
+        return write(s);
+      };
+
+      if (options?.patchSheet) {
+        options.patchSheet(guardWrite);
+      } else {
+        updateSheet((s) => {
+          const patch = guardWrite(s);
+          if (!patch) return s;
+          return { ...s, ...patch };
+        });
+      }
+
+      if (blocked) return result;
+
+      options?.onReject?.(statusFor(mode, result));
+      return result;
     },
     [],
   );

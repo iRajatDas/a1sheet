@@ -15,16 +15,13 @@
 import { type ReactNode, useState } from "react";
 import { normalizeRange, parseRangeRef, toA1 } from "../../model/address.js";
 import { useSheetContext } from "../context.js";
-import { useCaretBinding } from "../useCaretBinding.js";
 import { mergeClass } from "../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../primitives/types.js";
+import { useCaretBinding } from "../useCaretBinding.js";
 
 export interface FormulaBarProps extends PrimitiveProps {}
 
-export function FormulaBar({
-  className,
-  style,
-}: FormulaBarProps = {}): ReactNode {
+export function FormulaBar({ className, style }: FormulaBarProps = {}): ReactNode {
   const { api, theme, prefix } = useSheetContext("Sheet.FormulaBar");
   const [nameBox, setNameBox] = useState("");
   const { selection, editing, active } = api;

@@ -29,6 +29,37 @@ honestly: breaking means major.
   context menu.
 - **Accessibility** — `role="grid"` / `gridcell`, toolbar `role="toolbar"`, live
   status region on the status bar.
+- **Autofill guards** — `previewFillCheck` rejects diagonal both-axis fills,
+  destinations past the grid edge, and ranges that partially cut a merge, with
+  stable `AutofillCode` values and Sheets-compatible status messages.
+- **Fill sequences** — weekdays and months (full and abbreviated) continue with
+  wraparound via `SEQUENCES` / `extrapolateSeries`.
+- **Paste special** — `PasteMode` on clipboard paste: values, formats, formulas,
+  transpose, and text. Context menu exposes each; formats ignore cell locks;
+  values skip locked cells. Status reports `Pasted values into A1` etc.
+- **Merge guards** — paste, sort, and filter refuse ranges that partially cut a
+  merge (`PASTE_PARTIAL_MERGE`, `SORT_PARTIAL_MERGE`, `FILTER_PARTIAL_MERGE`).
+- **Undo/redo status** — successful undo reports `Action was undone.`; redo with
+  an empty stack reports `Couldn't redo. Try again.`
+- **`GridError` codes** — `MERGE_RANGE_SINGLETON`, `GRID_RANGE_UNBOUNDED`,
+  `FILTER_ID_EXISTS`, and related codes for fail-fast grid boundaries. Branch on
+  `error.code`.
+- **Colour filters and filter views** — `ColumnFilter` accepts `values`,
+  `background`, and `foreground` sets; `createFilterView` / `activateFilterView`
+  / `deleteFilterView` snapshot and restore them. Missing views report
+  `The view does not exist.`; `sortByColor` moves matching fill/text colours to
+  the top with Sheets-compatible status text.
+- **Formula catalog** — `FORMULA_CATALOG` / `suggestFormulas` expose category and
+  argument-type metadata (Sheets help-content enums) for autocomplete. `FLATTEN`
+  stacks ranges into a column.
+- **Freeze status** — `freezeToSelection` / `unfreeze` report Freeze/Unfreeze
+  row(s)/column(s) status strings.
+- **Find & replace** — headless `findAll` / `findNext` / `replaceAll` with
+  match-case, entire-cell, and formula search options; status
+  `Replaced N occurrence(s).`
+- **Sheet tabs** — `duplicateSheet` / `moveSheet` (last sheet cannot be deleted).
+- **Checkboxes, hyperlinks, text rotation** — `insertCheckboxes`, `setHyperlink`,
+  `setTextRotation` on the public API; checkbox cells toggle TRUE/FALSE.
 
 ### Changed
 

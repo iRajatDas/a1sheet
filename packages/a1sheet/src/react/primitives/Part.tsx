@@ -6,8 +6,8 @@
  */
 import {
   type CSSProperties,
-  type ElementType,
   createElement,
+  type ElementType,
   forwardRef,
   type HTMLAttributes,
   type ReactNode,

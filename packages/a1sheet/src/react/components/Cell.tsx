@@ -274,6 +274,30 @@ export function Cell({
           isActive: active,
           isLocked: !!style.locked,
         })
+      ) : style.checkbox ? (
+        <input
+          type="checkbox"
+          aria-label="Checkbox"
+          checked={api.getDisplay(row, col).toUpperCase() === "TRUE"}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            api.toggleCheckbox(row, col);
+          }}
+          onChange={() => {
+            /* toggled in onMouseDown so selection does not steal the click */
+          }}
+        />
+      ) : style.hyperlink ? (
+        <a
+          href={style.hyperlink}
+          target="_blank"
+          rel="noopener noreferrer"
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{ color: "inherit", overflow: "hidden", textOverflow: "ellipsis" }}
+        >
+          {api.getDisplay(row, col) || style.hyperlink}
+        </a>
       ) : (
         api.getDisplay(row, col)
       )}

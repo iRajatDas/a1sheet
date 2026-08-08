@@ -49,8 +49,8 @@ export const Sheet = {
   ColumnMenu,
 } as const;
 
-export { AddRows } from "./components/AddRows.js";
 export type { AddRowsProps } from "./components/AddRows.js";
+export { AddRows } from "./components/AddRows.js";
 export type { CellProps } from "./components/Cell.js";
 export { Cell } from "./components/Cell.js";
 export type { ColumnMenuProps } from "./components/ColumnMenu.js";
@@ -83,17 +83,17 @@ export {
 export type { SheetContextValue, SheetUiState } from "./context.js";
 // Context access, for consumers writing their own primitives.
 export { useSheet, useSheetContext } from "./context.js";
-export type { SheetRootHandle, SheetRootProps } from "./Root.js";
-// Also exported individually, for named imports and tree-shaking clarity.
-export { Root } from "./Root.js";
+export { mergeClass } from "./primitives/mergeClass.js";
 export type { PartProps } from "./primitives/Part.js";
 export { Part } from "./primitives/Part.js";
-export { mergeClass } from "./primitives/mergeClass.js";
 export type {
   CellContentProps,
   PrimitiveProps,
   SheetComponents,
 } from "./primitives/types.js";
+export type { SheetRootHandle, SheetRootProps } from "./Root.js";
+// Also exported individually, for named imports and tree-shaking clarity.
+export { Root } from "./Root.js";
 export type { SlotProps } from "./Slot.js";
 
 // asChild plumbing, for consumers building polymorphic wrappers.
@@ -122,7 +122,12 @@ export type {
 } from "./types.js";
 export type { CaretBinding } from "./useCaretBinding.js";
 export { useCaretBinding } from "./useCaretBinding.js";
-export type { CopiedGrid, UseClipboardResult } from "./useClipboard.js";
+export type {
+  CopiedGrid,
+  PasteMode,
+  PasteOptions,
+  UseClipboardResult,
+} from "./useClipboard.js";
 export { useClipboard } from "./useClipboard.js";
 export type { UseColWindowResult } from "./useColWindow.js";
 export { useColWindow } from "./useColWindow.js";

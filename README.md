@@ -528,12 +528,15 @@ The parts worth knowing before editing:
   formats by literal format code, conditional formatting, cell locking,
   Ctrl+B/I/U.
 - **Structure** — insert/delete row and column, merge/unmerge, freeze, sort,
-  per-column value filters, hidden rows and columns, data-validation dropdowns,
+  per-column value and colour filters (plus named filter views), find/replace,
+  checkboxes/hyperlinks, sheet-tab duplicate/move, hidden rows and columns, data-validation dropdowns,
   multiple sheets, undo/redo (50 levels).
 - **Clipboard** — copy/cut/paste with relative-reference shifting on internal
   paste, TSV interchange with Excel and Sheets.
-- **Fill handle** — drag in any direction, linear series extrapolation, per-cell
-  formula reference shifting.
+- **Fill handle** — drag in any direction, linear series extrapolation, weekday
+  and month sequences, per-cell formula reference shifting. Rejects diagonal
+  both-axis fills, partial merges, and out-of-bounds destinations via
+  `previewFillCheck` (stable `AutofillCode`).
 - **File I/O** — XLSX read and write (hand-written DEFLATE codec, ZIP, OOXML,
   shared strings, styles, themes, tables, conditional formats, images), CSV read
   and write. Verified against real files from Excel and LibreOffice in

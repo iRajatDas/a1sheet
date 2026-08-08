@@ -23,8 +23,17 @@ import { tableIndex } from "../formula/tableRefs.js";
 import type { FormulaValue } from "../formula/values.js";
 import { cellKey, normalizeRange } from "../model/address.js";
 import { rejectCellValue } from "../model/cellValidation.js";
+import {
+  type FindHit,
+  type FindReplaceOptions,
+  findAll as findAllIn,
+  findNext as findNextIn,
+  replaceAll as replaceAllIn,
+  replacedStatus,
+} from "../model/findReplace.js";
 import type { Range, StyleObject, Workbook } from "../model/types.js";
 import { listLiterals } from "../model/validation.js";
+import { namedRangeAddedStatus } from "../model/workbook.js";
 import { type CellFont, DEFAULT_CELL_FONT } from "./constants.js";
 import { type UseClipboardResult, useClipboard } from "./useClipboard.js";
 import { type UseColWindowResult, useColWindow } from "./useColWindow.js";
@@ -120,6 +129,21 @@ export interface UseSpreadsheetResult
    * history and `onChange` does not fire.
    */
   recalculate(): void;
+  /** Find next matching cell (wraps). Null when nothing matches. */
+  findNext(
+    options: FindReplaceOptions & { after?: { row: number; col: number } },
+  ): FindHit | null;
+  findAll(options: FindReplaceOptions): FindHit[];
+  /** Replace every match on the active sheet; status reports the count. */
+  replaceAll(options: FindReplaceOptions & { replace: string }): number;
+  /** Marks the selection as checkbox cells (TRUE/FALSE). */
+  insertCheckboxes(): void;
+  /** Sets text rotation on the selection (-90..90, or 255 for vertical). */
+  setTextRotation(angle: number): void;
+  /** Attaches or clears a hyperlink on the active cell. */
+  setHyperlink(url: string | null): void;
+  /** Toggles a checkbox cell between TRUE and FALSE. */
+  toggleCheckbox(row: number, col: number): void;
 }
 
 export function useSpreadsheet(
@@ -215,13 +239,16 @@ export function useSpreadsheet(
     () => [selection.selection, ...selection.extraRanges],
     [selection.selection, selection.extraRanges],
   );
-  const ops = useSheetOps(wb.sheet, ranges, updateSheet, patchSurface);
 
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(500);
   const [viewportWidth, setViewportWidth] = useState(800);
   const [status, setStatus] = useState("");
+
+  const ops = useSheetOps(wb.sheet, ranges, updateSheet, patchSurface, {
+    onStatus: setStatus,
+  });
 
   const evaluator = useMemo(() => {
     const sheets = wb.workbook.sheets;
@@ -402,9 +429,119 @@ export function useSpreadsheet(
     [selection.selection, selection.extraRanges],
   );
 
+  const undo = useCallback(() => {
+    if (!wb.canUndo) return;
+    wb.undo();
+    setStatus("Action was undone.");
+  }, [wb.canUndo, wb.undo]);
+
+  const redo = useCallback(() => {
+    if (!wb.canRedo) {
+      setStatus("Couldn't redo. Try again.");
+      return;
+    }
+    wb.redo();
+    setStatus("Action was redone.");
+  }, [wb.canRedo, wb.redo]);
+
+  const findNext = useCallback(
+    (
+      options: FindReplaceOptions & { after?: { row: number; col: number } },
+    ): FindHit | null => findNextIn(wb.sheet, options),
+    [wb.sheet],
+  );
+
+  const findAll = useCallback(
+    (options: FindReplaceOptions): FindHit[] => findAllIn(wb.sheet, options),
+    [wb.sheet],
+  );
+
+  const replaceAll = useCallback(
+    (options: FindReplaceOptions & { replace: string }): number => {
+      const { sheet, count } = replaceAllIn(wb.sheet, options);
+      if (count > 0) {
+        updateSheet(() => sheet);
+      }
+      setStatus(replacedStatus(count));
+      return count;
+    },
+    [wb.sheet, updateSheet],
+  );
+
+  const insertCheckboxes = useCallback(() => {
+    updateSheet((s) => {
+      const styles = { ...s.styles };
+      const cells = { ...s.cells };
+      const seen = new Set<string>();
+      for (const range of ranges) {
+        const b = normalizeRange(range);
+        for (let r = b.r1; r <= b.r2; r++) {
+          for (let c = b.c1; c <= b.c2; c++) {
+            const key = cellKey(r, c);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            styles[key] = { ...(styles[key] ?? {}), checkbox: true };
+            if (cells[key] === undefined || cells[key] === "") {
+              cells[key] = "FALSE";
+            }
+          }
+        }
+      }
+      return { ...s, styles, cells };
+    });
+  }, [updateSheet, ranges]);
+
+  const setTextRotation = useCallback(
+    (angle: number) => {
+      ops.applyStyle({ rotation: angle });
+    },
+    [ops],
+  );
+
+  const setHyperlink = useCallback(
+    (url: string | null) => {
+      const { row, col } = selection.active;
+      const key = cellKey(row, col);
+      patchSurface((s) => {
+        const styles = { ...s.styles };
+        const prev = styles[key] ?? {};
+        if (url === null || url === "") {
+          const { hyperlink: _drop, ...rest } = prev;
+          if (Object.keys(rest).length === 0) delete styles[key];
+          else styles[key] = rest;
+        } else {
+          styles[key] = { ...prev, hyperlink: url };
+        }
+        return { styles };
+      });
+    },
+    [selection.active, patchSurface],
+  );
+
+  const toggleCheckbox = useCallback(
+    (row: number, col: number) => {
+      const key = cellKey(row, col);
+      if (!wb.sheet.styles[key]?.checkbox) return;
+      const raw = (wb.sheet.cells[key] ?? "FALSE").toUpperCase();
+      setCell(row, col, raw === "TRUE" ? "FALSE" : "TRUE");
+    },
+    [wb.sheet.styles, wb.sheet.cells, setCell],
+  );
+
+  const defineName = useCallback(
+    (name: string, range: Range) => {
+      wb.defineName(name, range);
+      setStatus(namedRangeAddedStatus(name));
+    },
+    [wb.defineName],
+  );
+
   return {
     ...wb,
+    defineName,
     updateSheet,
+    undo,
+    redo,
     ...selection,
     ...editing,
     ...ops,
@@ -435,5 +572,12 @@ export function useSpreadsheet(
     status,
     setStatus,
     recalculate: beginCalculation,
+    findNext,
+    findAll,
+    replaceAll,
+    insertCheckboxes,
+    setTextRotation,
+    setHyperlink,
+    toggleCheckbox,
   };
 }

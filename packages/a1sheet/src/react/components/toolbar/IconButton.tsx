@@ -2,9 +2,9 @@
 
 import { forwardRef, type ReactNode } from "react";
 import { useSheetContext } from "../../context.js";
-import { Slot } from "../../Slot.js";
 import { mergeClass } from "../../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../../primitives/types.js";
+import { Slot } from "../../Slot.js";
 
 export interface IconButtonProps extends PrimitiveProps {
   label: string;
@@ -16,16 +16,7 @@ export interface IconButtonProps extends PrimitiveProps {
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
   function IconButton(
-    {
-      asChild,
-      className,
-      style,
-      label,
-      pressed,
-      disabled,
-      onClick,
-      children,
-    },
+    { asChild, className, style, label, pressed, disabled, onClick, children },
     ref,
   ) {
     const { prefix } = useSheetContext("Sheet.Toolbar.IconButton");

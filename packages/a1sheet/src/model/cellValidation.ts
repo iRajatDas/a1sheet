@@ -1,10 +1,11 @@
 /**
  * Whether a raw cell value satisfies a data-validation rule on that cell.
  */
-import { normalizeRange } from "./address.js";
-import { listLiterals } from "./validation.js";
-import type { DataValidation, Sheet } from "./types.js";
+
 import type { Evaluator } from "../formula/evaluate.js";
+import { normalizeRange } from "./address.js";
+import type { DataValidation, Sheet } from "./types.js";
+import { listLiterals } from "./validation.js";
 
 export interface ValidationRejection {
   message: string;

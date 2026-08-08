@@ -17,11 +17,19 @@ import { useCallback, useState } from "react";
 import { shiftFormulaRefs } from "../formula/refs.js";
 import { extrapolateSeries } from "../formula/series.js";
 import { cellKey, normalizeRange } from "../model/address.js";
+import { previewFillCheck } from "../model/autofill.js";
 import type { Range, Sheet } from "../model/types.js";
 import type { SheetUpdater } from "./useWorkbook.js";
 
 /** Which way a keyboard fill runs. The handle takes a target cell instead. */
 export type FillDirection = "down" | "right";
+
+export interface FillCommitOptions {
+  /** Sheet used for merge/bounds checks. Required for guarded fills. */
+  sheet: Sheet;
+  /** Reports a typed autofill rejection to the status bar. */
+  onReject?: (message: string) => void;
+}
 
 export interface UseFillHandleResult {
   /** True while a drag is in progress — the Grid should mount its overlay. */
@@ -30,9 +38,13 @@ export interface UseFillHandleResult {
   preview: Range | null;
   start(selection: Range): void;
   moveTo(row: number, col: number): void;
-  /** Applies the fill and ends the drag. No-op when not dragging. */
+  /**
+   * Applies the fill and ends the drag. No-op when not dragging or when
+   * `previewFillCheck` rejects the destination.
+   */
   commit(
     updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
+    options: FillCommitOptions,
   ): Range | null;
   cancel(): void;
   /**
@@ -220,17 +232,21 @@ export function useFillHandle(): UseFillHandleResult {
   const commit = useCallback(
     (
       updateSheet: (fn: SheetUpdater, addHistory?: boolean) => void,
+      options: FillCommitOptions,
     ): Range | null => {
       if (!source || !target) {
         cancel();
         return null;
       }
       const b = normalizeRange(source);
-      const up = Math.min(b.r1, target.row);
-      const down = Math.max(b.r2, target.row);
-      const left = Math.min(b.c1, target.col);
-      const right = Math.max(b.c2, target.col);
-      if (up === b.r1 && down === b.r2 && left === b.c1 && right === b.c2) {
+      const check = previewFillCheck(options.sheet, {
+        source: b,
+        target,
+      });
+      if (!check.ok) {
+        if (check.code !== "DEST_EQUALS_SOURCE") {
+          options.onReject?.(check.message);
+        }
         cancel();
         return null;
       }
@@ -240,7 +256,7 @@ export function useFillHandle(): UseFillHandleResult {
         return s;
       });
 
-      const result = { r1: up, c1: left, r2: down, c2: right };
+      const result = check.dest;
       cancel();
       return result;
     },

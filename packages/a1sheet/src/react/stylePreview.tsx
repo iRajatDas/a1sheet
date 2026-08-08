@@ -39,7 +39,9 @@ export function StylePreviewProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <StylePreviewContext.Provider value={value}>{children}</StylePreviewContext.Provider>
+    <StylePreviewContext.Provider value={value}>
+      {children}
+    </StylePreviewContext.Provider>
   );
 }
 

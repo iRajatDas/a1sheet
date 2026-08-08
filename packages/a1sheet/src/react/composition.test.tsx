@@ -12,7 +12,15 @@ import { MissingProviderError } from "../errors.js";
 import type { Workbook } from "../model/types.js";
 import { createWorkbook } from "../model/workbook.js";
 import { ADD_ROWS_DEFAULT, HEADER_HEIGHT, ROW_HEIGHT } from "./constants.js";
-import { Root, Sheet, type SheetRootHandle, Slot, useSheet, Part, darkTheme } from "./index.js";
+import {
+  darkTheme,
+  Part,
+  Root,
+  Sheet,
+  type SheetRootHandle,
+  Slot,
+  useSheet,
+} from "./index.js";
 
 function workbookWith(cells: Record<string, string>) {
   const wb = createWorkbook(["Sheet1"]);
@@ -365,9 +373,7 @@ describe("cell content slot", () => {
       <Sheet.Root
         defaultWorkbook={wb}
         components={{
-          CellContent: ({ display }) => (
-            <em data-testid="root-slot">{display}</em>
-          ),
+          CellContent: ({ display }) => <em data-testid="root-slot">{display}</em>,
         }}
       >
         <Sheet.Grid />

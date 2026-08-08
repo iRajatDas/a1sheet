@@ -55,7 +55,9 @@ describe("filling upward and leftward", () => {
 
     run((a) => a.fill.start({ r1: 3, c1: 0, r2: 5, c2: 0 }));
     run((a) => a.fill.moveTo(0, 0));
-    run((a) => a.fill.commit(a.updateSheet));
+    run((a) =>
+      a.fill.commit(a.updateSheet, { sheet: a.sheet, onReject: a.setStatus }),
+    );
 
     // The raw content, which is what a fill writes. A literal cell evaluates to
     // its own text, so the values are strings here and not numbers.
@@ -71,7 +73,9 @@ describe("filling upward and leftward", () => {
 
     run((a) => a.fill.start({ r1: 0, c1: 3, r2: 0, c2: 4 }));
     run((a) => a.fill.moveTo(0, 1));
-    run((a) => a.fill.commit(a.updateSheet));
+    run((a) =>
+      a.fill.commit(a.updateSheet, { sheet: a.sheet, onReject: a.setStatus }),
+    );
 
     expect(get().getRaw(0, 2)).toBe("0");
     expect(get().getRaw(0, 1)).toBe("-10");
@@ -87,7 +91,9 @@ describe("filling upward and leftward", () => {
 
     run((a) => a.fill.start({ r1: 2, c1: 1, r2: 2, c2: 1 }));
     run((a) => a.fill.moveTo(0, 1));
-    run((a) => a.fill.commit(a.updateSheet));
+    run((a) =>
+      a.fill.commit(a.updateSheet, { sheet: a.sheet, onReject: a.setStatus }),
+    );
 
     expect(get().getRaw(1, 1)).toBe("=A2*2");
     expect(get().getRaw(0, 1)).toBe("=A1*2");
@@ -109,7 +115,12 @@ describe("filling upward and leftward", () => {
     run((a) => a.fill.start({ r1: 0, c1: 0, r2: 0, c2: 0 }));
     run((a) => a.fill.moveTo(0, 0));
 
-    expect(get().fill.commit(get().updateSheet)).toBeNull();
+    expect(
+      get().fill.commit(get().updateSheet, {
+        sheet: get().sheet,
+        onReject: get().setStatus,
+      }),
+    ).toBeNull();
   });
 });
 

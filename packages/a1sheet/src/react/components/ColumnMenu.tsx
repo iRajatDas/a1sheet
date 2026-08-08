@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 /**
  * Column header dropdown: sort ascending/descending and a checkbox value filter.
  *
@@ -8,7 +9,6 @@
  * filter always restores the original row order and content.
  */
 import { type ReactNode, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
 import { getUsedBounds } from "../../io/csv/write.js";
 import { useSheetContext } from "../context.js";
 import { mergeClass } from "../primitives/mergeClass.js";
@@ -47,13 +47,7 @@ interface PanelProps {
   style?: CSSProperties;
 }
 
-function ColumnMenuPanel({
-  col,
-  x,
-  y,
-  className,
-  style,
-}: PanelProps): ReactNode {
+function ColumnMenuPanel({ col, x, y, className, style }: PanelProps): ReactNode {
   const { api, theme, prefix, ui } = useSheetContext("Sheet.ColumnMenu");
   const onClose = ui.closeMenus;
   const { sheet } = api;
@@ -66,7 +60,7 @@ function ColumnMenuPanel({
     return [...set].sort();
   }, [sheet.cells, col, api.getDisplay]);
 
-  const current = sheet.filters[col];
+  const current = sheet.filters[col]?.values;
   const [checked, setChecked] = useState<Set<string>>(
     () => new Set(current ?? values),
   );

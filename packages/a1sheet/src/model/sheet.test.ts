@@ -127,14 +127,14 @@ describe("per-axis maps shift alongside cells", () => {
     const base = makeSheet("S");
     base.colWidths[1] = 300;
     base.colLabels[1] = "Amount";
-    base.filters[1] = new Set(["a"]);
+    base.filters[1] = { values: new Set(["a"]) };
 
     const s = insertCol(base, 0);
 
     expect(s.colWidths[2]).toBe(300);
     expect(s.colWidths[1]).toBeUndefined();
     expect(s.colLabels[2]).toBe("Amount");
-    expect(s.filters[2]).toEqual(new Set(["a"]));
+    expect(s.filters[2]).toEqual({ values: new Set(["a"]) });
   });
 
   test("rows untouched by the insert keep their heights", () => {

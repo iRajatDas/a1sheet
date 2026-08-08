@@ -42,6 +42,11 @@ function ContextMenuRoot({
 export const ContextMenu = Object.assign(ContextMenuRoot, {
   Copy: parts.ContextMenuCopy,
   Paste: parts.ContextMenuPaste,
+  PasteValues: parts.ContextMenuPasteValues,
+  PasteFormats: parts.ContextMenuPasteFormats,
+  PasteFormulas: parts.ContextMenuPasteFormulas,
+  PasteTranspose: parts.ContextMenuPasteTranspose,
+  PasteText: parts.ContextMenuPasteText,
   InsertRow: parts.ContextMenuInsertRow,
   DeleteRow: parts.ContextMenuDeleteRow,
   InsertCol: parts.ContextMenuInsertCol,

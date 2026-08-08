@@ -77,13 +77,15 @@ describe("story fixtures", () => {
     const sheet = fixtures.filtered().sheets[0];
     if (!sheet) throw new Error("no sheet");
 
-    for (const [col, allowed] of Object.entries(sheet.filters)) {
+    for (const [col, criteria] of Object.entries(sheet.filters)) {
       const present = new Set<string>();
       for (let r = 0; r < sheet.numRows; r++) {
         const value = sheet.cells[`${r}_${Number(col)}`];
         if (value !== undefined) present.add(value);
       }
-      for (const value of allowed) expect(present.has(value)).toBe(true);
+      for (const value of criteria.values ?? []) {
+        expect(present.has(value)).toBe(true);
+      }
     }
   });
 

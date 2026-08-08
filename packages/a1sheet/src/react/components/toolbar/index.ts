@@ -1,3 +1,7 @@
+export { ToolbarGroup, ToolbarSeparator, ToolbarStatus } from "./chrome.js";
+
+export { IconButton } from "./IconButton.js";
+export { ToolbarOverflow } from "./Overflow.js";
 export {
   ToolbarAlignCenter,
   ToolbarAlignLeft,
@@ -22,7 +26,3 @@ export {
   ToolbarUnfreeze,
   ToolbarUnmerge,
 } from "./parts.js";
-
-export { IconButton } from "./IconButton.js";
-export { ToolbarGroup, ToolbarSeparator, ToolbarStatus } from "./chrome.js";
-export { ToolbarOverflow } from "./Overflow.js";

@@ -27,6 +27,8 @@ import {
   defineName as defineNameIn,
   deleteName,
   deleteSheet,
+  duplicateSheet,
+  moveSheet,
   renameSheet,
 } from "../model/workbook.js";
 
@@ -65,6 +67,10 @@ export interface UseWorkbookResult {
   renameSheetAt(index: number, name: string): void;
   defineName(name: string, range: Range): void;
   deleteNamedRange(name: string): void;
+  /** Deep-copies a sheet tab (filters/styles included) and activates the copy. */
+  duplicateSheetAt(index: number): void;
+  /** Reorders sheet tabs. */
+  moveSheetAt(from: number, to: number): void;
 }
 
 export interface UseWorkbookOptions {
@@ -228,6 +234,14 @@ export function useWorkbook(opts: UseWorkbookOptions = {}): UseWorkbookResult {
     ),
     deleteNamedRange: useCallback(
       (name: string) => updateWorkbook((wb) => deleteName(wb, name)),
+      [updateWorkbook],
+    ),
+    duplicateSheetAt: useCallback(
+      (index: number) => updateWorkbook((wb) => duplicateSheet(wb, index)),
+      [updateWorkbook],
+    ),
+    moveSheetAt: useCallback(
+      (from: number, to: number) => updateWorkbook((wb) => moveSheet(wb, from, to)),
       [updateWorkbook],
     ),
   };

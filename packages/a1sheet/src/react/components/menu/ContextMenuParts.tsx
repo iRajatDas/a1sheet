@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useSheetContext } from "../../context.js";
+import type { PasteMode } from "../../useClipboard.js";
 import { MenuItem, MenuSeparator } from "./primitives.js";
 
 function useContextTarget() {
@@ -61,11 +62,13 @@ export function ContextMenuPaste(): ReactNode {
         void (async () => {
           try {
             const text = await navigator.clipboard.readText();
-            api.clipboard.paste(text, { row, col }, api.updateSheet, {
-        evaluator: api.evaluator,
-        onReject: api.setStatus,
-        selection: api.selection,
-      });
+            api.select(
+              api.clipboard.paste(text, { row, col }, api.updateSheet, {
+                evaluator: api.evaluator,
+                onReject: api.setStatus,
+                selection: api.selection,
+              }),
+            );
           } catch {
             api.setStatus("Clipboard blocked — use Ctrl+V instead.");
           }
@@ -76,6 +79,65 @@ export function ContextMenuPaste(): ReactNode {
       Paste
     </MenuItem>
   );
+}
+
+function pasteSpecial(mode: PasteMode): ReactNode {
+  const ctx = useContextTarget();
+  if (!ctx) return null;
+  const { api, row, col, onClose } = ctx;
+  const labels: Record<PasteMode, string> = {
+    all: "Paste",
+    values: "Paste values",
+    formats: "Paste formats",
+    formulas: "Paste formulas",
+    transpose: "Paste transposed",
+    text: "Paste as text",
+  };
+
+  return (
+    <MenuItem
+      onSelect={() => {
+        void (async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            api.select(
+              api.clipboard.paste(text, { row, col }, api.updateSheet, {
+                mode,
+                evaluator: api.evaluator,
+                onReject: api.setStatus,
+                selection: api.selection,
+              }),
+            );
+          } catch {
+            api.setStatus("Clipboard blocked — use Ctrl+V instead.");
+          }
+          onClose();
+        })();
+      }}
+    >
+      {labels[mode]}
+    </MenuItem>
+  );
+}
+
+export function ContextMenuPasteValues(): ReactNode {
+  return pasteSpecial("values");
+}
+
+export function ContextMenuPasteFormats(): ReactNode {
+  return pasteSpecial("formats");
+}
+
+export function ContextMenuPasteFormulas(): ReactNode {
+  return pasteSpecial("formulas");
+}
+
+export function ContextMenuPasteTranspose(): ReactNode {
+  return pasteSpecial("transpose");
+}
+
+export function ContextMenuPasteText(): ReactNode {
+  return pasteSpecial("text");
 }
 
 export function ContextMenuInsertRow(): ReactNode {
@@ -94,9 +156,7 @@ export function ContextMenuDeleteRow(): ReactNode {
   if (!ctx) return null;
   const { api, row, run } = ctx;
   return (
-    <MenuItem onSelect={() => run(() => api.deleteRowAt(row))}>
-      Delete row
-    </MenuItem>
+    <MenuItem onSelect={() => run(() => api.deleteRowAt(row))}>Delete row</MenuItem>
   );
 }
 
@@ -189,6 +249,11 @@ export function ContextMenuDefaultContent(): ReactNode {
     <>
       <ContextMenuCopy />
       <ContextMenuPaste />
+      <ContextMenuPasteValues />
+      <ContextMenuPasteFormats />
+      <ContextMenuPasteFormulas />
+      <ContextMenuPasteTranspose />
+      <ContextMenuPasteText />
       <MenuSeparator />
       <ContextMenuInsertRow />
       <ContextMenuDeleteRow />

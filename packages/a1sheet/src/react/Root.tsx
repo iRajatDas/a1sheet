@@ -130,6 +130,15 @@ export const Root = forwardRef<SheetRootHandle, SheetRootProps>(function Root(
     return () => window.removeEventListener("click", close);
   }, [ui]);
 
+  // Scrolling the grid (or the custom scrollbars) dismisses menus — they are
+  // pinned to viewport coordinates from the open gesture and would otherwise
+  // float over the wrong cells.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll offsets are the trigger
+  useEffect(() => {
+    if (!ui.contextMenu && !ui.columnMenu) return;
+    ui.closeMenus();
+  }, [api.scrollTop, api.scrollLeft]);
+
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (api.isEditing) return;

@@ -1,18 +1,17 @@
 "use client";
 
-import type { CSSProperties } from "react";
-/**
- * Column header dropdown: sort ascending/descending and a checkbox value filter.
- *
- * Sort physically rewrites cell keys — a data operation, undone only via history.
- * Filter never touches cells; it only feeds `effectiveHiddenRows`, so clearing a
- * filter always restores the original row order and content.
- */
-import { type ReactNode, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { getUsedBounds } from "../../io/csv/write.js";
 import { useSheetContext } from "../context.js";
 import { mergeClass } from "../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../primitives/types.js";
+import { useClampedMenuPosition } from "../useClampedMenuPosition.js";
 
 export interface ColumnMenuProps extends PrimitiveProps {}
 
@@ -51,6 +50,11 @@ function ColumnMenuPanel({ col, x, y, className, style }: PanelProps): ReactNode
   const { api, theme, prefix, ui } = useSheetContext("Sheet.ColumnMenu");
   const onClose = ui.closeMenus;
   const { sheet } = api;
+  const ref = useRef<HTMLDivElement>(null);
+  const positionStyle = useClampedMenuPosition({ x, y }, ref, {
+    minWidth: 200,
+    ...style,
+  });
 
   /** Distinct displayed values in the column, over the used range only. */
   const values = useMemo(() => {
@@ -76,8 +80,9 @@ function ColumnMenuPanel({ col, x, y, className, style }: PanelProps): ReactNode
 
   return (
     <div
+      ref={ref}
       className={mergeClass(`${prefix}menu`, className)}
-      style={{ left: x, top: y, minWidth: 200, ...style }}
+      style={positionStyle}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         if (e.key === "Escape") onClose();

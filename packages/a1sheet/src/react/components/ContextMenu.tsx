@@ -4,6 +4,7 @@ import { type ReactNode, useRef } from "react";
 import { useSheetContext } from "../context.js";
 import { mergeClass } from "../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../primitives/types.js";
+import { useClampedMenuPosition } from "../useClampedMenuPosition.js";
 import * as parts from "./menu/ContextMenuParts.js";
 import { MenuItem, MenuSeparator, useMenuKeyboard } from "./menu/primitives.js";
 
@@ -21,6 +22,11 @@ function ContextMenuRoot({
   const state = ui.contextMenu;
   const onClose = ui.closeMenus;
   const ref = useRef<HTMLDivElement>(null);
+  const positionStyle = useClampedMenuPosition(
+    state ? { x: state.x, y: state.y } : null,
+    ref,
+    style,
+  );
 
   useMenuKeyboard(!!state, onClose, ref);
 
@@ -31,7 +37,7 @@ function ContextMenuRoot({
       ref={ref}
       role="menu"
       className={mergeClass(`${prefix}menu`, className)}
-      style={{ left: state.x, top: state.y, ...style }}
+      style={positionStyle}
       onClick={(e) => e.stopPropagation()}
     >
       {children ?? <parts.ContextMenuDefaultContent />}

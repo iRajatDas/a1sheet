@@ -5,6 +5,14 @@ honestly: breaking means major.
 
 ## Unreleased
 
+## 0.3.2
+
+### Fixed
+
+- **Context and column menus dismiss on grid scroll** and **clamp into the
+  viewport** (flip above / slide left when there is not enough room), so they no
+  longer float over the wrong cells or spill off-screen.
+
 ## 0.3.1
 
 ### Fixed

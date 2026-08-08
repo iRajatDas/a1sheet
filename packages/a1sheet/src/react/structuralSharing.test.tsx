@@ -45,7 +45,10 @@ const CHEAP = [
   ["toggleRowHidden", (api: SheetRootHandle["api"]) => api.toggleRowHidden(1)],
   ["freezeToSelection", (api: SheetRootHandle["api"]) => api.freezeToSelection()],
   ["appendRows", (api: SheetRootHandle["api"]) => api.appendRows(100)],
-  ["setFilter", (api: SheetRootHandle["api"]) => api.setFilter(0, new Set(["a"]))],
+  [
+    "setFilter",
+    (api: SheetRootHandle["api"]) => api.setFilter(0, { values: new Set(["a"]) }),
+  ],
 ] as const;
 
 describe("an operation that touches no cell copies no cells", () => {
@@ -117,7 +120,7 @@ describe("the operations still do what they say", () => {
 
   test("clearing a filter drops the entry", () => {
     const ref = mounted();
-    act(() => ref.current?.api.setFilter(0, new Set(["a"])));
+    act(() => ref.current?.api.setFilter(0, { values: new Set(["a"]) }));
     expect(ref.current?.api.sheet.filters[0]).toBeDefined();
     act(() => ref.current?.api.setFilter(0, null));
     expect(ref.current?.api.sheet.filters).toEqual({});

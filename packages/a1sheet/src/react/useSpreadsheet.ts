@@ -250,8 +250,10 @@ export function useSpreadsheet(
     onStatus: setStatus,
   });
 
-  // cellEpoch intentionally invalidates when sheet maps are patched.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: cellEpoch is the invalidate signal
+  // cellEpoch is the invalidate signal for formula inputs. Do not depend on
+  // `wb.workbook.sheets` identity — surface patches (freeze, style) replace the
+  // sheets array without changing formula inputs, and must keep the evaluator.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cellEpoch covers sheet/cell formula inputs
   const evaluator = useMemo(() => {
     const sheets = wb.workbook.sheets;
     const sheetCells = sheets.map((s) => ({ name: s.name, cells: s.cells }));
@@ -272,7 +274,6 @@ export function useSpreadsheet(
     });
   }, [
     cellEpoch,
-    wb.workbook.sheets,
     wb.sheet.cells,
     wb.workbook.namedRanges,
     wb.workbook.namedFormulas,

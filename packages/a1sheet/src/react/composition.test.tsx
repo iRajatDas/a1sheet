@@ -429,7 +429,7 @@ describe("adding rows at the bottom", () => {
   }
 
   test("the control sits inside the scroll container, not in a bar below it", () => {
-    // Google Sheets puts it at the end of the content, so scrolling to the
+    // Familiar spreadsheets put content at the end, so scrolling to the
     // bottom of the sheet is what reveals it.
     const { scroller } = setupAddRows();
 

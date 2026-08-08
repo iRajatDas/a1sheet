@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Add N more rows at the bottom", as Google Sheets puts it.
+ * "Add N more rows at the bottom" — the usual bottom-of-grid control.
  *
  * Rendered as a child of `Sheet.Grid`, so it lands inside the scroll container
  * at the end of the content rather than in a bar below it — you reach it by

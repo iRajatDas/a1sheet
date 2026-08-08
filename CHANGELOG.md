@@ -19,6 +19,8 @@ honestly: breaking means major.
 - **`className` / `style` on every chrome primitive**, plus `--a1s-*` CSS custom
   properties on the root for Tailwind-compatible theming.
 - **`darkTheme` / `lightTheme` presets** exported from `a1sheet/react`.
+- **`sheetsTheme`** — opt-in light palette with `#1a73e8` accent. `lightTheme`
+  stays teal; pass `theme={sheetsTheme}` on `Sheet.Root`.
 - **`renderCellContent` and `components.CellContent`** — custom cell display
   without replacing selection or editing.
 - **`Part` and `mergeClass`** exported for consumers building their own primitives.

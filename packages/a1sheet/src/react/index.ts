@@ -109,6 +109,7 @@ export {
   defaultTheme,
   lightTheme,
   resolveTheme,
+  sheetsTheme,
   themeCellFont,
   themeCssVars,
 } from "./theme.js";

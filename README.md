@@ -140,9 +140,10 @@ the rest of the theme as CSS custom properties, so host styles can reference
 them directly:
 
 ```tsx
-import { Sheet, darkTheme } from "a1sheet/react";
+import { Sheet, darkTheme, sheetsTheme } from "a1sheet/react";
 
-<Sheet.Root theme={darkTheme} className="rounded-xl border shadow-sm">
+// Light blue accent (`sheetsTheme`), or darkTheme. lightTheme stays teal.
+<Sheet.Root theme={sheetsTheme} className="rounded-xl border shadow-sm">
   <Sheet.Toolbar className="border-b border-[var(--a1s-border)]">
     <Sheet.Toolbar.Undo />
     <Sheet.Toolbar.Bold />
@@ -154,6 +155,8 @@ import { Sheet, darkTheme } from "a1sheet/react";
     renderCellContent={({ display }) => <span className="font-medium">{display}</span>}
   />
 </Sheet.Root>
+
+// <Sheet.Root theme={darkTheme}>…</Sheet.Root>
 ```
 
 Every chrome primitive accepts `className` and `style`. Toolbar and context-menu

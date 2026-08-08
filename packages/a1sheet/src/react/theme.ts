@@ -71,6 +71,31 @@ export const lightTheme: Theme = {
   fontSize: `${CELL_FONT_SIZE}px`,
 };
 
+/**
+ * Light blue accent palette. Opt-in via `theme={sheetsTheme}`;
+ * does not replace `lightTheme`.
+ */
+export const sheetsTheme: Theme = {
+  accent: "#1a73e8",
+  border: "#e0e0e0",
+  headerBorder: "#c0c0c0",
+  freezeLine: "#9aa0a6",
+  buttonBorder: "#dadce0",
+  headerBg: "#f8f9fa",
+  headerText: "#5f6368",
+  cellBg: "#ffffff",
+  cellText: "#202124",
+  selectedBg: "rgba(26, 115, 232, 0.12)",
+  toolbarBg: "#ffffff",
+  refColors: ["#1a73e8", "#d93025", "#188038", "#f9ab00", "#a142f4"] as const,
+  scrollbarTrack: "#f1f3f4",
+  scrollbarThumb: "#c4c7c5",
+  scrollbarThumbHover: "#9aa0a6",
+  fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
+  monoFontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontSize: `${CELL_FONT_SIZE}px`,
+};
+
 /** @deprecated Use `lightTheme`. Kept for existing imports. */
 export const defaultTheme: Theme = lightTheme;
 

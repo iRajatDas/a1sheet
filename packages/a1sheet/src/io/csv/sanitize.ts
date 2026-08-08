@@ -2,7 +2,7 @@
  * CSV formula-injection mitigation (CWE-1236).
  *
  * A CSV field beginning with `=`, `+`, `-`, `@`, tab, or CR is interpreted as a
- * FORMULA by Excel, LibreOffice, and Google Sheets when the file is opened. So a
+ * FORMULA by Excel, LibreOffice, and other spreadsheet apps when the file is opened. So a
  * cell containing
  *
  *   =cmd|'/c calc'!A1

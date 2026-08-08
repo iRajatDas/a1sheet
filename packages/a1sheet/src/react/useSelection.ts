@@ -19,7 +19,7 @@ export interface UseSelectionResult {
   /**
    * The active cell — where typing goes and what the formula bar shows.
    *
-   * This is the ANCHOR, not the moving end, matching Excel and Google Sheets:
+   * This is the ANCHOR, not the moving end — same convention as Excel:
    * drag D5→F13 and D5 stays the active cell, rendered unfilled inside the tinted
    * range. Reading `selection.r2`/`c2` instead is a bug — that follows the mouse.
    */

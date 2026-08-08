@@ -1,6 +1,12 @@
 import { suggestFormulas, toA1 } from "a1sheet";
-import { type CellContentProps, darkTheme, Sheet, useSheet } from "a1sheet/react";
-import { type ReactNode, useMemo, useState } from "react";
+import {
+  type CellContentProps,
+  darkTheme,
+  Sheet,
+  sheetsTheme,
+  useSheet,
+} from "a1sheet/react";
+import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 import {
   formatActive,
   LabButton,
@@ -34,19 +40,19 @@ function AttainmentBadge({ row, col, display }: CellContentProps): ReactNode {
   }
   const pct = Number.parseFloat(display);
   const hit = !Number.isNaN(pct) && pct >= 100;
-  const color = hit ? "var(--a1s-accent)" : "#f87171";
+  const color = hit ? "#188038" : "#d93025";
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
-        padding: "2px 10px",
-        borderRadius: 999,
+        padding: "1px 8px",
+        borderRadius: 4,
         fontSize: 12,
         fontWeight: 600,
-        background: hit ? "rgba(45,212,191,0.15)" : "rgba(248,113,113,0.12)",
+        background: hit ? "rgba(24,128,56,0.12)" : "rgba(217,48,37,0.1)",
         color,
-        border: `1px solid ${color}44`,
+        border: `1px solid ${color}33`,
       }}
     >
       {display}
@@ -154,23 +160,6 @@ function InspectorRow({
   );
 }
 
-function FeatureCallout({ children }: { children: ReactNode }) {
-  return (
-    <p
-      style={{
-        margin: 0,
-        padding: "8px 12px",
-        font: "12px/1.45 system-ui",
-        color: "var(--a1s-header-text)",
-        borderBottom: "1px solid var(--a1s-border)",
-        background: "var(--a1s-toolbar-bg)",
-      }}
-    >
-      {children}
-    </p>
-  );
-}
-
 function ModeSwitch({
   mode,
   onModeChange,
@@ -178,17 +167,23 @@ function ModeSwitch({
   mode: Mode;
   onModeChange: (mode: Mode) => void;
 }) {
+  const light = mode === "full" || mode === "scale";
   return (
     <nav
       style={{
         display: "flex",
         gap: 8,
         alignItems: "center",
-        font: "13px system-ui",
+        font: light
+          ? '13px/1.4 Arial, "Helvetica Neue", Helvetica, sans-serif'
+          : "13px system-ui",
         flexWrap: "wrap",
+        color: light ? "#202124" : undefined,
       }}
     >
-      <span style={{ fontWeight: 600 }}>a1sheet playground</span>
+      <span style={{ fontWeight: 600 }}>
+        {mode === "full" ? "Untitled spreadsheet" : "a1sheet playground"}
+      </span>
       {(
         [
           ["full", "Full shell"],
@@ -200,7 +195,7 @@ function ModeSwitch({
           key={id}
           type="button"
           onClick={() => onModeChange(id)}
-          style={tabStyle(mode === id)}
+          style={tabStyle(mode === id, light)}
         >
           {label}
         </button>
@@ -209,7 +204,20 @@ function ModeSwitch({
   );
 }
 
-function tabStyle(active: boolean): React.CSSProperties {
+function tabStyle(active: boolean, light: boolean): CSSProperties {
+  if (light) {
+    return {
+      padding: "6px 14px",
+      borderRadius: 18,
+      border: "1px solid",
+      borderColor: active ? "#1a73e8" : "#dadce0",
+      background: active ? "rgba(26, 115, 232, 0.08)" : "#fff",
+      color: active ? "#1967d2" : "#3c4043",
+      cursor: "pointer",
+      font: "inherit",
+      fontWeight: active ? 600 : 500,
+    };
+  }
   return {
     padding: "6px 12px",
     borderRadius: 6,
@@ -222,29 +230,97 @@ function tabStyle(active: boolean): React.CSSProperties {
   };
 }
 
+function DocTitleBar({
+  showInspector,
+  onToggleInspector,
+}: {
+  showInspector: boolean;
+  onToggleInspector: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "8px 12px 6px",
+        borderBottom: "1px solid #dadce0",
+        background: "#fff",
+        font: '14px/1.3 Arial, "Helvetica Neue", Helvetica, sans-serif',
+        color: "#202124",
+      }}
+    >
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 4,
+          background: "#0f9d58",
+          color: "#fff",
+          display: "grid",
+          placeItems: "center",
+          fontWeight: 700,
+          fontSize: 15,
+          flexShrink: 0,
+        }}
+        aria-hidden
+      >
+        S
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500, fontSize: 18, letterSpacing: "-0.01em" }}>
+          Sales report
+        </div>
+        <div style={{ fontSize: 12, color: "#5f6368" }}>
+          Toolbar · formula bar · grid · tabs — `sheetsTheme`
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onToggleInspector}
+        style={{
+          padding: "6px 12px",
+          borderRadius: 4,
+          border: "1px solid #dadce0",
+          background: showInspector ? "rgba(26, 115, 232, 0.08)" : "#fff",
+          color: showInspector ? "#1967d2" : "#3c4043",
+          cursor: "pointer",
+          font: "inherit",
+          fontSize: 13,
+          fontWeight: 500,
+        }}
+      >
+        {showInspector ? "Hide inspector" : "Inspector"}
+      </button>
+    </div>
+  );
+}
 
 function FullShell() {
+  const [showInspector, setShowInspector] = useState(false);
+
   return (
     <Sheet.Root
       defaultWorkbook={salesReport()}
-      theme={darkTheme}
+      theme={sheetsTheme}
       height="100%"
       style={{
-        border: "1px solid var(--a1s-border)",
-        borderRadius: 12,
+        border: "1px solid #dadce0",
+        borderRadius: 8,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         flex: 1,
         minHeight: 0,
+        background: "#fff",
+        boxShadow:
+          "0 1px 2px rgba(60,64,67,0.15), 0 1px 3px 1px rgba(60,64,67,0.08)",
       }}
     >
-      <FeatureCallout>
-        Composed toolbar, paste special (context menu), column filters, freeze,
-        and a <code>useSheet()</code> sidebar. Open{" "}
-        <strong>Feature lab</strong> for colour filters, find/replace, tabs, and
-        checkboxes.
-      </FeatureCallout>
+      <DocTitleBar
+        showInspector={showInspector}
+        onToggleInspector={() => setShowInspector((v) => !v)}
+      />
 
       <Sheet.Toolbar style={{ flexWrap: "wrap" }}>
         <Sheet.Toolbar.Group>
@@ -310,7 +386,7 @@ function FullShell() {
           <Sheet.Tabs />
           <Sheet.StatusBar />
         </div>
-        <LiveInspector />
+        {showInspector ? <LiveInspector /> : null}
       </div>
 
       <Sheet.ContextMenu>
@@ -753,19 +829,19 @@ export function App() {
     window.history.replaceState(null, "", url);
   };
 
-  const dark = mode === "full" || mode === "lab";
+  const dark = mode === "lab";
 
   return (
     <div
       style={{
         height: "100vh",
         boxSizing: "border-box",
-        padding: 16,
+        padding: mode === "full" ? 12 : 16,
         display: "flex",
         flexDirection: "column",
-        gap: 12,
-        background: dark ? "#0b1220" : "#f8fafc",
-        color: dark ? "#e2e8f0" : "#0f172a",
+        gap: mode === "full" ? 8 : 12,
+        background: dark ? "#0b1220" : "#f8f9fa",
+        color: dark ? "#e2e8f0" : "#202124",
       }}
     >
       <ModeSwitch mode={mode} onModeChange={selectMode} />

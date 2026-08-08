@@ -80,7 +80,7 @@ export const MAX_AUTOFIT_COL_WIDTH = 600;
  */
 export const AUTOFIT_SAMPLE_LIMIT = 2_000;
 
-/** Rows the "add more rows" control offers by default, matching Google Sheets. */
+/** Rows the "add more rows" control offers by default. */
 export const ADD_ROWS_DEFAULT = 1_000;
 
 /**

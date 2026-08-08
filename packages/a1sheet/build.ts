@@ -68,8 +68,7 @@ async function bundle(entrypoint: string): Promise<number> {
     .reduce((n, o) => n + o.size, 0);
 }
 
-const bytes =
-  (await bundle("src/index.ts")) + (await bundle("src/react/index.ts"));
+const bytes = (await bundle("src/index.ts")) + (await bundle("src/react/index.ts"));
 
 // `bun x` rather than `bunx` — the latter is not always on PATH even when bun is.
 const tsc = Bun.spawnSync({

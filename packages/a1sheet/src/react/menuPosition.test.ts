@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  clampMenuPosition,
-  collisionBoundsFromElement,
-} from "./menuPosition.js";
+import { clampMenuPosition, collisionBoundsFromElement } from "./menuPosition.js";
 
 const windowBounds = {
   left: 0,

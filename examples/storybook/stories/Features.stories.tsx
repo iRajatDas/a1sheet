@@ -337,3 +337,28 @@ export const ContextMenuAtBottomOfScrollport: Story = {
     },
   },
 };
+
+/**
+ * Scroll mid-sheet, then drag an earlier column/row resize handle — the
+ * viewport should keep its content, not jump to the selection.
+ */
+export const ResizeWhileScrolled: Story = {
+  name: "Resize while scrolled",
+  render: () => (
+    <Sheet.Root defaultWorkbook={budget()} height={360}>
+      <p style={{ margin: "8px 12px", fontSize: 13, color: "#64748b" }}>
+        Select a cell, scroll away from A1, then drag an earlier column or row
+        resize handle. Scroll should stay put (or compensate), not jump.
+      </p>
+      <Sheet.Grid style={{ flex: 1, minHeight: 0 }} />
+    </Sheet.Root>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Ensure-visible is for keyboard navigation only. Resizing a track before the viewport compensates scrollLeft/scrollTop so content does not slide under the cursor.",
+      },
+    },
+  },
+};

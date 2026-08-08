@@ -36,3 +36,34 @@ export function revealOffset({
   if (end > offset + viewport) return end - viewport;
   return offset;
 }
+
+export interface TrackResizeScrollInput {
+  /** Current scroll offset along this axis. */
+  offset: number;
+  /** Content start of the resized track. */
+  trackStart: number;
+  /** Track size before the edit. */
+  prevSize: number;
+  /** Track size after the edit. */
+  nextSize: number;
+}
+
+/**
+ * Keep the same content under the viewport when a track fully before the
+ * scroll origin changes size (Excel / Sheets behaviour). Tracks that intersect
+ * or sit after the viewport leave the offset alone — only the max scroll extent
+ * may shrink, which the browser clamps.
+ */
+export function compensateScrollForTrackResize({
+  offset,
+  trackStart,
+  prevSize,
+  nextSize,
+}: TrackResizeScrollInput): number {
+  const delta = nextSize - prevSize;
+  if (delta === 0) return offset;
+  if (trackStart + prevSize <= offset) {
+    return Math.max(0, offset + delta);
+  }
+  return offset;
+}

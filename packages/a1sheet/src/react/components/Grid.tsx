@@ -44,13 +44,15 @@ import {
   HEADER_HEIGHT,
   MAX_AUTOFIT_COL_WIDTH,
   MIN_COL_WIDTH,
+  MIN_ROW_HEIGHT,
   ROW_HEADER_WIDTH,
+  ROW_HEIGHT,
   SCROLLBAR_SIZE,
 } from "../constants.js";
 import { GridRenderProvider, useSheetContext } from "../context.js";
 import { mergeClass } from "../primitives/mergeClass.js";
 import type { CellContentProps, PrimitiveProps } from "../primitives/types.js";
-import { revealOffset } from "../reveal.js";
+import { compensateScrollForTrackResize, revealOffset } from "../reveal.js";
 import { useStylePreview } from "../stylePreview.js";
 import { useAutoScroll } from "../useAutoScroll.js";
 import { useTextMeasurer } from "../useTextMeasurer.js";
@@ -252,38 +254,106 @@ export function Grid({
    * Only the minimum scroll needed, and only when the cell is actually outside —
    * a cell already in view must never be re-centred, or every keystroke would
    * shove the sheet around.
+   *
+   * Deps are selection identity only. Layout helpers (`colWidth`, `rowTop`, …)
+   * change identity on every resize; putting them here re-ran ensure-visible and
+   * jumped scroll under the resize handle. Resize/autofit use scroll compensation
+   * instead; navigation still reveals because focusRow/focusCol change.
    */
   const focusRow = api.selection.r2;
   const focusCol = api.selection.c2;
-  const rowTop = rowWindow.rowTop;
+  const layoutMetricsRef = useRef({
+    rowTop: rowWindow.rowTop,
+    rowHeight: rowWindow.rowHeight,
+    colOffset,
+    colWidth,
+  });
+  layoutMetricsRef.current = {
+    rowTop: rowWindow.rowTop,
+    rowHeight: rowWindow.rowHeight,
+    colOffset,
+    colWidth,
+  };
+
+  const applyColWidth = useCallback(
+    (col: number, px: number) => {
+      const el = containerRef.current;
+      const { colWidth: widthOf, colOffset: offsetOf } = layoutMetricsRef.current;
+      const prev = widthOf(col);
+      const start = offsetOf(col);
+      const next = Math.max(MIN_COL_WIDTH, Math.round(px));
+      setColWidth(col, next);
+      if (!el) return;
+      const compensated = compensateScrollForTrackResize({
+        offset: el.scrollLeft,
+        trackStart: start,
+        prevSize: prev,
+        nextSize: next,
+      });
+      if (compensated !== el.scrollLeft) el.scrollLeft = compensated;
+    },
+    [setColWidth],
+  );
+
+  const applyRowHeight = useCallback(
+    (row: number, px: number) => {
+      const el = containerRef.current;
+      const { rowHeight: heightOf, rowTop: topOf } = layoutMetricsRef.current;
+      const prev = heightOf(row);
+      const start = topOf(row);
+      const next = Math.max(MIN_ROW_HEIGHT, Math.round(px));
+      setRowHeight(row, next);
+      if (!el || start === null) return;
+      const compensated = compensateScrollForTrackResize({
+        offset: el.scrollTop,
+        trackStart: start,
+        prevSize: prev,
+        nextSize: next,
+      });
+      if (compensated !== el.scrollTop) el.scrollTop = compensated;
+    },
+    [setRowHeight],
+  );
+
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || dragRef.current) return;
+    if (!el || dragRef.current || resizeRef.current || resizeRowRef.current) {
+      return;
+    }
 
     // An unmeasured container — display:none, or not laid out yet — reports a
     // zero client size, and every cell in it reads as below the fold. Believing
     // that scrolls a sheet nobody is looking at to the bottom of the selection.
     if (el.clientHeight === 0 || el.clientWidth === 0) return;
 
-    const top = rowTop(focusRow);
+    const {
+      rowTop: topOf,
+      rowHeight: heightOf,
+      colOffset: offsetOf,
+      colWidth: widthOf,
+    } = layoutMetricsRef.current;
+
+    const top = topOf(focusRow);
     if (top !== null) {
-      el.scrollTop = revealOffset({
+      const nextTop = revealOffset({
         offset: el.scrollTop,
         viewport: el.clientHeight,
         start: top,
-        size: rowWindow.rowHeight(focusRow),
+        size: heightOf(focusRow),
         lead: HEADER_HEIGHT,
       });
+      if (nextTop !== el.scrollTop) el.scrollTop = nextTop;
     }
 
-    el.scrollLeft = revealOffset({
+    const nextLeft = revealOffset({
       offset: el.scrollLeft,
       viewport: el.clientWidth,
-      start: colOffset(focusCol),
-      size: colWidth(focusCol),
+      start: offsetOf(focusCol),
+      size: widthOf(focusCol),
       lead: ROW_HEADER_WIDTH,
     });
-  }, [focusRow, focusCol, rowTop, rowWindow.rowHeight, colOffset, colWidth]);
+    if (nextLeft !== el.scrollLeft) el.scrollLeft = nextLeft;
+  }, [focusRow, focusCol]);
 
   /**
    * A fill drag starts on the handle inside a cell, whose mousedown stops
@@ -297,9 +367,9 @@ export function Grid({
   useEffect(() => {
     function onMove(e: MouseEvent) {
       const col = resizeRef.current;
-      if (col) setColWidth(col.col, col.startW + (e.clientX - col.startX));
+      if (col) applyColWidth(col.col, col.startW + (e.clientX - col.startX));
       const row = resizeRowRef.current;
-      if (row) setRowHeight(row.row, row.startH + (e.clientY - row.startY));
+      if (row) applyRowHeight(row.row, row.startH + (e.clientY - row.startY));
     }
     function onUp() {
       resizeRef.current = null;
@@ -311,7 +381,7 @@ export function Grid({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [setColWidth, setRowHeight]);
+  }, [applyColWidth, applyRowHeight]);
 
   /**
    * Auto-fit a column to the widest thing in it, as double-clicking the divider
@@ -346,7 +416,7 @@ export function Grid({
       // Zero means the environment gave us no canvas to measure with. Leaving
       // the column alone beats collapsing it to the minimum.
       if (widest === 0) return;
-      api.setColWidth(
+      applyColWidth(
         col,
         Math.min(
           MAX_AUTOFIT_COL_WIDTH,
@@ -354,7 +424,7 @@ export function Grid({
         ),
       );
     },
-    [prefix, measureText, sheet.cells, sheet.colLabels, api],
+    [prefix, measureText, sheet.cells, sheet.colLabels, api, applyColWidth],
   );
 
   /**
@@ -364,7 +434,27 @@ export function Grid({
    * unwrapped row hugs its single line at the default height, and a wrapped one
    * springs to however many lines it takes.
    */
-  const autoFitRow = api.resetRowHeight;
+  const autoFitRow = useCallback(
+    (row: number) => {
+      const el = containerRef.current;
+      const { rowHeight: heightOf, rowTop: topOf } = layoutMetricsRef.current;
+      const prev = heightOf(row);
+      const start = topOf(row);
+      api.resetRowHeight(row);
+      // Best estimate after clearing an override: the theme default. Wrapped
+      // rows may settle differently after layout; ensure-visible stays off
+      // size-metric deps so we still do not jump to the selection.
+      if (!el || start === null) return;
+      const compensated = compensateScrollForTrackResize({
+        offset: el.scrollTop,
+        trackStart: start,
+        prevSize: prev,
+        nextSize: ROW_HEIGHT,
+      });
+      if (compensated !== el.scrollTop) el.scrollTop = compensated;
+    },
+    [api],
+  );
 
   /**
    * Sticky placement and layer for one item. See the layer note in styles.ts;

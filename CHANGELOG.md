@@ -5,6 +5,16 @@ honestly: breaking means major.
 
 ## Unreleased
 
+## 0.3.4
+
+### Fixed
+
+- **Resizing a column or row no longer jumps the scroll position** toward the
+  active cell. Ensure-visible now runs on selection changes only (not on every
+  width/height helper identity change). Drag and autofit also **compensate
+  scroll** when the resized track sits fully before the viewport, matching
+  spreadsheet apps.
+
 ## 0.3.3
 
 ### Fixed

@@ -6,7 +6,7 @@
  * around under a cell that was perfectly visible.
  */
 import { describe, expect, test } from "bun:test";
-import { revealOffset } from "./reveal.js";
+import { compensateScrollForTrackResize, revealOffset } from "./reveal.js";
 
 /** A 500px viewport with a 26px header floating over the top of it. */
 const view = { viewport: 500, size: 26, lead: 26 };
@@ -46,5 +46,51 @@ describe("a cell out of view is brought back by the minimum", () => {
     // cell occupies rather than past it.
     expect(tall).toBeGreaterThan(40);
     expect(tall).toBeLessThan(440);
+  });
+});
+
+describe("compensateScrollForTrackResize", () => {
+  test("shifts scroll when the track is fully before the viewport", () => {
+    expect(
+      compensateScrollForTrackResize({
+        offset: 500,
+        trackStart: 100,
+        prevSize: 80,
+        nextSize: 180,
+      }),
+    ).toBe(600);
+  });
+
+  test("leaves scroll alone when the track intersects the viewport", () => {
+    expect(
+      compensateScrollForTrackResize({
+        offset: 500,
+        trackStart: 480,
+        prevSize: 80,
+        nextSize: 180,
+      }),
+    ).toBe(500);
+  });
+
+  test("leaves scroll alone when the track is after the viewport origin", () => {
+    expect(
+      compensateScrollForTrackResize({
+        offset: 500,
+        trackStart: 600,
+        prevSize: 80,
+        nextSize: 40,
+      }),
+    ).toBe(500);
+  });
+
+  test("clamps at zero when shrinking a leading track", () => {
+    expect(
+      compensateScrollForTrackResize({
+        offset: 40,
+        trackStart: 0,
+        prevSize: 40,
+        nextSize: 0,
+      }),
+    ).toBe(0);
   });
 });

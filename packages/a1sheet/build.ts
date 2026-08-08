@@ -5,11 +5,11 @@
  *   src/index.ts       -> dist/index.js        (model + formula + io + format)
  *   src/react/index.ts -> dist/react/index.js  (hooks + <Spreadsheet />)
  *
- * Splitting is OFF on purpose. With `splitting: true`, some Bun versions emit a
- * root `dist/index.js` that is only `export { … }` with no imports and omit the
- * shared chunk from the publishable tree — which made a1sheet@0.3.0's "." entry
- * unloadable. Self-contained entry bundles are slightly larger when both are
- * imported, but the root package must work alone.
+ * Each entry is built in its own `Bun.build` call with `splitting: false`.
+ * Building both together (even without splitting) has produced a root
+ * `dist/index.js` that is only `export { … }` with no implementations on some
+ * Bun versions — that is what broke a1sheet@0.3.0. Separate builds keep each
+ * barrel self-contained.
  *
  * It also copies the repository README and LICENSE into the package, because npm
  * reads the ones beside package.json. Kept generated rather than checked in: two
@@ -19,6 +19,12 @@ import { copyFile, rm } from "node:fs/promises";
 
 const OUT = "dist";
 const COPIED = ["README.md", "LICENSE"];
+const EXTERNAL = [
+  "react",
+  "react-dom",
+  "react/jsx-runtime",
+  "react/jsx-dev-runtime",
+] as const;
 
 /**
  * Bun's transpiler picks react/jsx-dev-runtime unless NODE_ENV is production,
@@ -41,22 +47,29 @@ if (process.env.NODE_ENV !== "production") {
 
 await rm(OUT, { recursive: true, force: true });
 
-const result = await Bun.build({
-  entrypoints: ["src/index.ts", "src/react/index.ts"],
-  outdir: OUT,
-  root: "src",
-  target: "browser",
-  format: "esm",
-  splitting: false,
-  sourcemap: "linked",
-  minify: false,
-  external: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
-});
-
-if (!result.success) {
-  for (const log of result.logs) console.error(log);
-  process.exit(1);
+async function bundle(entrypoint: string): Promise<number> {
+  const result = await Bun.build({
+    entrypoints: [entrypoint],
+    outdir: OUT,
+    root: "src",
+    target: "browser",
+    format: "esm",
+    splitting: false,
+    sourcemap: "linked",
+    minify: false,
+    external: [...EXTERNAL],
+  });
+  if (!result.success) {
+    for (const log of result.logs) console.error(log);
+    process.exit(1);
+  }
+  return result.outputs
+    .filter((o) => o.path.endsWith(".js"))
+    .reduce((n, o) => n + o.size, 0);
 }
+
+const bytes =
+  (await bundle("src/index.ts")) + (await bundle("src/react/index.ts"));
 
 // `bun x` rather than `bunx` — the latter is not always on PATH even when bun is.
 const tsc = Bun.spawnSync({
@@ -110,10 +123,4 @@ for (const name of ["A1SheetError", "readWorkbookFile", "makeSheet"] as const) {
   }
 }
 
-const bytes = result.outputs
-  .filter((o) => o.path.endsWith(".js"))
-  .reduce((n, o) => n + o.size, 0);
-
-console.log(
-  `built ${result.outputs.length} files, ${(bytes / 1024).toFixed(1)} kB of JS`,
-);
+console.log(`built entry bundles, ${(bytes / 1024).toFixed(1)} kB of JS`);

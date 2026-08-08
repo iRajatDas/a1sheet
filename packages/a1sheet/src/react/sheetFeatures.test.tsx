@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { act, render } from "@testing-library/react";
 import { createRef } from "react";
 import { createWorkbook } from "../model/workbook.js";
-import { type SheetRootHandle } from "./Root.js";
+import type { SheetRootHandle } from "./Root.js";
 import { Spreadsheet } from "./Spreadsheet.js";
 
 describe("find and replace", () => {
@@ -66,9 +66,7 @@ describe("checkboxes, hyperlinks, rotation", () => {
       ref.current?.api.toggleCheckbox(0, 0);
     });
     expect(ref.current?.api.getRaw(0, 0)).toBe("TRUE");
-    expect(
-      container.querySelector('input[type="checkbox"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull();
   });
 
   test("setHyperlink and setTextRotation", () => {

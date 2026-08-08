@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
-  GridError,
   filterIdExists,
+  type GridError,
   isGridError,
   mergeSingleton,
   unboundedRange,
@@ -45,10 +45,7 @@ describe("GridError", () => {
 
   test("unbounded range throws GRID_RANGE_UNBOUNDED", () => {
     try {
-      assertBounded(
-        { r1: 0, c1: 0, r2: Number.POSITIVE_INFINITY, c2: 0 },
-        "A1:∞",
-      );
+      assertBounded({ r1: 0, c1: 0, r2: Number.POSITIVE_INFINITY, c2: 0 }, "A1:∞");
       throw new Error("should have thrown");
     } catch (e) {
       expect((e as GridError).code).toBe("GRID_RANGE_UNBOUNDED");

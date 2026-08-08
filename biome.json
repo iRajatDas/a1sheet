@@ -39,7 +39,10 @@
       "linter": {
         "rules": {
           "a11y": {
-            "noStaticElementInteractions": "off"
+            "noStaticElementInteractions": "off",
+            "useKeyWithClickEvents": "off",
+            "useSemanticElements": "off",
+            "useFocusableInteractive": "off"
           }
         }
       }

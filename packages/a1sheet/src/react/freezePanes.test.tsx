@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { act, render } from "@testing-library/react";
 import { createRef } from "react";
 import { createWorkbook } from "../model/workbook.js";
-import { type SheetRootHandle } from "./Root.js";
+import type { SheetRootHandle } from "./Root.js";
 import { Spreadsheet } from "./Spreadsheet.js";
 
 describe("freeze panes", () => {

@@ -200,7 +200,15 @@ export function formulaMeta(name: string): FormulaMeta | undefined {
  * Prefix suggestions for autocomplete. Only names that both appear in the
  * catalog and are registered for evaluation (or are lazy special forms).
  */
-const LAZY_FORMS = new Set(["IFS", "SWITCH", "IF", "IFERROR", "IFNA", "LET", "LAMBDA"]);
+const LAZY_FORMS = new Set([
+  "IFS",
+  "SWITCH",
+  "IF",
+  "IFERROR",
+  "IFNA",
+  "LET",
+  "LAMBDA",
+]);
 
 export function suggestFormulas(prefix: string): readonly FormulaMeta[] {
   const needle = prefix.trim().toUpperCase();

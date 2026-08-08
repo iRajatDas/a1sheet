@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { act, render } from "@testing-library/react";
 import {
   checkFilterMerge,
   checkPasteMerge,
   checkSortMerge,
 } from "../model/mergeGuards.js";
 import { makeSheet } from "../model/sheet.js";
-import { act, render } from "@testing-library/react";
 import type { CellKey, Sheet, Workbook } from "../model/types.js";
 import { useSpreadsheet } from "../react/useSpreadsheet.js";
 

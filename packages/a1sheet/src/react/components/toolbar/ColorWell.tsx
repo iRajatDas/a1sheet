@@ -27,6 +27,7 @@ export function ColorWell({ field, label, fallback }: ColorWellProps): ReactNode
   const anchor = `${api.active.row}_${api.active.col}`;
   const open = useRef(false);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset when active cell changes
   useEffect(() => {
     clearPreview();
     open.current = false;

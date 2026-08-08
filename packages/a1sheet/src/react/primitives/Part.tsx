@@ -5,13 +5,11 @@
  * Shared by toolbar buttons, menu items, and other leaf primitives.
  */
 import {
-  type CSSProperties,
   createElement,
   type ElementType,
   forwardRef,
   type HTMLAttributes,
   type ReactNode,
-  type Ref,
 } from "react";
 import { Slot } from "../Slot.js";
 import type { PrimitiveProps } from "./types.js";

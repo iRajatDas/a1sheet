@@ -53,6 +53,7 @@ export function Cell({
     isEditing ? editing.caret : undefined,
     api.setCaret,
   );
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const merge = getMergeAt(sheet, row, col);
   // A cell covered by a merge is not rendered at all; the merge's top-left cell
@@ -93,8 +94,6 @@ export function Cell({
     selected && !editing && row === bounds.r2 && col === bounds.c2;
 
   const renderCellContent = gridRenderCell ?? components.CellContent;
-
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const classNames = [
     `${prefix}cell`,

@@ -3,7 +3,14 @@
  * used range. Data mutation (like `sortByColumn`); undo via history.
  */
 import { cellKey } from "./address.js";
-import type { CellImage, CellKey, CellValue, RawCell, Sheet, StyleObject } from "./types.js";
+import type {
+  CellImage,
+  CellKey,
+  CellValue,
+  RawCell,
+  Sheet,
+  StyleObject,
+} from "./types.js";
 
 export interface SortByColorOptions {
   col: number;

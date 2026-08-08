@@ -250,6 +250,8 @@ export function useSpreadsheet(
     onStatus: setStatus,
   });
 
+  // cellEpoch intentionally invalidates when sheet maps are patched.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cellEpoch is the invalidate signal
   const evaluator = useMemo(() => {
     const sheets = wb.workbook.sheets;
     const sheetCells = sheets.map((s) => ({ name: s.name, cells: s.cells }));
@@ -270,6 +272,7 @@ export function useSpreadsheet(
     });
   }, [
     cellEpoch,
+    wb.workbook.sheets,
     wb.sheet.cells,
     wb.workbook.namedRanges,
     wb.workbook.namedFormulas,
@@ -402,7 +405,7 @@ export function useSpreadsheet(
         return { cells, cachedValues, images };
       });
     },
-    [patchCells, wb.sheet, evaluator, setStatus],
+    [patchCells, wb.sheet, evaluator],
   );
 
   const commitEdit = useCallback(

@@ -411,7 +411,7 @@ function FullShell() {
 
 function AtScaleShell() {
   const rows = 25_000;
-  const workbook = useMemo(() => large(rows), [rows]);
+  const workbook = useMemo(() => large(rows), []);
   const sheet = workbook.sheets[0];
 
   return (
@@ -477,20 +477,14 @@ function LabPanel({ sheetKind }: { sheetKind: LabSheet }): ReactNode {
                 color={green}
                 label="Green fills"
                 selected={api.sheet.filters[0]?.background?.has(green) === true}
-                onClick={() =>
-                  api.setFilter(0, { background: new Set([green]) })
-                }
+                onClick={() => api.setFilter(0, { background: new Set([green]) })}
               />
               <LabSwatch
                 tone={tone}
                 color={redText}
                 label="Red text"
-                selected={
-                  api.sheet.filters[0]?.foreground?.has(redText) === true
-                }
-                onClick={() =>
-                  api.setFilter(0, { foreground: new Set([redText]) })
-                }
+                selected={api.sheet.filters[0]?.foreground?.has(redText) === true}
+                onClick={() => api.setFilter(0, { foreground: new Set([redText]) })}
               />
               <LabButton
                 tone={tone}

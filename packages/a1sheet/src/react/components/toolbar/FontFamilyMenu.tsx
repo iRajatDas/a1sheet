@@ -10,7 +10,6 @@ import {
   noteRecentFont,
   recentFonts,
   SHEET_FONTS,
-  THEME_FONT,
 } from "./fonts.js";
 
 function quoteFamily(name: string): string {

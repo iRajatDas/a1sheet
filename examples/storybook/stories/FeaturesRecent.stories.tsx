@@ -136,17 +136,13 @@ function ColourFilterPanel(): ReactNode {
               color={green}
               label="Green fills"
               selected={api.sheet.filters[0]?.background?.has(green) === true}
-              onClick={() =>
-                api.setFilter(0, { background: new Set([green]) })
-              }
+              onClick={() => api.setFilter(0, { background: new Set([green]) })}
             />
             <LabSwatch
               color={redText}
               label="Red text"
               selected={api.sheet.filters[0]?.foreground?.has(redText) === true}
-              onClick={() =>
-                api.setFilter(0, { foreground: new Set([redText]) })
-              }
+              onClick={() => api.setFilter(0, { foreground: new Set([redText]) })}
             />
             <LabButton kind="ghost" onClick={() => api.setFilter(0, null)}>
               Clear
@@ -157,9 +153,7 @@ function ColourFilterPanel(): ReactNode {
           <LabRow>
             <LabButton
               kind="primary"
-              onClick={() =>
-                api.createFilterView({ id: viewId, name: "Greens" })
-              }
+              onClick={() => api.createFilterView({ id: viewId, name: "Greens" })}
             >
               Save as “Greens”
             </LabButton>
@@ -241,7 +235,9 @@ function FindReplacePanel(): ReactNode {
 
   const replaceAll = () => {
     const n = api.replaceAll({ find: needle, replace: replacement });
-    setLast(n === 0 ? "Nothing to replace" : `Updated ${n} cell${n === 1 ? "" : "s"}`);
+    setLast(
+      n === 0 ? "Nothing to replace" : `Updated ${n} cell${n === 1 ? "" : "s"}`,
+    );
   };
 
   return (
@@ -317,16 +313,10 @@ function SheetTabsPanel(): ReactNode {
       <LabToolbar>
         <LabSection label="Tabs">
           <LabRow>
-            <LabButton
-              kind="primary"
-              onClick={() => api.duplicateSheetAt(i)}
-            >
+            <LabButton kind="primary" onClick={() => api.duplicateSheetAt(i)}>
               Duplicate “{api.sheet.name}”
             </LabButton>
-            <LabButton
-              disabled={i === 0}
-              onClick={() => api.moveSheetAt(i, i - 1)}
-            >
+            <LabButton disabled={i === 0} onClick={() => api.moveSheetAt(i, i - 1)}>
               Move left
             </LabButton>
             <LabButton

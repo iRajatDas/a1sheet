@@ -84,10 +84,7 @@ export function filterIdExists(id: string): GridError {
 }
 
 export function filterRangeUnbounded(): GridError {
-  return new GridError(
-    "FILTER_RANGE_UNBOUNDED",
-    "filter ranges should be bounded",
-  );
+  return new GridError("FILTER_RANGE_UNBOUNDED", "filter ranges should be bounded");
 }
 
 export function formulaParseStart(): GridError {

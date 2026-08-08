@@ -82,10 +82,7 @@ function replaceIn(
 }
 
 /** All matching cells in row-major order. */
-export function findAll(
-  sheet: Sheet,
-  options: FindReplaceOptions,
-): FindHit[] {
+export function findAll(sheet: Sheet, options: FindReplaceOptions): FindHit[] {
   const bounds = normalizeRange(options.range ?? usedBounds(sheet.cells));
   const hits: FindHit[] = [];
   for (let r = bounds.r1; r <= bounds.r2; r++) {

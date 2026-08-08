@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useRef } from "react";
+import { type ReactNode, useEffect } from "react";
 import { mergeClass } from "../../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../../primitives/types.js";
 import { Slot } from "../../Slot.js";

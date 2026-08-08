@@ -137,7 +137,6 @@ export function Scrollbar({
   const shift = `translate${vertical ? "Y" : "X"}(${position}px)`;
 
   return (
-    // biome-ignore lint/a11y/useFocusableInteractive: role=scrollbar is not focusable; the grid it controls takes the keyboard
     <div
       role="scrollbar"
       aria-orientation={orientation}

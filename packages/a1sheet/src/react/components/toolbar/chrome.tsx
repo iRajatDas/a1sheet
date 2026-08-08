@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useSheetContext } from "../../context.js";
 import { mergeClass } from "../../primitives/mergeClass.js";
 import type { PrimitiveProps } from "../../primitives/types.js";

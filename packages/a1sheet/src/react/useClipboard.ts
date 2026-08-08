@@ -21,9 +21,9 @@
 import { useCallback, useRef, useState } from "react";
 import type { Evaluator } from "../formula/evaluate.js";
 import { shiftFormulaRefs } from "../formula/refs.js";
-import { checkPasteMerge } from "../model/mergeGuards.js";
 import { cellKey, normalizeRange, toA1 } from "../model/address.js";
 import { rejectCellValue } from "../model/cellValidation.js";
+import { checkPasteMerge } from "../model/mergeGuards.js";
 import type { Range, Sheet, StyleObject } from "../model/types.js";
 import type { SheetPatcher, SheetUpdater } from "./useWorkbook.js";
 
@@ -198,8 +198,18 @@ function resolveValue(options: {
   ri: number;
   ci: number;
 }): string {
-  const { raw, mode, internal, dRow, dCol, evaluator, originRow, originCol, ri, ci } =
-    options;
+  const {
+    raw,
+    mode,
+    internal,
+    dRow,
+    dCol,
+    evaluator,
+    originRow,
+    originCol,
+    ri,
+    ci,
+  } = options;
 
   if (mode === "text") {
     return raw.startsWith("=") ? `'${raw}` : raw.startsWith("'") ? raw : raw;
@@ -262,9 +272,7 @@ export function useClipboard(): UseClipboardResult {
     if (!joined) return null;
 
     const styleJoined = joinBlocks(blocks, (b) =>
-      readStyles(b).map((row) =>
-        row.map((s) => (s ? JSON.stringify(s) : "")),
-      ),
+      readStyles(b).map((row) => row.map((s) => (s ? JSON.stringify(s) : ""))),
     );
     const styles: (StyleObject | undefined)[][] = styleJoined
       ? styleJoined.grid.map((row) =>
@@ -301,8 +309,7 @@ export function useClipboard(): UseClipboardResult {
       const mode: PasteMode = options?.mode ?? "all";
       const internal = !!(
         last.current &&
-        normalizeClipboardText(last.current.text) ===
-          normalizeClipboardText(text)
+        normalizeClipboardText(last.current.text) === normalizeClipboardText(text)
       );
       let grid = internal ? (last.current as CopiedGrid).grid : deserialize(text);
       let styles = internal
@@ -373,13 +380,7 @@ export function useClipboard(): UseClipboardResult {
             });
 
             if (options?.evaluator && mode !== "text") {
-              const rejection = rejectCellValue(
-                s,
-                r,
-                c,
-                value,
-                options.evaluator,
-              );
+              const rejection = rejectCellValue(s, r, c, value, options.evaluator);
               if (rejection) {
                 options.onReject?.(rejection.message);
                 return;

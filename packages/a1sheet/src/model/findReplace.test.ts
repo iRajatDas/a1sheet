@@ -1,10 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  findAll,
-  findNext,
-  replaceAll,
-  replacedStatus,
-} from "./findReplace.js";
+import { findAll, findNext, replaceAll, replacedStatus } from "./findReplace.js";
 import { makeSheet } from "./sheet.js";
 
 describe("findReplace", () => {
@@ -21,9 +16,7 @@ describe("findReplace", () => {
     sheet.cells["0_0"] = "cat";
     sheet.cells["1_0"] = "caterpillar";
     sheet.cells["2_0"] = "Cat";
-    expect(findAll(sheet, { find: "cat", matchEntireCell: true })).toHaveLength(
-      2,
-    );
+    expect(findAll(sheet, { find: "cat", matchEntireCell: true })).toHaveLength(2);
     expect(
       findAll(sheet, { find: "Cat", matchCase: true, matchEntireCell: true }),
     ).toHaveLength(1);
@@ -60,8 +53,6 @@ describe("findReplace", () => {
     const sheet = makeSheet("S");
     sheet.cells["0_0"] = "=SUM(1)";
     sheet.cells["1_0"] = "SUM";
-    expect(
-      findAll(sheet, { find: "SUM", searchFormulas: false }),
-    ).toHaveLength(1);
+    expect(findAll(sheet, { find: "SUM", searchFormulas: false })).toHaveLength(1);
   });
 });

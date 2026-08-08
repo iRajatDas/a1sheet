@@ -81,7 +81,7 @@ export function ContextMenuPaste(): ReactNode {
   );
 }
 
-function pasteSpecial(mode: PasteMode): ReactNode {
+function PasteSpecialItem({ mode }: { mode: PasteMode }): ReactNode {
   const ctx = useContextTarget();
   if (!ctx) return null;
   const { api, row, col, onClose } = ctx;
@@ -121,23 +121,23 @@ function pasteSpecial(mode: PasteMode): ReactNode {
 }
 
 export function ContextMenuPasteValues(): ReactNode {
-  return pasteSpecial("values");
+  return <PasteSpecialItem mode="values" />;
 }
 
 export function ContextMenuPasteFormats(): ReactNode {
-  return pasteSpecial("formats");
+  return <PasteSpecialItem mode="formats" />;
 }
 
 export function ContextMenuPasteFormulas(): ReactNode {
-  return pasteSpecial("formulas");
+  return <PasteSpecialItem mode="formulas" />;
 }
 
 export function ContextMenuPasteTranspose(): ReactNode {
-  return pasteSpecial("transpose");
+  return <PasteSpecialItem mode="transpose" />;
 }
 
 export function ContextMenuPasteText(): ReactNode {
-  return pasteSpecial("text");
+  return <PasteSpecialItem mode="text" />;
 }
 
 export function ContextMenuInsertRow(): ReactNode {

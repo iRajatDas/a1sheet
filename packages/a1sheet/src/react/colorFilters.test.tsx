@@ -5,8 +5,8 @@ import { describe, expect, test } from "bun:test";
 import { act, render } from "@testing-library/react";
 import { createRef } from "react";
 import { createWorkbook } from "../model/workbook.js";
+import type { SheetRootHandle } from "./Root.js";
 import { Spreadsheet } from "./Spreadsheet.js";
-import { type SheetRootHandle } from "./Root.js";
 
 describe("colour filters", () => {
   test("hides rows whose fill is not in the allowed set", () => {
@@ -21,9 +21,7 @@ describe("colour filters", () => {
       },
     });
     const ref = createRef<SheetRootHandle>();
-    const { container } = render(
-      <Spreadsheet defaultWorkbook={wb} ref={ref} />,
-    );
+    const { container } = render(<Spreadsheet defaultWorkbook={wb} ref={ref} />);
     const cellAt = (row: number) =>
       container.querySelector(`.a1s-cell[data-row="${row}"][data-col="0"]`);
 
@@ -50,9 +48,7 @@ describe("colour filters", () => {
       filters: { 0: { background: new Set(["#ff0000"]) } },
     });
     const ref = createRef<SheetRootHandle>();
-    const { container } = render(
-      <Spreadsheet defaultWorkbook={wb} ref={ref} />,
-    );
+    const { container } = render(<Spreadsheet defaultWorkbook={wb} ref={ref} />);
     const cellAt = (row: number) =>
       container.querySelector(`.a1s-cell[data-row="${row}"][data-col="0"]`);
 

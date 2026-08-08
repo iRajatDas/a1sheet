@@ -29,10 +29,7 @@ const MSG = {
 } as const satisfies Record<MergeGuardCode, string>;
 
 /** True when some — but not all — cells of a merge lie inside `range`. */
-export function rangePartiallyIntersectsMerge(
-  sheet: Sheet,
-  range: Range,
-): boolean {
+export function rangePartiallyIntersectsMerge(sheet: Sheet, range: Range): boolean {
   const dest = normalizeRange(range);
   if (sheet.merges.length === 0) return false;
 
@@ -60,10 +57,7 @@ export function rangeContainsPartialMerge(sheet: Sheet, range: Range): boolean {
   return rangePartiallyIntersectsMerge(sheet, range);
 }
 
-export function checkPasteMerge(
-  sheet: Sheet,
-  dest: Range,
-): MergeGuardResult {
+export function checkPasteMerge(sheet: Sheet, dest: Range): MergeGuardResult {
   if (rangePartiallyIntersectsMerge(sheet, dest)) {
     return {
       ok: false,
@@ -90,10 +84,7 @@ export function checkSortMerge(sheet: Sheet, range: Range): MergeGuardResult {
     const colOverlap = merge.c2 >= b.c1 && merge.c1 <= b.c2;
     if (!rowOverlap || !colOverlap) continue;
     const fullyInside =
-      merge.r1 >= b.r1 &&
-      merge.r2 <= b.r2 &&
-      merge.c1 >= b.c1 &&
-      merge.c2 <= b.c2;
+      merge.r1 >= b.r1 && merge.r2 <= b.r2 && merge.c1 >= b.c1 && merge.c2 <= b.c2;
     if (!fullyInside) {
       return {
         ok: false,
@@ -105,10 +96,7 @@ export function checkSortMerge(sheet: Sheet, range: Range): MergeGuardResult {
   return { ok: true };
 }
 
-export function checkFilterMerge(
-  sheet: Sheet,
-  range: Range,
-): MergeGuardResult {
+export function checkFilterMerge(sheet: Sheet, range: Range): MergeGuardResult {
   if (rangeContainsPartialMerge(sheet, range)) {
     return {
       ok: false,

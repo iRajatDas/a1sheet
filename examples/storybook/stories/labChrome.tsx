@@ -13,10 +13,8 @@ import {
   useState,
 } from "react";
 
-const font =
-  '13px/1.45 "IBM Plex Sans", "Segoe UI", system-ui, sans-serif';
-const mono =
-  '12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const font = '13px/1.45 "IBM Plex Sans", "Segoe UI", system-ui, sans-serif';
+const mono = '12px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 
 export const labTokens = {
   ink: "#0f172a",
@@ -157,9 +155,7 @@ export function LabSection({
         >
           {label}
         </h3>
-        {hint ? (
-          <span style={{ fontSize: 12, color: c.muted }}>{hint}</span>
-        ) : null}
+        {hint ? <span style={{ fontSize: 12, color: c.muted }}>{hint}</span> : null}
       </div>
       {children}
     </section>
@@ -260,10 +256,7 @@ export function LabField({
   const c = t(tone);
   const id = useId();
   return (
-    <label
-      htmlFor={id}
-      style={{ display: "grid", gap: 4, minWidth: width }}
-    >
+    <label htmlFor={id} style={{ display: "grid", gap: 4, minWidth: width }}>
       <span
         style={{
           font: "600 10px/1 system-ui, sans-serif",
@@ -388,7 +381,14 @@ export function LabStatusBar({ tone = "light" }: { tone?: LabTone }): ReactNode 
       >
         Status
       </span>
-      <span style={{ fontFamily: mono.split(",")[0], overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span
+        style={{
+          fontFamily: mono.split(",")[0],
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {api.status || "Ready — try an action above"}
       </span>
     </div>
@@ -467,7 +467,9 @@ export function LabMeta({
       {items.map((item) => (
         <div key={item.label} style={{ display: "flex", gap: 6 }}>
           <dt style={{ margin: 0 }}>{item.label}</dt>
-          <dd style={{ margin: 0, color: c.ink, fontFamily: mono }}>{item.value}</dd>
+          <dd style={{ margin: 0, color: c.ink, fontFamily: mono }}>
+            {item.value}
+          </dd>
         </div>
       ))}
     </dl>
@@ -528,7 +530,10 @@ export function LabSegmented<T extends string>({
   );
 }
 
-export function scrollHitIntoView(api: ReturnType<typeof useSheet>, row: number): void {
+export function scrollHitIntoView(
+  api: ReturnType<typeof useSheet>,
+  row: number,
+): void {
   const top = api.rowWindow.rowTop(row);
   const scroller = document.querySelector(".a1s-scroller");
   if (top !== null && scroller) scroller.scrollTop = Math.max(0, top - 40);

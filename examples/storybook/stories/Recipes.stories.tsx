@@ -304,12 +304,7 @@ function FindReplaceBar({
     <LabToolbar>
       <LabSection label="Find & replace" hint="20,000-row sheet">
         <LabRow>
-          <LabField
-            label="Find"
-            value={needle}
-            onChange={onNeedle}
-            width={200}
-          />
+          <LabField label="Find" value={needle} onChange={onNeedle} width={200} />
           <LabField
             label="Replace with"
             value={replacement}

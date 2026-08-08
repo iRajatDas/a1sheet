@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
-  FILTER_VIEW_MISSING,
   activateFilterView,
   colorMovedToTopMessage,
   createFilterView,
   deleteFilterView,
+  FILTER_VIEW_MISSING,
   normalizeColumnFilter,
   rowMatchesColumnFilter,
 } from "./filters.js";
-import { GridError, isGridError } from "./gridErrors.js";
+import { type GridError, isGridError } from "./gridErrors.js";
 import { makeSheet } from "./sheet.js";
 import { sortByColor } from "./sortByColor.js";
 
